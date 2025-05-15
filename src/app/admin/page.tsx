@@ -5,21 +5,11 @@ import { ProtectedPage } from "@/components/ProtectedPage";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { User, Briefcase, ShieldAlert } from "lucide-react";
-import type { User as UserType } from "@/types"; // Assuming User type is defined in @/types
-
-// Mock data - in a real app, this would come from an API
-const mockClients: UserType[] = [
-  { id: "client1", name: "Alice Johnson", email: "alice.j@example.com", role: "client", avatarUrl: "https://placehold.co/40x40.png?text=AJ", bio: "Looking for web dev services." },
-  { id: "client2", name: "Bob Williams", email: "bob.w@example.net", role: "client", avatarUrl: "https://placehold.co/40x40.png?text=BW" },
-  { id: "client3", name: "Carol Davis", email: "carol.d@example.org", role: "client", avatarUrl: "https://placehold.co/40x40.png?text=CD" },
-];
-
-const mockDevelopers: UserType[] = [
-  { id: "dev1", name: "David Lee", email: "david.lee@example.dev", role: "developer", avatarUrl: "https://placehold.co/40x40.png?text=DL", skills: ["React", "Node.js", "GraphQL"] },
-  { id: "dev2", name: "Eva Chen", email: "eva.c@example.dev", role: "developer", avatarUrl: "https://placehold.co/40x40.png?text=EC", skills: ["Python", "Django", "AWS"] },
-  { id: "dev3", name: "Frank Miller", email: "frank.m@example.dev", role: "developer", avatarUrl: "https://placehold.co/40x40.png?text=FM", skills: ["Vue.js", "Firebase", "TypeScript"] },
-];
+import { Button } from "@/components/ui/button";
+import { User, Briefcase, ShieldAlert, Eye } from "lucide-react";
+import type { User as UserType } from "@/types";
+import { mockClients, mockDevelopers } from "@/lib/mockData"; // Import mock data
+import Link from "next/link";
 
 export default function AdminPage() {
   return (
@@ -103,8 +93,12 @@ function UserTable({ users }: UserTableProps) {
               </TableCell>
             )}
             <TableCell className="text-right">
-              {/* Placeholder for actions like Edit, Delete, View Profile */}
-              <Badge variant="outline" className="cursor-pointer hover:bg-muted">View</Badge>
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/admin/users/${user.id}`}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  View
+                </Link>
+              </Button>
             </TableCell>
           </TableRow>
         ))}
