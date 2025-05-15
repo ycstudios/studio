@@ -10,21 +10,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Briefcase, UserCircle2, FileText, AlertTriangle, Info, Loader2 } from "lucide-react";
 import type { User as UserType } from "@/types";
-import { useAuth } from "@/contexts/AuthContext"; // Import useAuth
+import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 
 export default function AdminUserDetailPage() {
   const params = useParams();
   const router = useRouter();
   const userId = params.userId as string;
-  const { allUsers, isLoading: authLoading } = useAuth(); // Get allUsers from AuthContext
+  const { allUsers, isLoading: authLoading } = useAuth(); // allUsers will be initially empty
 
   const [user, setUser] = useState<UserType | null | undefined>(undefined); // undefined initially, null if not found
 
   useEffect(() => {
+    // In a real app, if allUsers is empty, you might fetch the specific user by ID from Firestore here.
+    // For now, we rely on allUsers being populated (which it won't be until Firestore fetch is added).
     if (!authLoading && userId) {
       const foundUser = allUsers.find(u => u.id === userId);
-      setUser(foundUser || null);
+      setUser(foundUser || null); // Will likely be null if allUsers is empty
     }
   }, [allUsers, userId, authLoading]);
 
@@ -41,7 +43,7 @@ export default function AdminUserDetailPage() {
       <ProtectedPage allowedRoles={["admin"]}>
         <div className="container mx-auto p-4 md:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
           <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
-          <p className="text-muted-foreground">Loading user details...</p>
+          <p className="text-muted-foreground">Loading user details... (Waiting for Firestore data)</p>
         </div>
       </ProtectedPage>
     );
@@ -53,7 +55,7 @@ export default function AdminUserDetailPage() {
         <div className="container mx-auto p-4 md:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
           <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
           <h1 className="text-2xl font-semibold mb-2">User Not Found</h1>
-          <p className="text-muted-foreground">The user with ID '{userId}' could not be found in the current session data.</p>
+          <p className="text-muted-foreground">The user with ID '{userId}' could not be found. This may be because user data hasn't been loaded from Firestore yet.</p>
           <Button onClick={() => router.push('/admin')} className="mt-6">
             <ArrowLeft className="mr-2 h-4 w-4" /> Go Back to Admin Panel
           </Button>
@@ -135,14 +137,12 @@ export default function AdminUserDetailPage() {
             <div className="flex items-center justify-center text-center p-8 border-2 border-dashed rounded-lg">
               <Info className="h-8 w-8 text-muted-foreground mr-3" />
               <p className="text-muted-foreground">
-                {user.role === "client" ? "Client project history, submitted projects, and communication logs would appear here." : "Developer project applications, completed projects, and engagement metrics would appear here."}
-                <br />
-                (This is a placeholder. Full history requires database integration.)
+                {user.role === "client" ? "Client project history, submitted projects, and communication logs will appear here once Firestore integration is complete." : "Developer project applications, completed projects, and engagement metrics will appear here once Firestore integration is complete."}
               </p>
             </div>
           </CardContent>
            <CardFooter className="text-xs text-muted-foreground">
-            Note: Full history tracking and persistence require backend database integration. This view reflects session data.
+            Note: Full history tracking and persistence require backend database integration with Firestore.
           </CardFooter>
         </Card>
 
