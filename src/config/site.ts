@@ -8,7 +8,7 @@ export type NavItem = {
   roles?: UserRole[]; // Specify which roles can see this link
 };
 
-export type UserRole = "client" | "developer";
+export type UserRole = "client" | "developer" | "admin";
 
 export type SiteConfig = {
   name: string;
@@ -57,5 +57,11 @@ export const siteConfig: SiteConfig = {
       href: "/billing",
       authRequired: true,
     },
+    {
+      title: "Admin Panel",
+      href: "/admin",
+      authRequired: true,
+      roles: ["admin"],
+    }
   ],
 };

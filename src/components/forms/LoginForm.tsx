@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
+import type { UserRole } from "@/config/site";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -38,20 +39,21 @@ export function LoginForm() {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    // Mock login
     console.log("Login attempt with:", values);
-    // In a real app, you'd call an API here.
-    // For mock, let's assume login is successful if email contains "client" or "dev"
-    let role: "client" | "developer" = "client";
-    if (values.email.toLowerCase().includes("developer")) {
+    
+    let role: UserRole;
+    const emailLowerCase = values.email.toLowerCase();
+
+    if (emailLowerCase === "admin@example.com") {
+      role = "admin";
+    } else if (emailLowerCase.includes("developer")) {
       role = "developer";
-    } else if (values.email.toLowerCase().includes("client")) {
+    } else if (emailLowerCase.includes("client")) {
       role = "client";
     } else {
-        // Default to client if no specific keyword, or show error
         toast({
             title: "Login Failed",
-            description: "Invalid credentials. Use 'client@example.com' or 'dev@example.com' for demo.",
+            description: "Invalid credentials. Use 'client@example.com', 'dev@example.com', or 'admin@example.com' for demo.",
             variant: "destructive",
         });
         return;
@@ -59,7 +61,7 @@ export function LoginForm() {
 
     login({
       id: Math.random().toString(36).substring(7),
-      name: values.email.split('@')[0], // Simple name from email
+      name: values.email.split('@')[0], 
       email: values.email,
       role: role,
       avatarUrl: `https://placehold.co/100x100.png?text=${values.email[0].toUpperCase()}`
@@ -69,14 +71,19 @@ export function LoginForm() {
       title: "Login Successful",
       description: `Welcome back, ${values.email.split('@')[0]}!`,
     });
-    router.push("/dashboard");
+    
+    if (role === "admin") {
+      router.push("/admin");
+    } else {
+      router.push("/dashboard");
+    }
   }
 
   return (
     <Card className="w-full max-w-md shadow-xl">
       <CardHeader>
         <CardTitle className="text-2xl">Login to DevConnect</CardTitle>
-        <CardDescription>Enter your credentials to access your account.</CardDescription>
+        <CardDescription>Enter your credentials to access your account. (Use 'admin@example.com' for admin access)</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>

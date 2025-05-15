@@ -6,6 +6,8 @@ export interface User {
   email: string;
   role: UserRole;
   avatarUrl?: string;
+  bio?: string; // Added for potential profile completeness
+  skills?: string[]; // Added for developer profiles
 }
 
 export interface Project {
