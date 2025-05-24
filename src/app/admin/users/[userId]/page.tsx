@@ -10,25 +10,43 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Briefcase, UserCircle2, FileText, AlertTriangle, Info, Loader2 } from "lucide-react";
 import type { User as UserType } from "@/types";
-import { useAuth } from "@/contexts/AuthContext";
-import Link from "next/link";
+import { getUserById } from "@/lib/firebaseService"; // Import Firestore service
+import { useToast } from "@/hooks/use-toast";
 
 export default function AdminUserDetailPage() {
   const params = useParams();
   const router = useRouter();
   const userId = params.userId as string;
-  const { allUsers, isLoading: authLoading } = useAuth(); // allUsers will be initially empty
+  const { toast } = useToast();
 
-  const [user, setUser] = useState<UserType | null | undefined>(undefined); // undefined initially, null if not found
+  const [user, setUser] = useState<UserType | null | undefined>(undefined); // undefined: loading, null: not found
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // In a real app, if allUsers is empty, you might fetch the specific user by ID from Firestore here.
-    // For now, we rely on allUsers being populated (which it won't be until Firestore fetch is added).
-    if (!authLoading && userId) {
-      const foundUser = allUsers.find(u => u.id === userId);
-      setUser(foundUser || null); // Will likely be null if allUsers is empty
+    if (userId) {
+      const fetchUser = async () => {
+        setIsLoading(true);
+        try {
+          const fetchedUser = await getUserById(userId);
+          setUser(fetchedUser);
+        } catch (error) {
+          console.error("Failed to fetch user:", error);
+          toast({
+            title: "Error Fetching User",
+            description: "Could not retrieve user details from the database.",
+            variant: "destructive",
+          });
+          setUser(null); // Set to null on error
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchUser();
+    } else {
+      setIsLoading(false);
+      setUser(null); // No userId, so no user
     }
-  }, [allUsers, userId, authLoading]);
+  }, [userId, toast]);
 
   const getInitials = (name: string = "User") => {
     const names = name.split(' ');
@@ -38,24 +56,24 @@ export default function AdminUserDetailPage() {
     return name.substring(0, 2).toUpperCase();
   };
 
-  if (authLoading || user === undefined) {
+  if (isLoading || user === undefined) { // user === undefined means initial loading state
     return (
       <ProtectedPage allowedRoles={["admin"]}>
         <div className="container mx-auto p-4 md:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
           <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
-          <p className="text-muted-foreground">Loading user details... (Waiting for Firestore data)</p>
+          <p className="text-muted-foreground">Loading user details from database...</p>
         </div>
       </ProtectedPage>
     );
   }
 
-  if (!user) {
+  if (!user) { // user === null means user not found or error fetching
     return (
       <ProtectedPage allowedRoles={["admin"]}>
         <div className="container mx-auto p-4 md:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
           <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
           <h1 className="text-2xl font-semibold mb-2">User Not Found</h1>
-          <p className="text-muted-foreground">The user with ID '{userId}' could not be found. This may be because user data hasn't been loaded from Firestore yet.</p>
+          <p className="text-muted-foreground">The user with ID '{userId}' could not be found in the database.</p>
           <Button onClick={() => router.push('/admin')} className="mt-6">
             <ArrowLeft className="mr-2 h-4 w-4" /> Go Back to Admin Panel
           </Button>
@@ -94,7 +112,7 @@ export default function AdminUserDetailPage() {
           <Card className="lg:col-span-2 shadow-lg">
             <CardHeader>
               <CardTitle>User Details</CardTitle>
-              <CardDescription>Viewing profile information for {user.name}.</CardDescription>
+              <CardDescription>Viewing profile information for {user.name} from Firestore.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -137,12 +155,12 @@ export default function AdminUserDetailPage() {
             <div className="flex items-center justify-center text-center p-8 border-2 border-dashed rounded-lg">
               <Info className="h-8 w-8 text-muted-foreground mr-3" />
               <p className="text-muted-foreground">
-                {user.role === "client" ? "Client project history, submitted projects, and communication logs will appear here once Firestore integration is complete." : "Developer project applications, completed projects, and engagement metrics will appear here once Firestore integration is complete."}
+                {user.role === "client" ? "Client project history, submitted projects, and communication logs will appear here once implemented with Firestore." : "Developer project applications, completed projects, and engagement metrics will appear here once implemented with Firestore."}
               </p>
             </div>
           </CardContent>
            <CardFooter className="text-xs text-muted-foreground">
-            Note: Full history tracking and persistence require backend database integration with Firestore.
+            Note: Full history tracking requires further backend integration.
           </CardFooter>
         </Card>
 

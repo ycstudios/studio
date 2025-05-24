@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,6 +27,10 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import type { UserRole } from "@/config/site";
+import { addUser } from "@/lib/firebaseService"; // Import addUser
+import type { User } from "@/types";
+import { Loader2 } from "lucide-react";
+import { useState } from "react";
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -39,9 +44,10 @@ const formSchema = z.object({
 });
 
 export function SignupForm() {
-  const { login } = useAuth();
+  const { login, setAllUsers } = useAuth(); // Get setAllUsers to update context
   const router = useRouter();
   const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -54,23 +60,46 @@ export function SignupForm() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    // Mock signup
-    console.log("Signup attempt with:", values);
-    // In a real app, you'd call an API here.
-    login({
-      id: Math.random().toString(36).substring(7),
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setIsSubmitting(true);
+    const userId = Math.random().toString(36).substring(2, 15); // Generate a simple unique ID
+
+    const newUser: User = {
+      id: userId, // Explicitly set ID here
       name: values.name,
       email: values.email,
       role: values.role as UserRole,
-      avatarUrl: `https://placehold.co/100x100.png?text=${values.name[0].toUpperCase()}`
-    });
+      avatarUrl: `https://placehold.co/100x100.png?text=${values.name[0].toUpperCase()}`,
+      bio: `New ${values.role} on DevConnect.`, // Default bio
+      skills: values.role === "developer" ? ["New Developer"] : [], // Default skills for developers
+    };
 
-    toast({
-      title: "Signup Successful",
-      description: `Welcome to DevConnect, ${values.name}!`,
-    });
-    router.push("/dashboard");
+    try {
+      const savedUser = await addUser(newUser); // Save to Firestore, addUser now returns the saved user
+      
+      // Update local auth context (for current session)
+      login(savedUser); 
+      
+      // Update the allUsers list in AuthContext
+      setAllUsers(prevUsers => [...prevUsers, savedUser].sort((a, b) => a.name.localeCompare(b.name)));
+
+
+      toast({
+        title: "Signup Successful",
+        description: `Welcome to DevConnect, ${values.name}! User saved to database.`,
+      });
+      router.push("/dashboard");
+
+    } catch (error) {
+      console.error("Signup error:", error);
+      toast({
+        title: "Signup Failed",
+        description: (error as Error).message || "Could not save user to database. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -89,7 +118,7 @@ export function SignupForm() {
                 <FormItem>
                   <FormLabel>Full Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="John Doe" {...field} />
+                    <Input placeholder="John Doe" {...field} disabled={isSubmitting} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -102,7 +131,7 @@ export function SignupForm() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input placeholder="you@example.com" {...field} />
+                    <Input placeholder="you@example.com" {...field} disabled={isSubmitting} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -115,7 +144,7 @@ export function SignupForm() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
+                    <Input type="password" placeholder="••••••••" {...field} disabled={isSubmitting} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -128,7 +157,7 @@ export function SignupForm() {
                 <FormItem>
                   <FormLabel>Confirm Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
+                    <Input type="password" placeholder="••••••••" {...field} disabled={isSubmitting} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -140,7 +169,7 @@ export function SignupForm() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>I am a...</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select your role" />
@@ -155,7 +184,10 @@ export function SignupForm() {
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full">Create Account</Button>
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSubmitting ? "Creating Account..." : "Create Account"}
+            </Button>
           </form>
         </Form>
         <p className="mt-6 text-center text-sm text-muted-foreground">

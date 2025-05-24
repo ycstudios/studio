@@ -1,89 +1,222 @@
+
+import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, Briefcase, Users, Zap } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { CheckCircle, Briefcase, Users, Zap, Target, Search, MessageSquare, ThumbsUp, UserCheck, HelpCircle, ArrowRight, Quote, UserPlus, CircleHelp } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { BenefitListItem } from "@/components/BenefitListItem"; // Import the new component
 
 export default function HomePage() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)]">
-      <section className="w-full py-12 md:py-24 lg:py-32 xl:py-48 bg-gradient-to-br from-primary/10 via-background to-background">
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] bg-background text-foreground">
+      {/* Hero Section */}
+      <section className="w-full py-12 md:py-20 lg:py-28 bg-gradient-to-br from-primary/10 via-background to-accent/10">
         <div className="container px-4 md:px-6">
-          <div className="grid gap-6 lg:grid-cols-[1fr_400px] lg:gap-12 xl:grid-cols-[1fr_600px]">
-            <div className="flex flex-col justify-center space-y-4">
-              <div className="space-y-2">
-                <h1 className="text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
-                  Connect with Top Developers, Effortlessly
+          <div className="grid gap-8 lg:grid-cols-2 lg:gap-16 items-center">
+            <div className="flex flex-col justify-center space-y-6">
+              <div className="space-y-3">
+                <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
+                  Connect, Collaborate, Create.
                 </h1>
                 <p className="max-w-[600px] text-muted-foreground md:text-xl">
-                  DevConnect uses AI to match your project with the perfect freelance developers. Get quality work done, faster.
+                  DevConnect is your AI-powered platform to seamlessly match innovative projects with expert freelance developers. Build your vision, faster.
                 </p>
               </div>
-              <div className="flex flex-col gap-2 min-[400px]:flex-row">
-                <Button size="lg" asChild>
-                  <Link href="/signup">Get Started</Link>
+              <div className="flex flex-col gap-3 min-[400px]:flex-row">
+                <Button size="lg" asChild className="shadow-lg hover:shadow-primary/30 transition-shadow">
+                  <Link href="/signup">Get Started Free</Link>
                 </Button>
-                <Button size="lg" variant="outline" asChild>
-                  <Link href="/login">I have an account</Link>
+                <Button size="lg" variant="outline" asChild className="shadow-sm hover:shadow-md transition-shadow">
+                  <Link href="/projects/new">Post a Project</Link>
                 </Button>
               </div>
             </div>
             <Image
-              src="https://placehold.co/600x400.png"
-              width="600"
-              height="400"
-              alt="Hero"
-              data-ai-hint="team collaboration"
-              className="mx-auto aspect-video overflow-hidden rounded-xl object-cover sm:w-full lg:order-last lg:aspect-square shadow-lg"
+              src="https://placehold.co/700x500.png"
+              width="700"
+              height="500"
+              alt="Team collaborating on a project"
+              data-ai-hint="modern office collaboration"
+              className="mx-auto aspect-video overflow-hidden rounded-xl object-cover shadow-2xl transform hover:scale-105 transition-transform duration-300"
             />
           </div>
         </div>
       </section>
 
-      <section className="w-full py-12 md:py-24 lg:py-32">
+      {/* How It Works Section */}
+      <section className="w-full py-16 md:py-24 lg:py-32 bg-muted/30">
         <div className="container px-4 md:px-6">
           <div className="flex flex-col items-center justify-center space-y-4 text-center mb-12">
-            <div className="space-y-2">
-              <div className="inline-block rounded-lg bg-muted px-3 py-1 text-sm">Key Features</div>
-              <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">Why Choose DevConnect?</h2>
-              <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                We streamline the process of finding and hiring skilled developers, so you can focus on building great products.
-              </p>
-            </div>
+            <div className="inline-block rounded-lg bg-secondary px-4 py-1.5 text-sm font-semibold text-secondary-foreground">How DevConnect Works</div>
+            <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl">Simple Steps to Success</h2>
+            <p className="max-w-[700px] text-muted-foreground md:text-lg">
+              We've streamlined the process so you can focus on what matters most.
+            </p>
           </div>
-          <div className="mx-auto grid max-w-5xl items-start gap-8 sm:grid-cols-2 md:gap-12 lg:grid-cols-3">
-            <FeatureCard
-              icon={<Zap className="h-8 w-8 text-primary" />}
-              title="AI-Powered Matchmaking"
-              description="Our intelligent system analyzes your project needs to find the best-fit developers."
+          <div className="mx-auto grid max-w-5xl gap-8 sm:grid-cols-1 md:grid-cols-3 lg:gap-12">
+            <HowItWorksStep
+              icon={<UserPlus className="h-10 w-10 text-primary" />}
+              step="1. Sign Up"
+              description="Create your account as a client looking to hire or a developer seeking projects."
             />
-            <FeatureCard
-              icon={<Briefcase className="h-8 w-8 text-primary" />}
-              title="Project Submission"
-              description="Easily submit your project details and requirements through our intuitive platform."
+            <HowItWorksStep
+              icon={<Briefcase className="h-10 w-10 text-primary" />}
+              step="2. Post or Find Projects"
+              description="Clients post project details. Developers browse opportunities or get matched by our AI."
             />
-            <FeatureCard
-              icon={<Users className="h-8 w-8 text-primary" />}
-              title="Verified Developers"
-              description="Access a pool of skilled and vetted developers ready to take on your project."
+            <HowItWorksStep
+              icon={<Zap className="h-10 w-10 text-primary" />}
+              step="3. AI Matchmaking"
+              description="Our intelligent system connects clients with the most suitable developers based on skills and project needs."
+            />
+          </div>
+        </div>
+      </section>
+      
+      {/* For Clients Section */}
+      <section className="w-full py-16 md:py-24 lg:py-32">
+        <div className="container px-4 md:px-6">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <div className="inline-block rounded-lg bg-primary/10 px-4 py-1.5 text-sm font-semibold text-primary mb-4">For Clients</div>
+              <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl mb-6">Find Your Perfect Developer, Stress-Free</h2>
+              <p className="text-muted-foreground md:text-lg mb-8">
+                Stop sifting through endless profiles. DevConnect brings top-tier talent directly to you, tailored to your project's unique requirements.
+              </p>
+              <ul className="space-y-4">
+                <BenefitListItem icon={<Target className="text-accent" />} text="AI-Powered Matching: Get precise developer recommendations." />
+                <BenefitListItem icon={<Search className="text-accent" />} text="Access Vetted Talent: Connect with skilled and reliable professionals." />
+                <BenefitListItem icon={<MessageSquare className="text-accent" />} text="Streamlined Communication: Manage your projects and collaborate efficiently." />
+              </ul>
+              <Button size="lg" asChild className="mt-8">
+                <Link href="/projects/new">Post Your Project <ArrowRight className="ml-2 h-5 w-5" /></Link>
+              </Button>
+            </div>
+            <Image
+              src="https://placehold.co/600x450.png"
+              width="600"
+              height="450"
+              alt="Client reviewing developer profiles"
+              data-ai-hint="client meeting business"
+              className="mx-auto rounded-xl object-cover shadow-lg"
             />
           </div>
         </div>
       </section>
 
-      <section className="w-full py-12 md:py-24 lg:py-32 bg-muted/50">
-        <div className="container grid items-center justify-center gap-4 px-4 text-center md:px-6">
-          <div className="space-y-3">
+      {/* For Developers Section */}
+      <section className="w-full py-16 md:py-24 lg:py-32 bg-muted/30">
+        <div className="container px-4 md:px-6">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+             <Image
+              src="https://placehold.co/600x450.png"
+              width="600"
+              height="450"
+              alt="Developer working on a laptop"
+              data-ai-hint="developer coding programming"
+              className="mx-auto rounded-xl object-cover shadow-lg lg:order-last"
+            />
+            <div>
+              <div className="inline-block rounded-lg bg-accent/10 px-4 py-1.5 text-sm font-semibold text-accent mb-4">For Developers</div>
+              <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl mb-6">Land Exciting Projects That Match Your Skills</h2>
+              <p className="text-muted-foreground md:text-lg mb-8">
+                Focus on what you do best – coding. DevConnect brings you relevant project opportunities, so you can build amazing things.
+              </p>
+              <ul className="space-y-4">
+                <BenefitListItem icon={<UserCheck className="text-primary" />} text="Curated Opportunities: Find projects aligned with your expertise." />
+                <BenefitListItem icon={<Zap className="text-primary" />} text="AI-Assisted Matching: Get noticed for your unique talents." />
+                <BenefitListItem icon={<ThumbsUp className="text-primary" />} text="Build Your Portfolio: Work on diverse projects and grow your career." />
+              </ul>
+              <Button size="lg" asChild className="mt-8">
+                <Link href="/signup">Join as a Developer <ArrowRight className="ml-2 h-5 w-5" /></Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials Section */}
+      <section className="w-full py-16 md:py-24 lg:py-32">
+        <div className="container px-4 md:px-6">
+          <div className="flex flex-col items-center justify-center space-y-4 text-center mb-12">
+            <div className="inline-block rounded-lg bg-secondary px-4 py-1.5 text-sm font-semibold text-secondary-foreground">What Our Users Say</div>
+            <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl">Trusted by Innovators and Builders</h2>
+          </div>
+          <div className="mx-auto grid max-w-5xl gap-8 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            <TestimonialCard
+              quote="DevConnect's AI matchmaking was spot on! Found the perfect developer for my startup in days, not weeks."
+              name="Sarah L., CEO of TechBloom"
+              avatarHint="female ceo portrait"
+            />
+            <TestimonialCard
+              quote="As a developer, I love how DevConnect brings relevant projects to me. It's saved me so much time."
+              name="Mike R., Full-Stack Developer"
+              avatarHint="male developer happy"
+            />
+            <TestimonialCard
+              quote="The platform is intuitive and made the hiring process incredibly smooth. Highly recommend!"
+              name="Jessica P., Project Manager at Innovate Inc."
+              avatarHint="female manager professional"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="w-full py-16 md:py-24 lg:py-32 bg-muted/30">
+        <div className="container px-4 md:px-6 max-w-3xl mx-auto">
+          <div className="flex flex-col items-center justify-center space-y-4 text-center mb-12">
+            <CircleHelp className="h-12 w-12 text-primary" /> {/* Replaced HelpCircle with CircleHelp if HelpCircle doesn't exist */}
+            <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl">Frequently Asked Questions</h2>
+          </div>
+          <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="item-1">
+              <AccordionTrigger className="text-lg hover:text-primary">How does the AI matchmaking work?</AccordionTrigger>
+              <AccordionContent className="text-muted-foreground">
+                Our AI analyzes project requirements, desired skills, budget, and timeline, then matches them against developer profiles, skills, experience, and availability to provide the most relevant connections.
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="item-2">
+              <AccordionTrigger className="text-lg hover:text-primary">Is DevConnect free to use?</AccordionTrigger>
+              <AccordionContent className="text-muted-foreground">
+                Signing up and browsing is free for both clients and developers. We offer various plans for posting projects and accessing premium features. (Note: This is a placeholder, actual pricing model TBD).
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="item-3">
+              <AccordionTrigger className="text-lg hover:text-primary">How are developers vetted?</AccordionTrigger>
+              <AccordionContent className="text-muted-foreground">
+                We have a verification process that includes portfolio reviews and skill assessments to ensure a high standard of talent on the platform. (Note: This is a placeholder, actual vetting process TBD).
+              </AccordionContent>
+            </AccordionItem>
+             <AccordionItem value="item-4">
+              <AccordionTrigger className="text-lg hover:text-primary">Can I communicate with developers/clients directly?</AccordionTrigger>
+              <AccordionContent className="text-muted-foreground">
+                Yes, once a match is made or a proposal is accepted (depending on the workflow), DevConnect provides tools for direct communication and collaboration.
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </div>
+      </section>
+
+      {/* Final CTA Section */}
+      <section className="w-full py-16 md:py-24 lg:py-32">
+        <div className="container grid items-center justify-center gap-6 px-4 text-center md:px-6">
+          <div className="space-y-4">
             <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">
-              Ready to find your expert developer?
+              Ready to Build Your Next Big Thing?
             </h2>
-            <p className="mx-auto max-w-[600px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-              Join DevConnect today and take the hassle out of hiring.
+            <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl/relaxed">
+              Join DevConnect today. Whether you're a client with an idea or a developer ready for your next challenge, we're here to make the connection.
             </p>
           </div>
-          <div className="mx-auto w-full max-w-sm space-y-2">
-             <Button size="lg" asChild className="w-full md:w-auto">
-                <Link href="/signup">Sign Up Now</Link>
+          <div className="mx-auto w-full max-w-sm space-y-3 sm:flex sm:space-y-0 sm:space-x-4 sm:justify-center">
+             <Button size="lg" asChild className="w-full sm:w-auto shadow-lg hover:shadow-primary/40 transition-shadow">
+                <Link href="/signup">Sign Up - It's Free!</Link>
+              </Button>
+              <Button size="lg" variant="outline" asChild className="w-full sm:w-auto shadow-sm hover:shadow-md transition-shadow">
+                <Link href="/projects/new">Post a Project</Link>
               </Button>
           </div>
         </div>
@@ -92,21 +225,52 @@ export default function HomePage() {
   );
 }
 
-interface FeatureCardProps {
+interface HowItWorksStepProps {
   icon: React.ReactNode;
-  title: string;
+  step: string;
   description: string;
 }
 
-function FeatureCard({ icon, title, description }: FeatureCardProps) {
+function HowItWorksStep({ icon, step, description }: HowItWorksStepProps) {
   return (
-    <Card className="text-left">
-      <CardHeader className="flex flex-row items-center gap-4 pb-2">
+    <div className="flex flex-col items-center text-center p-6 bg-card rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+      <div className="p-4 bg-primary/10 rounded-full mb-4">
         {icon}
-        <CardTitle className="text-xl">{title}</CardTitle>
+      </div>
+      <h3 className="text-xl font-semibold mb-2">{step}</h3>
+      <p className="text-sm text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
+interface TestimonialCardProps {
+  quote: string;
+  name: string;
+  avatarHint: string; // For data-ai-hint
+}
+
+function TestimonialCard({ quote, name, avatarHint }: TestimonialCardProps) {
+  return (
+    <Card className="text-left shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
+      <CardHeader className="pb-4">
+         <Quote className="h-8 w-8 text-primary/50 mb-2" />
+        <CardDescription className="italic text-base text-foreground/80">&quot;{quote}&quot;</CardDescription>
       </CardHeader>
-      <CardContent>
-        <CardDescription>{description}</CardDescription>
+      <CardContent className="flex-grow flex items-end pt-2">
+        <div className="flex items-center space-x-3">
+          <Image 
+            src={`https://placehold.co/50x50.png`}
+            alt={name} 
+            data-ai-hint={avatarHint}
+            width={50} 
+            height={50} 
+            className="rounded-full"
+          />
+          <div>
+            <p className="font-semibold text-sm">{name}</p>
+            {/* <p className="text-xs text-muted-foreground">Role, Company</p> */}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

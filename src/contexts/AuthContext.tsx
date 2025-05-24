@@ -1,56 +1,76 @@
 
 "use client";
 
-import type { UserRole } from "@/config/site";
 import type { User } from "@/types";
 import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
-// import { allMockUsers } from "@/lib/mockData"; // No longer initializing with allMockUsers
+import { getAllUsers } from "@/lib/firebaseService"; // Import Firestore service
+import { useToast } from "@/hooks/use-toast";
 
 interface AuthContextType {
   user: User | null;
-  allUsers: User[]; // This will be populated from Firestore
-  setAllUsers: React.Dispatch<React.SetStateAction<User[]>>; // Allow updating allUsers from Firestore fetches
+  allUsers: User[];
+  setAllUsers: React.Dispatch<React.SetStateAction<User[]>>;
   login: (userData: User) => void;
   logout: () => void;
-  isLoading: boolean;
+  isLoading: boolean; // Indicates loading of current user session AND initial allUsers list
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [allUsers, setAllUsers] = useState<User[]>([]); // Starts empty, to be fetched from Firestore
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
-    // Load current user from localStorage
-    const storedUserString = localStorage.getItem("devconnect_user");
-    if (storedUserString) {
-      try {
-        setUser(JSON.parse(storedUserString));
-      } catch (error) {
-        console.error("Failed to parse stored user:", error);
-        localStorage.removeItem("devconnect_user");
+    const loadInitialData = async () => {
+      setIsLoading(true);
+      // Load current user from localStorage
+      const storedUserString = localStorage.getItem("devconnect_user");
+      if (storedUserString) {
+        try {
+          setUser(JSON.parse(storedUserString));
+        } catch (error) {
+          console.error("Failed to parse stored user:", error);
+          localStorage.removeItem("devconnect_user");
+        }
       }
-    }
-    // Note: Fetching allUsers from Firestore would typically happen here or in the admin panel itself.
-    // For now, allUsers will remain empty until we implement that.
-    setIsLoading(false);
-  }, []);
+
+      // Fetch all users from Firestore
+      try {
+        const usersFromDb = await getAllUsers();
+        setAllUsers(usersFromDb);
+      } catch (error) {
+        console.error("Failed to fetch all users from Firestore:", error);
+        toast({
+          title: "Error Loading Users",
+          description: "Could not fetch user list from the database.",
+          variant: "destructive",
+        });
+        // Set to empty array or handle as appropriate
+        setAllUsers([]); 
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadInitialData();
+  }, [toast]); // Added toast to dependency array
 
   const login = (userData: User) => {
     localStorage.setItem("devconnect_user", JSON.stringify(userData));
     setUser(userData);
-    // Adding the logged-in user to `allUsers` if they aren't there could be a temporary measure
-    // But ideally, `allUsers` is purely from a Firestore source of truth for the admin panel.
-    // For now, we won't modify allUsers here. Sign-up will need to write to Firestore.
+    // Note: allUsers list is primarily managed by the initial fetch and signup.
+    // If a user logs in who isn't in the `allUsers` list (e.g. admin user not signed up via form),
+    // they won't appear in the admin panel unless fetched/added separately.
+    // For now, we assume sign-up is the primary way users get into the `allUsers` list via Firestore.
   };
 
   const logout = () => {
     localStorage.removeItem("devconnect_user");
     setUser(null);
-    // `allUsers` list remains as is (which is typically empty or from a previous Firestore fetch)
-    // or could be cleared: setAllUsers([]);
+    // `allUsers` list could be re-fetched or cleared if desired, but for now, it remains.
   };
 
   return (

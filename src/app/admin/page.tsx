@@ -11,32 +11,25 @@ import type { User as UserType } from "@/types";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
-// We'll fetch users from Firestore in a later step. For now, useAuth().allUsers will be empty.
 
 export default function AdminPage() {
-  const { allUsers, isLoading: authLoading, user } = useAuth();
+  const { allUsers, isLoading: authLoading } = useAuth(); // authLoading now covers initial allUsers fetch
   const [clients, setClients] = useState<UserType[]>([]);
   const [developers, setDevelopers] = useState<UserType[]>([]);
-  const [isFetchingUsers, setIsFetchingUsers] = useState(true); // To simulate initial fetch
 
   useEffect(() => {
-    // In a real scenario, you'd fetch users from Firestore here
-    // For now, we rely on allUsers from AuthContext which starts empty
-    // and will be populated once Firestore fetching is implemented.
-    if (!authLoading) {
-      // Simulate a fetch or processing delay if needed, or directly use allUsers
+    if (!authLoading && allUsers) {
       setClients(allUsers.filter(u => u.role === 'client'));
       setDevelopers(allUsers.filter(u => u.role === 'developer'));
-      setIsFetchingUsers(false); // Done "fetching"
     }
   }, [allUsers, authLoading]);
 
-  if (authLoading || isFetchingUsers) {
+  if (authLoading) {
     return (
       <ProtectedPage allowedRoles={["admin"]}>
         <div className="container mx-auto p-4 md:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
           <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
-          <p className="text-muted-foreground">Loading users...</p>
+          <p className="text-muted-foreground">Loading users from database...</p>
         </div>
       </ProtectedPage>
     );
@@ -50,7 +43,7 @@ export default function AdminPage() {
             <ShieldAlert className="mr-3 h-8 w-8 text-primary" />
             Admin Panel
           </h1>
-          <p className="text-muted-foreground">Manage users and platform settings. (User data will be live from Firestore soon)</p>
+          <p className="text-muted-foreground">Manage users registered on the platform (data from Firestore).</p>
         </header>
 
         <div className="grid grid-cols-1 gap-8">
@@ -80,13 +73,13 @@ export default function AdminPage() {
             </CardContent>
           </Card>
         </div>
-         {allUsers.length === 0 && !isFetchingUsers && (
+         {allUsers.length === 0 && !authLoading && (
           <Card className="mt-8 shadow-md">
             <CardContent className="p-8 text-center">
               <Info className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-xl font-semibold mb-2">No Users Found</h3>
+              <h3 className="text-xl font-semibold mb-2">No Users Found in Database</h3>
               <p className="text-muted-foreground">
-                The user list is currently empty. Once users are added to Firestore (e.g., via signup), they will appear here.
+                The user list from Firestore is currently empty. Once users sign up, they will appear here.
               </p>
             </CardContent>
           </Card>
@@ -102,7 +95,7 @@ interface UserTableProps {
 
 function UserTable({ users }: UserTableProps) {
   if (users.length === 0) {
-    return <p className="text-muted-foreground text-center py-4">No users in this category found in the current data.</p>;
+    return <p className="text-muted-foreground text-center py-4">No users in this category found in the database.</p>;
   }
 
   return (
