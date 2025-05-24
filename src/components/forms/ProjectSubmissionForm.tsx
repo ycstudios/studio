@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,7 +21,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Loader2, Users, Zap } from "lucide-react";
 import React, { useState, useTransition } from "react";
 import { matchDevelopers, MatchDevelopersInput, MatchDevelopersOutput } from "@/ai/flows/match-developers";
-import { DeveloperCard } from "@/components/DeveloperCard"; // Will create this next
+import { DeveloperCard } from "@/components/DeveloperCard";
+import { addProject } from "@/lib/firebaseService"; // Import addProject
+import { useAuth } from "@/contexts/AuthContext"; // Import useAuth
+import type { Project } from "@/types";
 
 const formSchema = z.object({
   projectName: z.string().min(3, { message: "Project name must be at least 3 characters." }),
@@ -32,7 +36,9 @@ const formSchema = z.object({
 
 export function ProjectSubmissionForm() {
   const { toast } = useToast();
+  const { user } = useAuth(); // Get the logged-in user
   const [isPending, startTransition] = useTransition();
+  const [isSavingProject, setIsSavingProject] = useState(false);
   const [matchResult, setMatchResult] = useState<MatchDevelopersOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,8 +54,14 @@ export function ProjectSubmissionForm() {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!user) {
+      toast({ title: "Error", description: "You must be logged in to submit a project.", variant: "destructive" });
+      return;
+    }
+
     setError(null);
     setMatchResult(null);
+    setIsSavingProject(false);
 
     const inputForAI: MatchDevelopersInput = {
       projectRequirements: values.projectRequirements,
@@ -60,20 +72,42 @@ export function ProjectSubmissionForm() {
 
     startTransition(async () => {
       try {
+        // 1. Run AI Matchmaking
         const result = await matchDevelopers(inputForAI);
         setMatchResult(result);
         toast({
           title: "Matchmaking Complete!",
-          description: "We've found potential developers for your project.",
+          description: "We've found potential developers. Saving your project...",
         });
-      } catch (e) {
-        console.error("Matchmaking error:", e);
-        setError("Failed to find matches. Please try again later.");
+
+        // 2. Save Project to Firestore
+        setIsSavingProject(true);
+        const projectToSave: Omit<Project, 'id' | 'createdAt' | 'status' | 'clientId'> = {
+          name: values.projectName,
+          description: values.projectRequirements,
+          requiredSkills: inputForAI.requiredSkills,
+          availability: values.availability,
+          timeZone: values.timeZone,
+          // budget and other fields can be added here if they are part of the form/Project type
+        };
+        await addProject(projectToSave, user.id);
         toast({
-          title: "Matchmaking Error",
-          description: "An error occurred while finding developers. Please try again.",
+          title: "Project Saved!",
+          description: "Your project has been successfully saved to the database.",
+        });
+        form.reset(); // Optionally reset the form after successful submission
+
+      } catch (e) {
+        console.error("Project submission or matchmaking error:", e);
+        const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred.";
+        setError(`Failed to submit project or find matches: ${errorMessage}`);
+        toast({
+          title: "Submission Error",
+          description: `An error occurred: ${errorMessage}`,
           variant: "destructive",
         });
+      } finally {
+        setIsSavingProject(false);
       }
     });
   }
@@ -86,7 +120,7 @@ export function ProjectSubmissionForm() {
             <Zap className="mr-2 h-6 w-6 text-primary" /> Submit Your Project & Find Developers
           </CardTitle>
           <CardDescription>
-            Fill in the details below. Our AI will help match you with the best developers.
+            Fill in the details below. Our AI will help match you with the best developers, and your project will be saved.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -170,15 +204,15 @@ export function ProjectSubmissionForm() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={isPending}>
-                {isPending ? (
+              <Button type="submit" className="w-full" disabled={isPending || isSavingProject}>
+                {(isPending || isSavingProject) ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Finding Matches...
+                    {isPending && !isSavingProject ? "Finding Matches..." : "Processing..."}
                   </>
                 ) : (
                   <>
-                    <Users className="mr-2 h-4 w-4" /> Find Developers
+                    <Users className="mr-2 h-4 w-4" /> Find Developers & Save Project
                   </>
                 )}
               </Button>
@@ -187,7 +221,7 @@ export function ProjectSubmissionForm() {
         </CardContent>
       </Card>
 
-      {isPending && (
+      {isPending && !isSavingProject && (
         <Card className="w-full max-w-2xl mx-auto shadow-xl">
           <CardHeader>
             <CardTitle>Searching for Developers...</CardTitle>
@@ -202,7 +236,7 @@ export function ProjectSubmissionForm() {
       {error && (
         <Card className="w-full max-w-2xl mx-auto border-destructive shadow-xl">
           <CardHeader>
-            <CardTitle className="text-destructive">Matchmaking Failed</CardTitle>
+            <CardTitle className="text-destructive">Operation Failed</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-destructive-foreground">{error}</p>
@@ -214,7 +248,7 @@ export function ProjectSubmissionForm() {
         <Card className="w-full max-w-2xl mx-auto shadow-xl">
           <CardHeader>
             <CardTitle className="text-2xl">Developer Matches Found!</CardTitle>
-            <CardDescription>Based on your project details, here are some potential developers:</CardDescription>
+            <CardDescription>Based on your project details, here are some potential developers. Your project has also been saved.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div>
@@ -226,13 +260,11 @@ export function ProjectSubmissionForm() {
             {matchResult.developerMatches.length > 0 ? (
               <div className="space-y-4">
                 {matchResult.developerMatches.map((devProfileText, index) => (
-                  // This is a simplified display. Ideally, devProfileText would be structured data.
-                  // For now, we treat it as a string description.
                   <DeveloperCard 
                     key={index} 
-                    name={`Potential Developer ${index + 1}`} // Placeholder name
+                    name={`Potential Developer ${index + 1}`}
                     description={devProfileText} 
-                    skills={form.getValues("requiredSkills").split(",").map(s => s.trim())} // Use skills from form as example
+                    skills={form.getValues("requiredSkills").split(",").map(s => s.trim())}
                     dataAiHint="developer profile"
                   />
                 ))}

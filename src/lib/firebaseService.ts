@@ -1,10 +1,11 @@
 
 // src/lib/firebaseService.ts
-import { collection, doc, setDoc, getDocs, getDoc, query, orderBy, Timestamp } from "firebase/firestore";
+import { collection, doc, setDoc, getDocs, getDoc, query, orderBy, Timestamp, where, addDoc } from "firebase/firestore";
 import { db } from "./firebase"; // Your Firebase app instance
-import type { User } from "@/types";
+import type { User, Project } from "@/types";
 
 const USERS_COLLECTION = "users";
+const PROJECTS_COLLECTION = "projects";
 
 /**
  * Adds a new user to the Firestore 'users' collection.
@@ -16,7 +17,6 @@ export async function addUser(userData: Omit<User, 'id'> & { id?: string }): Pro
     ...userData,
     id: userId,
     createdAt: Timestamp.now(),
-    // Ensure default empty strings for optional fields if not provided, to avoid Firestore errors
     bio: userData.bio || "", 
     skills: userData.skills || [],
     avatarUrl: userData.avatarUrl || "",
@@ -41,8 +41,6 @@ export async function getAllUsers(): Promise<User[]> {
     const querySnapshot = await getDocs(usersQuery);
     const users: User[] = [];
     querySnapshot.forEach((doc) => {
-      // Note: Timestamps will be Firestore Timestamps. Convert to Date if needed, or handle in UI.
-      // For simplicity, we're casting directly. Ensure your User type can handle Timestamps or convert.
       users.push({ id: doc.id, ...doc.data() } as User);
     });
     console.log("Fetched all users from Firestore:", users.length);
@@ -71,5 +69,56 @@ export async function getUserById(userId: string): Promise<User | null> {
   } catch (error) {
     console.error("Error fetching user by ID from Firestore: ", error);
     throw new Error("Could not fetch user from database.");
+  }
+}
+
+/**
+ * Adds a new project to the Firestore 'projects' collection.
+ */
+export async function addProject(
+  projectData: Omit<Project, 'id' | 'createdAt' | 'status' | 'clientId'>, 
+  clientId: string
+): Promise<Project> {
+  try {
+    const projectDocRef = await addDoc(collection(db, PROJECTS_COLLECTION), {
+      ...projectData,
+      clientId,
+      status: "Open", // Default status
+      createdAt: Timestamp.now(),
+    });
+    console.log("Project added to Firestore with ID:", projectDocRef.id);
+    return { 
+      id: projectDocRef.id, 
+      ...projectData, 
+      clientId, 
+      status: "Open", 
+      createdAt: Timestamp.now() // Return with a client-side timestamp for immediate use
+    } as Project;
+  } catch (error) {
+    console.error("Error adding project to Firestore: ", error);
+    throw new Error("Could not add project to database.");
+  }
+}
+
+/**
+ * Fetches all projects for a specific client ID from Firestore, ordered by creation date (descending).
+ */
+export async function getProjectsByClientId(clientId: string): Promise<Project[]> {
+  try {
+    const projectsQuery = query(
+      collection(db, PROJECTS_COLLECTION), 
+      where("clientId", "==", clientId),
+      orderBy("createdAt", "desc")
+    );
+    const querySnapshot = await getDocs(projectsQuery);
+    const projects: Project[] = [];
+    querySnapshot.forEach((doc) => {
+      projects.push({ id: doc.id, ...doc.data() } as Project);
+    });
+    console.log(`Fetched ${projects.length} projects for client ID ${clientId} from Firestore.`);
+    return projects;
+  } catch (error) {
+    console.error(`Error fetching projects for client ${clientId} from Firestore: `, error);
+    throw new Error("Could not fetch projects from database.");
   }
 }
