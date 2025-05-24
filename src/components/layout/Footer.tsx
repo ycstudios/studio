@@ -1,6 +1,6 @@
 
 import Link from 'next/link';
-import { Heart, Code2 } from 'lucide-react'; // Added Code2 for logo consistency
+import { Heart, Code2, Twitter, Linkedin, Github } from 'lucide-react'; // Added Twitter, Linkedin, Github
 import { siteConfig } from '@/config/site';
 
 export function Footer() {
@@ -42,12 +42,19 @@ export function Footer() {
 
           <div>
             <h3 className="font-semibold text-foreground mb-3">Stay Connected</h3>
-            <p className="text-sm text-muted-foreground mb-2">
-              Get updates and news from {siteConfig.name}.
+            <p className="text-sm text-muted-foreground mb-3">
+              Follow us on social media for updates.
             </p>
-            {/* Placeholder for a newsletter or social links */}
-            <div className="flex justify-center sm:justify-start space-x-3">
-                {/* Example: <Link href="#" className="text-muted-foreground hover:text-primary"><Twitter className="h-5 w-5" /></Link> */}
+            <div className="flex justify-center sm:justify-start space-x-4">
+                <Link href="#" aria-label="Twitter" className="text-muted-foreground hover:text-primary transition-colors">
+                  <Twitter className="h-5 w-5" />
+                </Link>
+                <Link href="#" aria-label="LinkedIn" className="text-muted-foreground hover:text-primary transition-colors">
+                  <Linkedin className="h-5 w-5" />
+                </Link>
+                <Link href="#" aria-label="GitHub" className="text-muted-foreground hover:text-primary transition-colors">
+                  <Github className="h-5 w-5" />
+                </Link>
             </div>
           </div>
         </div>
