@@ -2,13 +2,11 @@
 // src/lib/emailService.ts
 "use server";
 
-import type { User } from "@/types";
+import type { User, QuickServiceRequestData } from "@/types";
 
 // --- Basic HTML Email Templates ---
 
 function getEmailWrapper(title: string, content: string): string {
-  // This basic wrapper remains the same.
-  // EmailJS will take this entire HTML string.
   return `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 20px auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
       <div style="background-color: #0A0F1C; color: #FFFFFF; padding: 20px; text-align: center;">
@@ -24,6 +22,7 @@ function getEmailWrapper(title: string, content: string): string {
       </div>
       <div style="background-color: #f8f8f8; color: #777; padding: 15px; text-align: center; font-size: 0.8em;">
         <p>&copy; ${new Date().getFullYear()} CodeCrafter. All rights reserved.</p>
+        <p>If you received this email in error, please ignore it.</p>
       </div>
     </div>
   `;
@@ -67,7 +66,6 @@ export async function getDeveloperRejectedEmailTemplate(developerName: string): 
   return getEmailWrapper("Update on Your CodeCrafter Developer Application", content);
 }
 
-
 export async function getClientProjectPostedEmailTemplate(clientName: string, projectName: string, projectId: string): Promise<string> {
   const content = `
     <p>Hi ${clientName},</p>
@@ -79,50 +77,79 @@ export async function getClientProjectPostedEmailTemplate(clientName: string, pr
   return getEmailWrapper("Your Project Has Been Posted!", content);
 }
 
+export async function getQuickServiceRequestAdminNotificationHtml(formData: QuickServiceRequestData): Promise<string> {
+  const content = `
+    <p>A new quick service request has been submitted through the CodeCrafter landing page:</p>
+    <ul>
+      <li><strong>Name:</strong> ${formData.name}</li>
+      <li><strong>Email:</strong> ${formData.email}</li>
+      <li><strong>Description:</strong><br/><pre style="white-space: pre-wrap; background-color: #f9f9f9; padding: 10px; border-radius: 4px;">${formData.description}</pre></li>
+      ${formData.budget ? `<li><strong>Budget Range:</strong> ${formData.budget}</li>` : ''}
+      ${formData.urgency ? `<li><strong>Urgency:</strong> ${formData.urgency}</li>` : ''}
+    </ul>
+    <p>Please follow up with this potential client at your earliest convenience.</p>
+  `;
+  return getEmailWrapper("New Quick Service Request from Landing Page", content);
+}
+
+export async function getQuickServiceRequestClientConfirmationHtml(formData: QuickServiceRequestData): Promise<string> {
+  const content = `
+    <p>Hi ${formData.name},</p>
+    <p>Thank you for submitting your service request to CodeCrafter! We've received the following details:</p>
+    <ul>
+      <li><strong>Description:</strong><br/><pre style="white-space: pre-wrap; background-color: #f9f9f9; padding: 10px; border-radius: 4px;">${formData.description}</pre></li>
+      ${formData.budget ? `<li><strong>Budget Range:</strong> ${formData.budget}</li>` : ''}
+      ${formData.urgency ? `<li><strong>Urgency:</strong> ${formData.urgency}</li>` : ''}
+    </ul>
+    <p>Our team will review your request and get in touch with you shortly to discuss how we can help you find the perfect developer.</p>
+    <p>In the meantime, feel free to <a href="${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:9002'}/signup" style="color: #007ACC;">create an account</a> to explore more features.</p>
+  `;
+  return getEmailWrapper("We've Received Your Service Request!", content);
+}
+
 
 /**
  * Sends an email using EmailJS API.
- * Ensure EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID_GENERIC, EMAILJS_USER_ID, and EMAILJS_PRIVATE_KEY
- * are set in your .env.local.
  */
-export async function sendEmail(to: string, subject: string, htmlBody: string): Promise<void> {
+export async function sendEmail(to: string, subject: string, htmlBody: string, fromName?: string, replyTo?: string): Promise<void> {
   const {
     EMAILJS_SERVICE_ID,
     EMAILJS_TEMPLATE_ID_GENERIC,
-    EMAILJS_USER_ID, // Public Key
-    EMAILJS_PRIVATE_KEY, // Access Token / Private Key
+    EMAILJS_USER_ID,
+    EMAILJS_PRIVATE_KEY,
     APP_EMAIL_FROM_NAME
   } = process.env;
 
   if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID_GENERIC || !EMAILJS_USER_ID || !EMAILJS_PRIVATE_KEY) {
-    console.error("EmailJS environment variables not fully configured. Email will be logged to console instead.");
+    console.warn("EmailJS environment variables not fully configured. Email will be logged to console instead.");
     console.log("--- MOCK EMAIL (EmailJS Config Missing) ---");
     console.log("To:", to);
+    console.log("From Name:", fromName || APP_EMAIL_FROM_NAME || "CodeCrafter");
+    console.log("Reply To:", replyTo || to);
     console.log("Subject:", subject);
-    console.log("Body (first 200 chars):", htmlBody.substring(0, 200) + "...");
+    console.log("HTML Body (first 200 chars):", htmlBody.substring(0, 200) + "...");
     console.log("--- END MOCK EMAIL ---");
     return;
   }
 
   const templateParams = {
     to_email: to,
-    from_name: APP_EMAIL_FROM_NAME || "CodeCrafter",
+    from_name: fromName || APP_EMAIL_FROM_NAME || "CodeCrafter", // Use provided fromName, or default
+    reply_to_email: replyTo || to, // Often, for notifications, reply-to is the sender's email
     subject_line: subject,
     html_body_content: htmlBody,
-    // You might need to add other parameters here if your EmailJS template expects them,
-    // e.g., reply_to_email: "your_support_email@example.com"
   };
 
   const data = {
     service_id: EMAILJS_SERVICE_ID,
     template_id: EMAILJS_TEMPLATE_ID_GENERIC,
     user_id: EMAILJS_USER_ID,
-    accessToken: EMAILJS_PRIVATE_KEY, // Use the private key for server-to-server API calls
+    accessToken: EMAILJS_PRIVATE_KEY,
     template_params: templateParams,
   };
 
   try {
-    console.log(`Attempting to send email via EmailJS to: ${to} with subject: ${subject}`);
+    console.log(`Attempting to send email via EmailJS. To: ${to}, Subject: ${subject}`);
     const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
       method: "POST",
       headers: {
@@ -131,25 +158,31 @@ export async function sendEmail(to: string, subject: string, htmlBody: string): 
       body: JSON.stringify(data),
     });
 
+    const responseText = await response.text();
     if (response.ok) {
-      console.log(`EmailJS: Successfully sent email to ${to}. Response: ${await response.text()}`);
+      console.log(`EmailJS: Successfully sent email to ${to}. Response: ${responseText}`);
     } else {
-      const errorText = await response.text();
-      console.error(`EmailJS: Failed to send email. Status: ${response.status}, Response: ${errorText}`);
-      // Fallback to console log for critical visibility if sending fails
+      console.error(`EmailJS: Failed to send email. Status: ${response.status}, Response: ${responseText}`);
+      // Fallback to console log
       console.log("--- FAILED EMAILJS ATTEMPT (Details above) ---");
       console.log("To:", to);
       console.log("Subject:", subject);
       console.log("Body (first 200 chars):", htmlBody.substring(0, 200) + "...");
       console.log("--- END FAILED EMAILJS ATTEMPT ---");
+       throw new Error(`EmailJS failed to send email. Status: ${response.status}. ${responseText}`);
     }
   } catch (error) {
     console.error("Error sending email via EmailJS:", error);
-    // Fallback for network or unexpected errors
+     // Fallback to console log
     console.log("--- FAILED EMAILJS ATTEMPT (Network/Exception) ---");
     console.log("To:", to);
     console.log("Subject:", subject);
     console.log("Body (first 200 chars):", htmlBody.substring(0, 200) + "...");
     console.log("--- END FAILED EMAILJS ATTEMPT ---");
+
+    if (error instanceof Error) {
+      throw new Error(`Network or other error sending email via EmailJS: ${error.message}`);
+    }
+    throw new Error('An unknown error occurred while sending email via EmailJS.');
   }
 }

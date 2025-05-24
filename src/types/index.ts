@@ -14,7 +14,7 @@ export interface User {
   skills?: string[];
   portfolioUrls?: string[];
   experienceLevel?: 'Entry' | 'Junior' | 'Mid-level' | 'Senior' | 'Lead' | 'Principal' | '';
-  hourlyRate?: number; // New field for developer's hourly rate
+  hourlyRate?: number;
   createdAt?: Date | Timestamp;
   referralCode?: string;
   referredByCode?: string;
@@ -30,7 +30,7 @@ export interface User {
 export interface Project {
   id: string;
   clientId: string;
-  name: string;
+  name:string;
   description: string;
   requiredSkills: string[];
   availability: string;
@@ -63,9 +63,21 @@ export interface AdminActivityLog {
   adminId: string; // ID of the admin who performed the action
   adminName?: string; // Optional: Name of the admin (denormalized for easier display)
   action: string; // e.g., "USER_FLAGGED", "USER_UNFLAGGED", "PROJECT_STATUS_CHANGED", "DEVELOPER_APPROVED", "DEVELOPER_REJECTED"
-  targetType: "user" | "project" | "system";
-  targetId: string; // ID of the user/project affected
+  targetType: "user" | "project" | "system" | "quick_request";
+  targetId: string; // ID of the user/project affected, or client email for quick request
   targetName?: string; // Optional: Name of the user/project (denormalized)
   timestamp: Timestamp;
   details?: Record<string, any>; // Any additional relevant information (e.g., old_status, new_status)
+}
+
+// For Quick Service Request Form
+export type BudgetRange = '' | '$500-$1k' | '$1k-$2.5k' | '$2.5k-$5k' | '$5k-$10k' | '$10k+';
+export type UrgencyLevel = '' | 'Low' | 'Medium' | 'High' | 'Critical';
+
+export interface QuickServiceRequestData {
+  name: string;
+  email: string;
+  description: string;
+  budget?: BudgetRange;
+  urgency?: UrgencyLevel;
 }
