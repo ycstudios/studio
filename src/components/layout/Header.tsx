@@ -33,14 +33,16 @@ export function Header() {
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-auto min-h-16 max-w-screen-2xl items-center py-2 sm:py-0">
         <Logo />
-        <nav className="ml-6 flex flex-wrap items-center gap-x-4 lg:gap-x-6 gap-y-1">
+        <nav className="ml-6 flex flex-wrap items-center gap-x-1 lg:gap-x-2 gap-y-1">
           {mainNavLinks.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                "text-sm font-medium transition-colors hover:text-primary",
-                pathname === item.href ? "text-primary" : "text-foreground/60"
+                "text-sm font-medium transition-all duration-150 ease-in-out border-b-2 px-2 py-[22px] sm:py-[22px]", // Adjusted padding for consistent height with border
+                pathname === item.href
+                  ? "text-primary border-primary font-semibold" // Active state
+                  : "text-foreground/70 border-transparent hover:text-primary hover:border-primary/70" // Default and hover states
               )}
             >
               {item.title}
@@ -51,8 +53,10 @@ export function Header() {
               key={item.href}
               href={item.href}
               className={cn(
-                "text-sm font-medium transition-colors hover:text-primary",
-                pathname === item.href ? "text-primary" : "text-foreground/60"
+                "text-sm font-medium transition-all duration-150 ease-in-out border-b-2 px-2 py-[22px] sm:py-[22px]", // Adjusted padding
+                pathname === item.href
+                  ? "text-primary border-primary font-semibold" // Active state
+                  : "text-foreground/70 border-transparent hover:text-primary hover:border-primary/70" // Default and hover states
               )}
             >
               {item.title}
