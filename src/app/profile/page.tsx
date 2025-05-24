@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge"; // Added Badge import
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Edit3, Save, UserCircle2, Briefcase, Loader2, AlertTriangle, Link as LinkIcon, Trash2, DollarSign } from "lucide-react";
@@ -50,6 +51,10 @@ export default function ProfilePage() {
   const [portfolioUrls, setPortfolioUrls] = useState("");
   const [experienceLevel, setExperienceLevel] = useState<User["experienceLevel"]>('');
   const [hourlyRate, setHourlyRate] = useState<string>("");
+  const [resumeFileUrl, setResumeFileUrl] = useState("");
+  const [resumeFileName, setResumeFileName] = useState("");
+  const [pastProjects, setPastProjects] = useState("");
+
 
   const [initialData, setInitialData] = useState<Partial<User>>({});
 
@@ -80,10 +85,13 @@ export default function ProfilePage() {
         setSkills(fetchedUser.skills?.join(", ") || "");
         const avatarToDisplay = fetchedUser.avatarUrl || defaultAvatarPlaceholder(fetchedUser.name);
         setCurrentAvatarUrl(avatarToDisplay);
-        setNewAvatarUrlInput(fetchedUser.avatarUrl || ""); // Initialize input with current URL or empty
+        setNewAvatarUrlInput(fetchedUser.avatarUrl || ""); 
         setPortfolioUrls(fetchedUser.portfolioUrls?.join(", ") || "");
         setExperienceLevel(fetchedUser.experienceLevel || '');
         setHourlyRate(fetchedUser.hourlyRate?.toString() || "");
+        setResumeFileUrl(fetchedUser.resumeFileUrl || "");
+        setResumeFileName(fetchedUser.resumeFileName || "");
+        setPastProjects(fetchedUser.pastProjects || "");
 
         setInitialData({
           name: fetchedUser.name,
@@ -94,6 +102,9 @@ export default function ProfilePage() {
           portfolioUrls: fetchedUser.portfolioUrls,
           experienceLevel: fetchedUser.experienceLevel,
           hourlyRate: fetchedUser.hourlyRate,
+          resumeFileUrl: fetchedUser.resumeFileUrl,
+          resumeFileName: fetchedUser.resumeFileName,
+          pastProjects: fetchedUser.pastProjects,
         });
       } else {
         setFetchError("Could not load your profile data. It might be missing or an error occurred.");
@@ -113,10 +124,11 @@ export default function ProfilePage() {
       setIsLoadingProfile(false);
       setFetchError("User not authenticated. Please log in to view your profile.");
     }
-  }, [authUser?.id, authLoading, fetchUserData, authUser]);
+  }, [authUser, authLoading, fetchUserData]);
 
   const handleEditToggle = () => {
     if (isEditing) {
+      // Revert to initial data on cancel
       setName(initialData.name || "");
       setBio(initialData.bio || (authUser?.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
       setSkills(initialData.skills?.join(", ") || "");
@@ -126,6 +138,9 @@ export default function ProfilePage() {
       setPortfolioUrls(initialData.portfolioUrls?.join(", ") || "");
       setExperienceLevel(initialData.experienceLevel || '');
       setHourlyRate(initialData.hourlyRate?.toString() || "");
+      setResumeFileUrl(initialData.resumeFileUrl || "");
+      setResumeFileName(initialData.resumeFileName || "");
+      setPastProjects(initialData.pastProjects || "");
     } else {
       // When entering edit mode, set the newAvatarUrlInput to current, or empty if it's the default
       setNewAvatarUrlInput(initialData.avatarUrl && initialData.avatarUrl !== defaultAvatarPlaceholder(initialData.name) ? initialData.avatarUrl : "");
@@ -152,33 +167,45 @@ export default function ProfilePage() {
       setIsSaving(false);
       return;
     }
-    if (!finalAvatarUrl) { // If input is empty, use default placeholder
+    if (!finalAvatarUrl) { 
       finalAvatarUrl = defaultAvatarPlaceholder(name.trim());
     }
 
 
-    const skillsArray = skills.split(",").map(s => s.trim()).filter(s => s.length > 0);
-    const portfolioUrlsArray = portfolioUrls.split(",").map(url => url.trim()).filter(url => url.length > 0 && (url.startsWith('http://') || url.startsWith('https://')));
+    const skillsArray = authUser.role === 'developer' ? skills.split(",").map(s => s.trim()).filter(s => s.length > 0) : undefined;
+    const portfolioUrlsArray = authUser.role === 'developer' ? portfolioUrls.split(",").map(url => url.trim()).filter(url => url.length > 0 && (url.startsWith('http://') || url.startsWith('https://'))) : undefined;
+    
     const hourlyRateNum = hourlyRate.trim() === '' ? undefined : parseFloat(hourlyRate);
-    if (hourlyRate.trim() !== '' && (isNaN(hourlyRateNum!) || hourlyRateNum! < 0)) {
+    if (authUser.role === 'developer' && hourlyRate.trim() !== '' && (isNaN(hourlyRateNum!) || hourlyRateNum! < 0)) {
         toast({ title: "Invalid Hourly Rate", description: "Hourly rate must be a positive number or empty.", variant: "destructive"});
         setIsSaving(false);
         return;
     }
+    
+    const trimmedResumeUrl = authUser.role === 'developer' ? resumeFileUrl.trim() : undefined;
+    if (trimmedResumeUrl && !trimmedResumeUrl.startsWith('http://') && !trimmedResumeUrl.startsWith('https://')) {
+        toast({ title: "Invalid Resume URL", description: "Resume URL must be a valid URL (http:// or https://) or empty.", variant: "destructive" });
+        setIsSaving(false);
+        return;
+    }
+
 
     const trimmedBio = bio.trim();
 
     const updatedData: Partial<Omit<User, 'id' | 'createdAt' | 'email' | 'role'>> = {
       name: name.trim(),
-      bio: trimmedBio ? trimmedBio : deleteField() as any, // Use deleteField() if bio is empty
+      bio: trimmedBio ? trimmedBio : deleteField() as any,
       avatarUrl: finalAvatarUrl,
     };
 
     if (authUser.role === 'developer') {
       updatedData.skills = skillsArray;
       updatedData.portfolioUrls = portfolioUrlsArray;
-      updatedData.experienceLevel = experienceLevel;
+      updatedData.experienceLevel = experienceLevel || ''; // Ensure empty string if not set
       updatedData.hourlyRate = hourlyRateNum;
+      updatedData.resumeFileUrl = trimmedResumeUrl || deleteField() as any;
+      updatedData.resumeFileName = resumeFileName.trim() || deleteField() as any;
+      updatedData.pastProjects = pastProjects.trim() || deleteField() as any;
     }
 
     try {
@@ -187,26 +214,34 @@ export default function ProfilePage() {
       const updatedAuthUser: User = {
         ...authUser,
         name: updatedData.name || authUser.name,
-        bio: trimmedBio || undefined, // Reflect undefined if bio was cleared
+        bio: trimmedBio || undefined, 
         avatarUrl: updatedData.avatarUrl || authUser.avatarUrl,
         skills: authUser.role === 'developer' ? skillsArray : authUser.skills,
         portfolioUrls: authUser.role === 'developer' ? portfolioUrlsArray : authUser.portfolioUrls,
-        experienceLevel: authUser.role === 'developer' ? experienceLevel : authUser.experienceLevel,
+        experienceLevel: authUser.role === 'developer' ? (experienceLevel || '') : authUser.experienceLevel,
         hourlyRate: authUser.role === 'developer' ? hourlyRateNum : authUser.hourlyRate,
+        resumeFileUrl: authUser.role === 'developer' ? (trimmedResumeUrl || undefined) : authUser.resumeFileUrl,
+        resumeFileName: authUser.role === 'developer' ? (resumeFileName.trim() || undefined) : authUser.resumeFileName,
+        pastProjects: authUser.role === 'developer' ? (pastProjects.trim() || undefined) : authUser.pastProjects,
       };
       updateAuthContextUser(updatedAuthUser);
 
-      setCurrentAvatarUrl(finalAvatarUrl);
+      // Update initialData to reflect the saved state
       setInitialData(prev => ({
         ...prev,
         name: updatedData.name,
         bio: trimmedBio || undefined,
         skills: skillsArray,
         portfolioUrls: portfolioUrlsArray,
-        experienceLevel,
+        experienceLevel: experienceLevel || '',
         avatarUrl: finalAvatarUrl,
         hourlyRate: hourlyRateNum,
+        resumeFileUrl: trimmedResumeUrl || undefined,
+        resumeFileName: resumeFileName.trim() || undefined,
+        pastProjects: pastProjects.trim() || undefined,
       }));
+      
+      setCurrentAvatarUrl(finalAvatarUrl); // Ensure displayed avatar updates
 
       setIsEditing(false);
       toast({ title: "Profile Updated", description: "Your changes have been saved." });
@@ -261,7 +296,10 @@ export default function ProfilePage() {
       skills !== (initialData.skills?.join(", ") || "") ||
       portfolioUrls !== (initialData.portfolioUrls?.join(", ") || "") ||
       experienceLevel !== (initialData.experienceLevel || '') ||
-      (hourlyRate.trim() === '' ? undefined : parseFloat(hourlyRate)) !== initialData.hourlyRate
+      (hourlyRate.trim() === '' ? undefined : parseFloat(hourlyRate)) !== initialData.hourlyRate ||
+      resumeFileUrl !== (initialData.resumeFileUrl || "") ||
+      resumeFileName !== (initialData.resumeFileName || "") ||
+      pastProjects !== (initialData.pastProjects || "")
     ))
   );
 
@@ -297,7 +335,8 @@ export default function ProfilePage() {
                 {authUser.role}
               </CardDescription>
                {authUser.role === "developer" && (initialData.hourlyRate !== undefined && initialData.hourlyRate > 0) && (
-                <p className="text-sm text-primary font-semibold mt-1">
+                <p className="text-sm text-primary font-semibold mt-1 flex items-center justify-center gap-1">
+                  <DollarSign className="h-4 w-4" />
                   ${initialData.hourlyRate}/hr
                 </p>
               )}
@@ -419,6 +458,38 @@ export default function ProfilePage() {
                     )}
                      {isEditing && <p className="text-xs text-muted-foreground mt-1">Enter valid URLs (http:// or https://) separated by commas.</p>}
                   </div>
+
+                  <div>
+                    <Label htmlFor="resumeFileUrl">Resume URL</Label>
+                    {isEditing ? (
+                      <Input id="resumeFileUrl" type="url" placeholder="https://link-to-your-resume.pdf" value={resumeFileUrl} onChange={(e) => setResumeFileUrl(e.target.value)} disabled={isSaving} />
+                    ) : (
+                       initialData.resumeFileUrl ? (
+                        <a href={initialData.resumeFileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-lg p-2 border rounded-md bg-muted/30 block min-h-[40px] truncate">
+                          {initialData.resumeFileName || initialData.resumeFileUrl}
+                        </a>
+                      ) : <p className="text-lg p-2 border rounded-md bg-muted/30 min-h-[40px] italic text-muted-foreground">Not provided</p>
+                    )}
+                     {isEditing && <p className="text-xs text-muted-foreground mt-1">Link to your resume (e.g., Google Drive, Dropbox).</p>}
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="resumeFileName">Resume File Name (Optional display name)</Label>
+                    {isEditing ? (
+                      <Input id="resumeFileName" placeholder="e.g., My_Resume.pdf" value={resumeFileName} onChange={(e) => setResumeFileName(e.target.value)} disabled={isSaving} />
+                    ) : (
+                       <p className="text-lg font-medium p-2 border rounded-md bg-muted/30 min-h-[40px]">{initialData.resumeFileName || (initialData.resumeFileUrl ? <span className="italic text-muted-foreground">Using URL as name</span> : <span className="italic text-muted-foreground">Not set</span>)}</p>
+                    )}
+                  </div>
+
+                   <div>
+                    <Label htmlFor="pastProjects">Past Project Highlights</Label>
+                    {isEditing ? (
+                      <Textarea id="pastProjects" placeholder="Briefly describe 1-2 key projects..." className="min-h-[100px]" value={pastProjects} onChange={(e) => setPastProjects(e.target.value)} disabled={isSaving} />
+                    ) : (
+                      <p className="text-sm p-3 border rounded-md bg-muted/30 min-h-[60px] whitespace-pre-wrap">{initialData.pastProjects || <span className="italic text-muted-foreground">No past projects described.</span>}</p>
+                    )}
+                  </div>
                 </>
               )}
 
@@ -473,4 +544,3 @@ export default function ProfilePage() {
     </ProtectedPage>
   );
 }
-
