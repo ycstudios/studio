@@ -20,9 +20,9 @@ interface UserWriteData {
   email: string;
   role: User['role'];
   id: string;
-  createdAt: FieldValue; // For serverTimestamp
-  bio: string;
-  avatarUrl: string;
+  createdAt: FieldValue; 
+  bio?: string | null; // Allow null for explicit deletion via update
+  avatarUrl?: string;
   referralCode: string;
   currentPlan: string;
   planPrice: string;
@@ -38,22 +38,29 @@ interface UserWriteData {
 
 // Helper to ensure date is constructed correctly from various Firestore timestamp formats
 function safeCreateDate(timestamp: any): Date | undefined {
-  if (!timestamp) return undefined;
-  if (timestamp instanceof Timestamp) {
-    return timestamp.toDate();
-  }
-  // Handle cases where timestamp might be a string, number (epoch), or a plain object from Firestore
-  if (typeof timestamp === 'string' || typeof timestamp === 'number') {
-    const date = new Date(timestamp);
-    if (!isNaN(date.getTime())) return date; // Check if date is valid
-  }
-  if (timestamp && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
-     const date = new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate();
-     if (!isNaN(date.getTime())) return date;
-  }
-  // console.warn("Could not parse timestamp into Date:", timestamp); // Optional: for debugging
-  return undefined; // Fallback if parsing fails
+    if (!timestamp) return undefined;
+    if (timestamp instanceof Timestamp) {
+        return timestamp.toDate();
+    }
+    if (typeof timestamp === 'string' || typeof timestamp === 'number') {
+        const date = new Date(timestamp);
+        if (!isNaN(date.getTime())) return date;
+    }
+    if (timestamp && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
+        const date = new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate();
+        if (!isNaN(date.getTime())) return date;
+    }
+    return undefined;
 }
+
+const getInitialsForDefaultAvatar = (nameStr?: string) => {
+  if (!nameStr) return "U";
+  const names = nameStr.split(' ');
+  if (names.length > 1 && names[0] && names[names.length - 1]) {
+    return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
+  }
+  return nameStr.substring(0, 2).toUpperCase();
+};
 
 
 export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice' | 'isFlagged' | 'accountStatus' | 'avatarUrl' | 'bio' | 'skills' | 'portfolioUrls' | 'experienceLevel' | 'resumeFileUrl' | 'resumeFileName'> & { id?: string, referredByCode?: string, resumeFileUrl?: string, resumeFileName?: string }): Promise<User> {
@@ -61,15 +68,16 @@ export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referra
 
   const userId = userData.id || doc(collection(db, USERS_COLLECTION)).id;
   const generatedReferralCode = `CODECRAFT_${userId.substring(0, 8).toUpperCase()}`;
+  const defaultAvatar = `https://placehold.co/100x100.png?text=${getInitialsForDefaultAvatar(userData.name)}`;
 
   const userDocumentData: Partial<UserWriteData> = {
     name: userData.name,
-    email: userData.email.toLowerCase(), // Store email in lowercase for consistent querying
+    email: userData.email.toLowerCase(),
     role: userData.role,
     id: userId,
     createdAt: serverTimestamp(),
     bio: `New ${userData.role} on CodeCrafter.`,
-    avatarUrl: `https://placehold.co/100x100.png?text=${userData.name?.[0]?.toUpperCase() || 'U'}`,
+    avatarUrl: defaultAvatar,
     referralCode: generatedReferralCode,
     currentPlan: "Free Tier",
     planPrice: "$0/month",
@@ -116,6 +124,8 @@ export async function getAllUsers(): Promise<User[]> {
     const users: User[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
+      const userNameForAvatar = data.name || "U";
+      const defaultAvatar = `https://placehold.co/100x100.png?text=${getInitialsForDefaultAvatar(userNameForAvatar)}`;
       const user: User = {
         id: docSnap.id,
         name: data.name || "Unnamed User",
@@ -123,7 +133,7 @@ export async function getAllUsers(): Promise<User[]> {
         role: data.role || "client",
         createdAt: safeCreateDate(data.createdAt),
         bio: data.bio || (data.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."),
-        avatarUrl: data.avatarUrl || `https://placehold.co/100x100.png?text=${(data.name?.[0] || 'U').toUpperCase()}`,
+        avatarUrl: data.avatarUrl || defaultAvatar,
         referralCode: data.referralCode || undefined,
         referredByCode: data.referredByCode || undefined,
         currentPlan: data.currentPlan || "Free Tier",
@@ -158,6 +168,8 @@ export async function getUserById(userId: string): Promise<User | null> {
 
     if (userDocSnap.exists()) {
       const data = userDocSnap.data();
+      const userNameForAvatar = data.name || "U";
+      const defaultAvatar = `https://placehold.co/100x100.png?text=${getInitialsForDefaultAvatar(userNameForAvatar)}`;
       const user: User = {
         id: userDocSnap.id,
         name: data.name || "Unnamed User",
@@ -165,7 +177,7 @@ export async function getUserById(userId: string): Promise<User | null> {
         role: data.role || "client",
         createdAt: safeCreateDate(data.createdAt),
         bio: data.bio || (data.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."),
-        avatarUrl: data.avatarUrl || `https://placehold.co/100x100.png?text=${(data.name?.[0] || 'U').toUpperCase()}`,
+        avatarUrl: data.avatarUrl || defaultAvatar,
         referralCode: data.referralCode || undefined,
         referredByCode: data.referredByCode || undefined,
         currentPlan: data.currentPlan || "Free Tier",
@@ -192,10 +204,6 @@ export async function getUserById(userId: string): Promise<User | null> {
   }
 }
 
-/**
- * Fetches a single user by their email from the Firestore 'users' collection.
- * Emails are stored and queried in lowercase.
- */
 export async function getUserByEmail(email: string): Promise<User | null> {
   if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   if (!email) return null;
@@ -206,21 +214,23 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     const usersQuery = query(
       collection(db, USERS_COLLECTION),
       where("email", "==", lowercasedEmail),
-      limit(1) // Email should be unique, so limit to 1
+      limit(1) 
     );
     const querySnapshot = await getDocs(usersQuery);
 
     if (!querySnapshot.empty) {
       const userDocSnap = querySnapshot.docs[0];
       const data = userDocSnap.data();
+      const userNameForAvatar = data.name || "U";
+      const defaultAvatar = `https://placehold.co/100x100.png?text=${getInitialsForDefaultAvatar(userNameForAvatar)}`;
       const user: User = {
         id: userDocSnap.id,
         name: data.name || "Unnamed User",
-        email: data.email, // Use the stored email (should be lowercase)
+        email: data.email, 
         role: data.role || "client",
         createdAt: safeCreateDate(data.createdAt),
         bio: data.bio || (data.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."),
-        avatarUrl: data.avatarUrl || `https://placehold.co/100x100.png?text=${(data.name?.[0] || 'U').toUpperCase()}`,
+        avatarUrl: data.avatarUrl || defaultAvatar,
         referralCode: data.referralCode || undefined,
         referredByCode: data.referredByCode || undefined,
         currentPlan: data.currentPlan || "Free Tier",
@@ -235,7 +245,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
       };
       return user;
     } else {
-      return null; // No user found with that email
+      return null; 
     }
   } catch (error) {
     console.error(`Error fetching user by email ${lowercasedEmail} from Firestore: `, error);
@@ -247,53 +257,60 @@ export async function getUserByEmail(email: string): Promise<User | null> {
 }
 
 
-export async function updateUser(userId: string, data: Partial<Omit<User, 'id' | 'createdAt' | 'email' | 'role'>>): Promise<void> {
+export async function updateUser(userId: string, data: Partial<Omit<User, 'id' | 'createdAt' | 'email' | 'role' | 'referralCode' | 'currentPlan' | 'planPrice' | 'isFlagged' | 'accountStatus'>>): Promise<void> {
   if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   if (!userId) {
     throw new Error("User ID is required to update user.");
   }
   try {
     const userDocRef = doc(db, USERS_COLLECTION, userId);
-    const updateData: any = { ...data };
+    
+    const updateData: any = { ...data }; // Use a mutable copy
 
-    const currentUserData = await getUserById(userId); // Fetch current data to determine role if not being changed
-    const effectiveRole = data.role || currentUserData?.role;
+    const currentUserData = await getUserById(userId);
+    const effectiveRole = currentUserData?.role; // Role cannot be changed via this function
 
-    // Handle role-specific fields: remove them if the role is not 'developer'
-    if (effectiveRole && effectiveRole !== 'developer') {
-      updateData.skills = deleteField();
-      updateData.portfolioUrls = deleteField();
-      updateData.experienceLevel = deleteField();
-      updateData.resumeFileUrl = deleteField();
-      updateData.resumeFileName = deleteField();
-    } else if (effectiveRole === 'developer') {
-      // Ensure array/string types for developer fields if they are present in updateData
-      if ('skills' in updateData && !Array.isArray(updateData.skills)) updateData.skills = [];
-      if ('portfolioUrls' in updateData && !Array.isArray(updateData.portfolioUrls)) updateData.portfolioUrls = [];
-      if ('experienceLevel' in updateData && typeof updateData.experienceLevel !== 'string') updateData.experienceLevel = '';
-      // No need to delete resume fields here as they are optional and might be being set
+    // Handle potential null values for deletion, or ensure types for specific fields
+    if (updateData.hasOwnProperty('bio')) {
+      updateData.bio = updateData.bio === null || updateData.bio === "" ? deleteField() : updateData.bio;
+    }
+    
+    if (updateData.hasOwnProperty('avatarUrl')) {
+       // If avatarUrl is explicitly empty or just whitespace, it implies resetting to default,
+       // which means we should delete the field so Firestore getters can apply default.
+       // However, the profile page logic itself sets a default placeholder URL string.
+       // So if an empty string comes, it could mean "use default".
+       // For simplicity here, if avatarUrl is an empty string, we allow it to be stored as such or handle upstream.
+       // The service function should update what's given, or upstream logic should decide to send deleteField().
+       // Current profile page logic sends a default placeholder URL string if input is empty.
     }
 
 
-    // Remove any top-level keys that are undefined to prevent Firestore errors,
-    // unless they are explicitly meant to be set to null or deleted.
-    // Firebase `updateDoc` ignores undefined fields by default, but explicit deletion is cleaner for fields
-    // that might have been set previously and now need to be removed.
-    Object.keys(updateData).forEach(key => {
-      if (updateData[key] === undefined) {
-        // If the intention was to remove a field (e.g. bio: undefined), use deleteField()
-        // For this generic loop, we'll just ensure it's not passed as undefined.
-        // A more specific approach would check data.hasOwnProperty(key) && data[key as keyof typeof data] === undefined
-        // and then assign deleteField(). For now, we rely on `updateDoc` ignoring top-level undefined.
-        // However, `skills`, `portfolioUrls`, etc., are explicitly handled above.
+    if (effectiveRole === 'developer') {
+      if (updateData.hasOwnProperty('skills') && !Array.isArray(updateData.skills)) {
+        updateData.skills = []; // Default to empty array if invalid type
       }
-    });
+      if (updateData.hasOwnProperty('portfolioUrls') && !Array.isArray(updateData.portfolioUrls)) {
+        updateData.portfolioUrls = []; // Default to empty array if invalid type
+      }
+      if (updateData.hasOwnProperty('experienceLevel') && typeof updateData.experienceLevel !== 'string') {
+        updateData.experienceLevel = ''; // Default to empty string
+      }
+    } else { // Not a developer, ensure developer-specific fields are removed if present in `data`
+      if (data.hasOwnProperty('skills')) updateData.skills = deleteField();
+      if (data.hasOwnProperty('portfolioUrls')) updateData.portfolioUrls = deleteField();
+      if (data.hasOwnProperty('experienceLevel')) updateData.experienceLevel = deleteField();
+      if (data.hasOwnProperty('resumeFileUrl')) updateData.resumeFileUrl = deleteField();
+      if (data.hasOwnProperty('resumeFileName')) updateData.resumeFileName = deleteField();
+    }
     
-    // Explicitly handle clearing optional top-level text fields if they are passed as empty strings
-    // and you want them removed from the document instead of stored as ""
-    if (updateData.bio === "") updateData.bio = deleteField(); // Or store as "" if preferred
-    if (updateData.avatarUrl === "") updateData.avatarUrl = deleteField();
-
+    // Remove any top-level keys that are explicitly undefined
+    // Firestore updateDoc ignores undefined fields by default, but being explicit is good
+    Object.keys(updateData).forEach(key => {
+        if (updateData[key] === undefined) {
+            delete updateData[key]; // Remove if explicitly undefined
+        }
+    });
 
     await updateDoc(userDocRef, updateData);
   } catch (error) {
@@ -335,7 +352,6 @@ export async function addProject(
         await sendEmail(clientEmail, `Your Project "${fetchedProject.name}" is Live!`, projectEmailHtml);
       } catch (emailError) {
         console.error("Failed to send project confirmation email:", emailError);
-        // Do not let email failure block project creation success
       }
     }
     return fetchedProject;
@@ -352,7 +368,6 @@ export async function addProject(
 export async function getProjectsByClientId(clientId: string): Promise<Project[]> {
   if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   if (!clientId) {
-    console.warn("getProjectsByClientId called with no clientId");
     return [];
   }
   try {
@@ -411,7 +426,6 @@ export async function getProjectById(projectId: string): Promise<Project | null>
         createdAt: safeCreateDate(data.createdAt) || new Date(),
       } as Project;
     } else {
-      console.warn(`Project with ID '${projectId}' not found in Firestore.`);
       return null;
     }
   } catch (error) {
@@ -471,6 +485,8 @@ export async function getReferredClients(currentUserReferralCode: string): Promi
     const referredClientsData: User[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
+      const userNameForAvatar = data.name || "U";
+      const defaultAvatar = `https://placehold.co/100x100.png?text=${getInitialsForDefaultAvatar(userNameForAvatar)}`;
       referredClientsData.push({
         id: docSnap.id,
         name: data.name || "Unnamed User",
@@ -478,14 +494,13 @@ export async function getReferredClients(currentUserReferralCode: string): Promi
         role: data.role, 
         createdAt: safeCreateDate(data.createdAt),
         bio: data.bio || "Client referred to CodeCrafter.",
-        avatarUrl: data.avatarUrl || `https://placehold.co/100x100.png?text=${(data.name?.[0] || 'U').toUpperCase()}`,
+        avatarUrl: data.avatarUrl || defaultAvatar,
         referralCode: data.referralCode || undefined,
         referredByCode: data.referredByCode, 
         currentPlan: data.currentPlan || "Free Tier",
         planPrice: data.planPrice || "$0/month",
         isFlagged: data.isFlagged === true,
         accountStatus: data.accountStatus || 'active',
-        // Ensure developer-specific fields are not included or are explicitly undefined if schema expects them
         skills: undefined, 
         portfolioUrls: undefined,
         experienceLevel: undefined,
@@ -531,14 +546,13 @@ export async function addAdminActivityLog(logData: Omit<AdminActivityLog, 'id' |
 
   const logEntry: Omit<AdminActivityLog, 'id'> = {
     ...logData,
-    timestamp: serverTimestamp() as Timestamp, // serverTimestamp() returns a sentinel
+    timestamp: serverTimestamp() as Timestamp,
   };
 
   try {
     await addDoc(collection(db, ADMIN_ACTIVITY_LOGS_COLLECTION), logEntry);
   } catch (error) {
     console.error("Error adding admin activity log:", error);
-    // Optionally, rethrow or handle more gracefully for critical logs
   }
 }
 
@@ -553,7 +567,6 @@ export async function updateUserAccountStatus(userId: string, newStatus: Account
       accountStatus: newStatus,
     });
 
-    // Send email notifications based on status change
     if (newStatus === "active") {
       const approvedEmailHtml = await getDeveloperApprovedEmailTemplate(userName);
       await sendEmail(userEmail, "Your CodeCrafter Developer Account is Approved!", approvedEmailHtml);
@@ -561,7 +574,6 @@ export async function updateUserAccountStatus(userId: string, newStatus: Account
       const rejectedEmailHtml = await getDeveloperRejectedEmailTemplate(userName);
       await sendEmail(userEmail, "Update on Your CodeCrafter Developer Application", rejectedEmailHtml);
     }
-    // Consider other statuses if needed, e.g., 'suspended'
   } catch (error) {
     console.error(`Error updating account status for user ${userId}:`, error);
     if (error instanceof Error) {
@@ -570,5 +582,3 @@ export async function updateUserAccountStatus(userId: string, newStatus: Account
     throw new Error(`Could not update account status for user ${userId} due to an unknown error.`);
   }
 }
-
-    

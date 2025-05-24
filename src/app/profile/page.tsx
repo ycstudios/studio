@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Edit3, Save, UserCircle2, Briefcase, Palette, Loader2, AlertTriangle, Link as LinkIcon, Trash2 } from "lucide-react";
+import { Edit3, Save, UserCircle2, Briefcase, Loader2, AlertTriangle, Link as LinkIcon, Trash2 } from "lucide-react";
 import { getUserById, updateUser } from "@/lib/firebaseService";
 import type { User } from "@/types";
 import {
@@ -31,9 +31,8 @@ import {
 
 const experienceLevels: User["experienceLevel"][] = ['', 'Entry', 'Junior', 'Mid-level', 'Senior', 'Lead', 'Principal'];
 
-
 export default function ProfilePage() {
-  const { user: authUser, login: updateAuthContextUser, isLoading: authLoading, logout } = useAuth();
+  const { user: authUser, login: updateAuthContextUser, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -45,11 +44,25 @@ export default function ProfilePage() {
   const [email, setEmail] = useState(""); 
   const [bio, setBio] = useState("");
   const [skills, setSkills] = useState(""); 
-  const [avatar, setAvatar] = useState("");
+  const [currentAvatarUrl, setCurrentAvatarUrl] = useState(""); // For the Avatar component display
+  const [newAvatarUrlInput, setNewAvatarUrlInput] = useState(""); // For the input field during edit
   const [portfolioUrls, setPortfolioUrls] = useState("");
   const [experienceLevel, setExperienceLevel] = useState<User["experienceLevel"]>('');
 
   const [initialData, setInitialData] = useState<Partial<User>>({});
+
+  const getInitials = useCallback((nameStr?: string) => {
+    if (!nameStr) return "?";
+    const names = nameStr.split(' ');
+    if (names.length > 1 && names[0] && names[names.length - 1]) {
+      return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
+    }
+    return nameStr.substring(0, 2).toUpperCase();
+  }, []);
+
+  const defaultAvatarPlaceholder = useCallback((nameForInitials?: string) => {
+    return `https://placehold.co/100x100.png?text=${getInitials(nameForInitials)}`;
+  }, [getInitials]);
 
 
   const fetchUserData = useCallback(async () => {
@@ -63,20 +76,23 @@ export default function ProfilePage() {
         setEmail(fetchedUser.email || "");
         setBio(fetchedUser.bio || (fetchedUser.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
         setSkills(fetchedUser.skills?.join(", ") || "");
-        setAvatar(fetchedUser.avatarUrl || `https://placehold.co/150x150.png`);
+        const avatarToDisplay = fetchedUser.avatarUrl || defaultAvatarPlaceholder(fetchedUser.name);
+        setCurrentAvatarUrl(avatarToDisplay);
+        setNewAvatarUrlInput(fetchedUser.avatarUrl || ""); // Initialize input with current or empty if default
         setPortfolioUrls(fetchedUser.portfolioUrls?.join(", ") || "");
         setExperienceLevel(fetchedUser.experienceLevel || '');
         
         setInitialData({ 
           name: fetchedUser.name,
+          email: fetchedUser.email, // Store email in initialData too
           bio: fetchedUser.bio,
           skills: fetchedUser.skills,
-          avatarUrl: fetchedUser.avatarUrl,
+          avatarUrl: fetchedUser.avatarUrl, // Store the raw avatarUrl
           portfolioUrls: fetchedUser.portfolioUrls,
           experienceLevel: fetchedUser.experienceLevel,
         });
       } else {
-        setFetchError("Could not load your profile data from the database. It might be missing or an error occurred.");
+        setFetchError("Could not load your profile data. It might be missing or an error occurred.");
       }
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : "Failed to load profile data.";
@@ -84,7 +100,7 @@ export default function ProfilePage() {
     } finally {
       setIsLoadingProfile(false);
     }
-  }, [authUser?.id]);
+  }, [authUser?.id, authUser?.role, defaultAvatarPlaceholder]);
 
   useEffect(() => {
     if (authUser?.id && !authLoading) {
@@ -97,12 +113,18 @@ export default function ProfilePage() {
 
   const handleEditToggle = () => {
     if (isEditing) { 
-      setName(initialData.name || authUser?.name || "");
-      setBio(initialData.bio || authUser?.bio || (authUser?.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
-      setSkills(initialData.skills?.join(", ") || authUser?.skills?.join(", ") || "");
-      setAvatar(initialData.avatarUrl || authUser?.avatarUrl || `https://placehold.co/150x150.png`);
+      // Revert form fields to initialData
+      setName(initialData.name || "");
+      setBio(initialData.bio || (authUser?.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
+      setSkills(initialData.skills?.join(", ") || "");
+      const initialAvatarToDisplay = initialData.avatarUrl || defaultAvatarPlaceholder(initialData.name);
+      setCurrentAvatarUrl(initialAvatarToDisplay);
+      setNewAvatarUrlInput(initialData.avatarUrl || "");
       setPortfolioUrls(initialData.portfolioUrls?.join(", ") || "");
       setExperienceLevel(initialData.experienceLevel || '');
+    } else {
+      // When entering edit mode, set the input field to the current avatar URL (could be empty if it's default)
+      setNewAvatarUrlInput(initialData.avatarUrl || "");
     }
     setIsEditing(!isEditing);
   };
@@ -118,14 +140,25 @@ export default function ProfilePage() {
     }
 
     setIsSaving(true);
-    setFetchError(null); // Clear previous fetch errors before saving
+    setFetchError(null);
 
+    let finalAvatarUrl = newAvatarUrlInput.trim();
+    if (finalAvatarUrl && !finalAvatarUrl.startsWith('http://') && !finalAvatarUrl.startsWith('https://')) {
+      toast({ title: "Invalid Avatar URL", description: "Please enter a valid URL (http:// or https://) or leave it empty to use the default.", variant: "destructive" });
+      setIsSaving(false);
+      return;
+    }
+    if (!finalAvatarUrl) { // User cleared the field or it was empty
+      finalAvatarUrl = defaultAvatarPlaceholder(name.trim()); // Use current name for initials
+    }
+    
     const skillsArray = skills.split(",").map(s => s.trim()).filter(s => s.length > 0);
     const portfolioUrlsArray = portfolioUrls.split(",").map(url => url.trim()).filter(url => url.length > 0 && (url.startsWith('http://') || url.startsWith('https://')));
 
-    const updatedData: Partial<Omit<User, 'id' | 'createdAt' | 'email' | 'role' | 'avatarUrl'>> = { 
+    const updatedData: Partial<Omit<User, 'id' | 'createdAt' | 'email' | 'role'>> = { 
       name: name.trim(), 
-      bio: bio.trim(),
+      bio: bio.trim() || null, // Send null to delete if bio is empty
+      avatarUrl: finalAvatarUrl,
     };
 
     if (authUser.role === 'developer') {
@@ -137,17 +170,27 @@ export default function ProfilePage() {
     try {
       await updateUser(authUser.id, updatedData);
       
-      // Optimistically update context with potentially processed data
       const updatedAuthUser: User = { 
         ...authUser, 
         name: updatedData.name || authUser.name, 
-        bio: updatedData.bio || authUser.bio, 
+        bio: updatedData.bio === null ? undefined : (updatedData.bio || authUser.bio),
+        avatarUrl: updatedData.avatarUrl || authUser.avatarUrl,
         skills: authUser.role === 'developer' ? skillsArray : authUser.skills,
         portfolioUrls: authUser.role === 'developer' ? portfolioUrlsArray : authUser.portfolioUrls,
         experienceLevel: authUser.role === 'developer' ? experienceLevel : authUser.experienceLevel,
       };
       updateAuthContextUser(updatedAuthUser); 
-      setInitialData(prev => ({ ...prev, ...updatedData, skills: skillsArray, portfolioUrls: portfolioUrlsArray, experienceLevel }));
+      
+      setCurrentAvatarUrl(finalAvatarUrl); // Update displayed avatar
+      setInitialData(prev => ({ 
+        ...prev, 
+        ...updatedData, 
+        bio: updatedData.bio === null ? undefined : updatedData.bio,
+        skills: skillsArray, 
+        portfolioUrls: portfolioUrlsArray, 
+        experienceLevel,
+        avatarUrl: finalAvatarUrl, // Store the saved URL
+      }));
       
       setIsEditing(false);
       toast({ title: "Profile Updated", description: "Your changes have been saved." });
@@ -167,15 +210,6 @@ export default function ProfilePage() {
     });
   };
   
-  const getInitials = (nameStr?: string) => {
-    if (!nameStr) return "?";
-    const names = nameStr.split(' ');
-    if (names.length > 1 && names[0] && names[names.length - 1]) {
-      return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
-    }
-    return nameStr.substring(0, 2).toUpperCase();
-  };
-
   if (authLoading || isLoadingProfile) {
     return (
       <ProtectedPage>
@@ -203,6 +237,16 @@ export default function ProfilePage() {
     );
   }
 
+  const hasChanges = isEditing && (
+    name.trim() !== (initialData.name || "") ||
+    (newAvatarUrlInput.trim() || defaultAvatarPlaceholder(name.trim())) !== (initialData.avatarUrl || defaultAvatarPlaceholder(initialData.name)) ||
+    bio.trim() !== (initialData.bio || (authUser?.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers.")) ||
+    (authUser.role === 'developer' && (
+      skills !== (initialData.skills?.join(", ") || "") ||
+      portfolioUrls !== (initialData.portfolioUrls?.join(", ") || "") ||
+      experienceLevel !== (initialData.experienceLevel || '')
+    ))
+  );
 
   return (
     <ProtectedPage>
@@ -213,13 +257,13 @@ export default function ProfilePage() {
             <p className="text-muted-foreground">Manage your account settings and public profile information from Firestore.</p>
           </div>
           <Button 
-            onClick={isEditing && (name.trim() === (initialData.name || authUser?.name || "") && bio.trim() === (initialData.bio || authUser?.bio || "") && skills === (initialData.skills?.join(", ") || authUser?.skills?.join(", ") || "") && portfolioUrls === (initialData.portfolioUrls?.join(", ") || "") && experienceLevel === (initialData.experienceLevel || '')) ? () => setIsEditing(false) : (isEditing ? handleSaveChanges : handleEditToggle)} 
-            variant={isEditing ? "default" : "outline"} 
+            onClick={isEditing ? (hasChanges ? handleSaveChanges : () => setIsEditing(false)) : handleEditToggle} 
+            variant={isEditing && hasChanges ? "default" : "outline"} 
             className="w-full sm:w-auto" 
             disabled={isSaving || (isEditing && !name.trim())}
           >
-            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isEditing ? <Save className="mr-2 h-4 w-4" /> : <Edit3 className="mr-2 h-4 w-4" />)}
-            {isSaving ? "Saving..." : (isEditing ? (name.trim() !== (initialData.name || authUser?.name || "") || bio.trim() !== (initialData.bio || authUser?.bio || "") || skills !== (initialData.skills?.join(", ") || authUser?.skills?.join(", ") || "") || portfolioUrls !== (initialData.portfolioUrls?.join(", ") || "") || experienceLevel !== (initialData.experienceLevel || '') ? "Save Changes" : "Cancel Edit") : "Edit Profile")}
+            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isEditing && hasChanges ? <Save className="mr-2 h-4 w-4" /> : <Edit3 className="mr-2 h-4 w-4" />)}
+            {isSaving ? "Saving..." : (isEditing ? (hasChanges ? "Save Changes" : "Cancel Edit") : "Edit Profile")}
           </Button>
         </header>
 
@@ -227,22 +271,17 @@ export default function ProfilePage() {
           <Card className="md:col-span-1 shadow-lg">
             <CardHeader className="items-center text-center">
                <Avatar className="h-24 w-24 mb-4 ring-2 ring-primary ring-offset-2">
-                <AvatarImage src={avatar || `https://placehold.co/150x150.png`} alt={name} data-ai-hint="profile picture" />
+                <AvatarImage src={currentAvatarUrl} alt={name} data-ai-hint="profile avatar" />
                 <AvatarFallback>{getInitials(name)}</AvatarFallback>
               </Avatar>
-              <CardTitle className="text-2xl">{name}</CardTitle>
+              <CardTitle className="text-2xl">{isEditing ? name : (initialData.name || "Unnamed User")}</CardTitle>
               <CardDescription className="capitalize flex items-center justify-center gap-1">
                 {authUser.role === "client" ? <Briefcase className="h-4 w-4" /> : <UserCircle2 className="h-4 w-4" />}
                 {authUser.role}
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
-              <p className="text-sm text-muted-foreground">{email}</p>
-              {isEditing && (
-                <Button variant="outline" size="sm" className="mt-4" disabled>
-                  <Palette className="mr-2 h-4 w-4" /> Change Avatar (Future)
-                </Button>
-              )}
+              <p className="text-sm text-muted-foreground">{initialData.email}</p>
             </CardContent>
           </Card>
 
@@ -259,21 +298,35 @@ export default function ProfilePage() {
                 {isEditing ? (
                   <Input id="name" value={name} onChange={(e) => setName(e.target.value)} disabled={isSaving}/>
                 ) : (
-                  <p className="text-lg font-medium p-2 border rounded-md bg-muted/30 min-h-[40px]">{name || <span className="italic text-muted-foreground">Not set</span>}</p>
+                  <p className="text-lg font-medium p-2 border rounded-md bg-muted/30 min-h-[40px]">{initialData.name || <span className="italic text-muted-foreground">Not set</span>}</p>
                 )}
               </div>
               
               <div>
                 <Label htmlFor="email">Email Address</Label>
-                 <p className="text-lg p-2 border rounded-md bg-muted/30 text-muted-foreground min-h-[40px]">{email} (Not editable)</p>
+                 <p className="text-lg p-2 border rounded-md bg-muted/30 text-muted-foreground min-h-[40px]">{initialData.email} (Not editable)</p>
               </div>
+
+              {isEditing && (
+                <div>
+                  <Label htmlFor="avatarUrl">Avatar URL</Label>
+                  <Input 
+                    id="avatarUrl" 
+                    placeholder="https://example.com/avatar.png (leave blank for default)" 
+                    value={newAvatarUrlInput} 
+                    onChange={(e) => setNewAvatarUrlInput(e.target.value)} 
+                    disabled={isSaving}
+                  />
+                   <p className="text-xs text-muted-foreground mt-1">Enter a full URL to an image, or leave blank to use the default placeholder.</p>
+                </div>
+              )}
 
               <div>
                 <Label htmlFor="bio">Bio</Label>
                 {isEditing ? (
                   <Textarea id="bio" placeholder="Tell us about yourself..." className="min-h-[100px]" value={bio} onChange={(e) => setBio(e.target.value)} disabled={isSaving} />
                 ) : (
-                  <p className="text-sm p-3 border rounded-md bg-muted/30 min-h-[60px] whitespace-pre-wrap">{bio || <span className="italic text-muted-foreground">No bio provided.</span>}</p>
+                  <p className="text-sm p-3 border rounded-md bg-muted/30 min-h-[60px] whitespace-pre-wrap">{initialData.bio || <span className="italic text-muted-foreground">No bio provided.</span>}</p>
                 )}
               </div>
 
@@ -338,7 +391,7 @@ export default function ProfilePage() {
                 <Button 
                   onClick={handleSaveChanges} 
                   className="w-full md:w-auto" 
-                  disabled={isSaving || !name.trim() || (name.trim() === (initialData.name || authUser?.name || "") && bio.trim() === (initialData.bio || authUser?.bio || "") && skills === (initialData.skills?.join(", ") || authUser?.skills?.join(", ") || "") && portfolioUrls === (initialData.portfolioUrls?.join(", ") || "") && experienceLevel === (initialData.experienceLevel || ''))}
+                  disabled={isSaving || !name.trim() || !hasChanges}
                 >
                   {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                    {isSaving ? "Saving Changes..." : "Save All Changes"}
