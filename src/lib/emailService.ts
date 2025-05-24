@@ -1,13 +1,14 @@
 
 // src/lib/emailService.ts
-"use server"; 
+"use server";
 
 import type { User } from "@/types";
-import nodemailer from 'nodemailer';
 
 // --- Basic HTML Email Templates ---
 
 function getEmailWrapper(title: string, content: string): string {
+  // This basic wrapper remains the same.
+  // EmailJS will take this entire HTML string.
   return `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 20px auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
       <div style="background-color: #0A0F1C; color: #FFFFFF; padding: 20px; text-align: center;">
@@ -80,71 +81,75 @@ export async function getClientProjectPostedEmailTemplate(clientName: string, pr
 
 
 /**
- * Sends an email using Nodemailer with Gmail.
- * Ensure EMAIL_SERVER_USER, EMAIL_SERVER_PASSWORD, and EMAIL_FROM are set in your .env.local.
- * For Gmail, EMAIL_SERVER_PASSWORD should be an App Password if 2FA is enabled.
+ * Sends an email using EmailJS API.
+ * Ensure EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID_GENERIC, EMAILJS_USER_ID, and EMAILJS_PRIVATE_KEY
+ * are set in your .env.local.
  */
 export async function sendEmail(to: string, subject: string, htmlBody: string): Promise<void> {
-  // Configuration for Nodemailer using Gmail
-  const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465, // Use 465 for SSL
-    secure: true, // true for 465, false for other ports like 587
-    auth: {
-      user: process.env.EMAIL_SERVER_USER, // Your Gmail address from .env.local
-      pass: process.env.EMAIL_SERVER_PASSWORD, // Your Gmail App Password or regular password from .env.local
-    },
-    // Optional: Add stricter TLS options for production if needed
-    // tls: {
-    //   rejectUnauthorized: true, // This will reject self-signed certificates
-    // },
-  });
+  const {
+    EMAILJS_SERVICE_ID,
+    EMAILJS_TEMPLATE_ID_GENERIC,
+    EMAILJS_USER_ID, // Public Key
+    EMAILJS_PRIVATE_KEY, // Access Token / Private Key
+    APP_EMAIL_FROM_NAME
+  } = process.env;
 
-  const mailOptions = {
-    from: process.env.EMAIL_FROM || `"CodeCrafter" <${process.env.EMAIL_SERVER_USER}>`, // Sender address
-    to: to, // List of receivers
-    subject: subject, // Subject line
-    html: htmlBody, // HTML body
+  if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID_GENERIC || !EMAILJS_USER_ID || !EMAILJS_PRIVATE_KEY) {
+    console.error("EmailJS environment variables not fully configured. Email will be logged to console instead.");
+    console.log("--- MOCK EMAIL (EmailJS Config Missing) ---");
+    console.log("To:", to);
+    console.log("Subject:", subject);
+    console.log("Body (first 200 chars):", htmlBody.substring(0, 200) + "...");
+    console.log("--- END MOCK EMAIL ---");
+    return;
+  }
+
+  const templateParams = {
+    to_email: to,
+    from_name: APP_EMAIL_FROM_NAME || "CodeCrafter",
+    subject_line: subject,
+    html_body_content: htmlBody,
+    // You might need to add other parameters here if your EmailJS template expects them,
+    // e.g., reply_to_email: "your_support_email@example.com"
+  };
+
+  const data = {
+    service_id: EMAILJS_SERVICE_ID,
+    template_id: EMAILJS_TEMPLATE_ID_GENERIC,
+    user_id: EMAILJS_USER_ID,
+    accessToken: EMAILJS_PRIVATE_KEY, // Use the private key for server-to-server API calls
+    template_params: templateParams,
   };
 
   try {
-    console.log(`Attempting to send email to: ${to} with subject: ${subject}`);
-    if (!process.env.EMAIL_SERVER_USER || !process.env.EMAIL_SERVER_PASSWORD) {
-        console.error("Email server user or password not configured in environment variables. Email will not be sent.");
-        // Fallback to console log if email credentials aren't set for local dev without email setup
-        console.log("--- MOCK EMAIL (Credentials Missing) ---");
-        console.log("To:", to);
-        console.log("Subject:", subject);
-        console.log("Body (first 200 chars):", htmlBody.substring(0, 200) + "...");
-        console.log("--- END MOCK EMAIL ---");
-        return; // Don't attempt to send if critical env vars are missing
+    console.log(`Attempting to send email via EmailJS to: ${to} with subject: ${subject}`);
+    const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (response.ok) {
+      console.log(`EmailJS: Successfully sent email to ${to}. Response: ${await response.text()}`);
+    } else {
+      const errorText = await response.text();
+      console.error(`EmailJS: Failed to send email. Status: ${response.status}, Response: ${errorText}`);
+      // Fallback to console log for critical visibility if sending fails
+      console.log("--- FAILED EMAILJS ATTEMPT (Details above) ---");
+      console.log("To:", to);
+      console.log("Subject:", subject);
+      console.log("Body (first 200 chars):", htmlBody.substring(0, 200) + "...");
+      console.log("--- END FAILED EMAILJS ATTEMPT ---");
     }
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully! Message ID:", info.messageId);
   } catch (error) {
-    console.error("Error sending email:", error);
-    // In a production app, you might want to re-throw or handle this more gracefully,
-    // e.g., by queuing the email for a retry.
-    // For now, we just log the error.
-    // throw new Error(`Failed to send email: ${error instanceof Error ? error.message : String(error)}`);
+    console.error("Error sending email via EmailJS:", error);
+    // Fallback for network or unexpected errors
+    console.log("--- FAILED EMAILJS ATTEMPT (Network/Exception) ---");
+    console.log("To:", to);
+    console.log("Subject:", subject);
+    console.log("Body (first 200 chars):", htmlBody.substring(0, 200) + "...");
+    console.log("--- END FAILED EMAILJS ATTEMPT ---");
   }
 }
-
-/*
-// --- MOCK EMAIL FUNCTION (Kept for reference or if Nodemailer setup fails) ---
-export async function sendEmailMock(to: string, subject: string, htmlBody: string): Promise<void> {
-  console.log("--- SIMULATING EMAIL SEND ---");
-  console.log("To:", to);
-  console.log("Subject:", subject);
-  // For brevity in console, maybe just log the first few lines of the body or a summary
-  console.log("Body (first 200 chars):", htmlBody.substring(0, 200) + "...");
-  // console.log("Full Body HTML:\n", htmlBody); // Uncomment to see full HTML
-
-  // Simulate a delay as if an email service was called
-  await new Promise(resolve => setTimeout(resolve, 500));
-
-  // In a real scenario, you would handle potential errors from the email service here.
-  // For this mock, we'll assume it's always successful.
-  console.log("--- EMAIL SIMULATION COMPLETE ---");
-}
-*/
