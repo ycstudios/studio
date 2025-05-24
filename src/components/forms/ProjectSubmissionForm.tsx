@@ -22,8 +22,8 @@ import { Loader2, Users, Zap } from "lucide-react";
 import React, { useState, useTransition } from "react";
 import { matchDevelopers, MatchDevelopersInput, MatchDevelopersOutput } from "@/ai/flows/match-developers";
 import { DeveloperCard } from "@/components/DeveloperCard";
-import { addProject } from "@/lib/firebaseService"; // Import addProject
-import { useAuth } from "@/contexts/AuthContext"; // Import useAuth
+import { addProject } from "@/lib/firebaseService"; 
+import { useAuth } from "@/contexts/AuthContext"; 
 import type { Project } from "@/types";
 
 const formSchema = z.object({
@@ -36,7 +36,7 @@ const formSchema = z.object({
 
 export function ProjectSubmissionForm() {
   const { toast } = useToast();
-  const { user } = useAuth(); // Get the logged-in user
+  const { user } = useAuth(); 
   const [isPending, startTransition] = useTransition();
   const [isSavingProject, setIsSavingProject] = useState(false);
   const [matchResult, setMatchResult] = useState<MatchDevelopersOutput | null>(null);
@@ -55,9 +55,16 @@ export function ProjectSubmissionForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user) {
-      toast({ title: "Error", description: "You must be logged in to submit a project.", variant: "destructive" });
+      toast({ title: "Authentication Error", description: "You must be logged in to submit a project.", variant: "destructive" });
+      setError("User not authenticated.");
       return;
     }
+    if (user.role !== 'client') {
+      toast({ title: "Permission Denied", description: "Only clients can submit projects.", variant: "destructive" });
+      setError("Only clients can submit projects.");
+      return;
+    }
+
 
     setError(null);
     setMatchResult(null);
@@ -73,11 +80,15 @@ export function ProjectSubmissionForm() {
     startTransition(async () => {
       try {
         // 1. Run AI Matchmaking
+        toast({
+          title: "Finding Matches...",
+          description: "Our AI is searching for suitable developers for your project.",
+        });
         const result = await matchDevelopers(inputForAI);
         setMatchResult(result);
         toast({
           title: "Matchmaking Complete!",
-          description: "We've found potential developers. Saving your project...",
+          description: "Potential developer matches found. Now saving your project...",
         });
 
         // 2. Save Project to Firestore
@@ -88,22 +99,21 @@ export function ProjectSubmissionForm() {
           requiredSkills: inputForAI.requiredSkills,
           availability: values.availability,
           timeZone: values.timeZone,
-          // budget and other fields can be added here if they are part of the form/Project type
         };
-        await addProject(projectToSave, user.id);
+        await addProject(projectToSave, user.id, user.email, user.name); 
         toast({
-          title: "Project Saved!",
-          description: "Your project has been successfully saved to the database.",
+          title: "Project Saved & Submitted!",
+          description: "Your project has been saved and an email confirmation sent.",
         });
-        form.reset(); // Optionally reset the form after successful submission
+        form.reset(); 
 
       } catch (e) {
         console.error("Project submission or matchmaking error:", e);
-        const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred.";
-        setError(`Failed to submit project or find matches: ${errorMessage}`);
+        const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred during project submission.";
+        setError(errorMessage);
         toast({
           title: "Submission Error",
-          description: `An error occurred: ${errorMessage}`,
+          description: errorMessage,
           variant: "destructive",
         });
       } finally {
@@ -208,7 +218,7 @@ export function ProjectSubmissionForm() {
                 {(isPending || isSavingProject) ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isPending && !isSavingProject ? "Finding Matches..." : "Processing..."}
+                    {isPending && !isSavingProject ? "Finding Matches..." : (isSavingProject ? "Saving Project..." : "Processing...")}
                   </>
                 ) : (
                   <>
@@ -221,7 +231,7 @@ export function ProjectSubmissionForm() {
         </CardContent>
       </Card>
 
-      {isPending && !isSavingProject && (
+      {isPending && !isSavingProject && !matchResult && (
         <Card className="w-full max-w-2xl mx-auto shadow-xl">
           <CardHeader>
             <CardTitle>Searching for Developers...</CardTitle>
@@ -234,7 +244,7 @@ export function ProjectSubmissionForm() {
       )}
 
       {error && (
-        <Card className="w-full max-w-2xl mx-auto border-destructive shadow-xl">
+        <Card className="w-full max-w-2xl mx-auto border-destructive shadow-xl mt-6">
           <CardHeader>
             <CardTitle className="text-destructive">Operation Failed</CardTitle>
           </CardHeader>
@@ -245,7 +255,7 @@ export function ProjectSubmissionForm() {
       )}
 
       {matchResult && !isPending && (
-        <Card className="w-full max-w-2xl mx-auto shadow-xl">
+        <Card className="w-full max-w-2xl mx-auto shadow-xl mt-6">
           <CardHeader>
             <CardTitle className="text-2xl">Developer Matches Found!</CardTitle>
             <CardDescription>Based on your project details, here are some potential developers. Your project has also been saved.</CardDescription>
@@ -262,10 +272,11 @@ export function ProjectSubmissionForm() {
                 {matchResult.developerMatches.map((devProfileText, index) => (
                   <DeveloperCard 
                     key={index} 
-                    name={`Potential Developer ${index + 1}`}
+                    name={`Potential Developer ${index + 1} (AI Suggestion)`}
                     description={devProfileText} 
                     skills={form.getValues("requiredSkills").split(",").map(s => s.trim())}
-                    dataAiHint="developer profile"
+                    dataAiHint="developer profile abstract"
+                    matchQuality="Good Fit" // Example match quality
                   />
                 ))}
               </div>

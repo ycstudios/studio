@@ -2,7 +2,14 @@
 // src/lib/firebaseService.ts
 import { collection, doc, setDoc, getDocs, getDoc, query, orderBy, Timestamp, where, addDoc, updateDoc, serverTimestamp, deleteField } from "firebase/firestore";
 import { db } from "./firebase"; // Your Firebase app instance
-import type { User, Project, AdminActivityLog } from "@/types";
+import type { User, Project, AdminActivityLog, AccountStatus } from "@/types";
+import { 
+  sendEmail, 
+  getWelcomeEmailTemplate, 
+  getDeveloperApprovedEmailTemplate,
+  getDeveloperRejectedEmailTemplate,
+  getClientProjectPostedEmailTemplate
+} from "./emailService";
 
 const USERS_COLLECTION = "users";
 const PROJECTS_COLLECTION = "projects";
@@ -12,7 +19,7 @@ const ADMIN_ACTIVITY_LOGS_COLLECTION = "adminActivityLogs";
  * Adds a new user to the Firestore 'users' collection.
  * Includes a createdAt timestamp, generates a referral code, and sets a default plan.
  */
-export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice' | 'portfolioUrls' | 'experienceLevel' | 'isFlagged'> & { id?: string, referredByCode?: string }): Promise<User> {
+export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice' | 'portfolioUrls' | 'experienceLevel' | 'isFlagged' | 'accountStatus' | 'resumeFileUrl' | 'resumeFileName'> & { id?: string, referredByCode?: string, resumeFileUrl?: string, resumeFileName?: string }): Promise<User> {
   if (!db) throw new Error("Firestore is not initialized.");
   
   const userId = userData.id || doc(collection(db, USERS_COLLECTION)).id;
@@ -33,13 +40,20 @@ export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referra
     planPrice: "$0/month",
     portfolioUrls: userData.role === 'developer' ? [] : undefined,
     experienceLevel: userData.role === 'developer' ? '' : undefined,
-    isFlagged: false, // Default to not flagged
+    isFlagged: false,
+    accountStatus: userData.role === 'developer' ? "pending_approval" : "active",
+    resumeFileUrl: userData.role === 'developer' ? userData.resumeFileUrl : undefined,
+    resumeFileName: userData.role === 'developer' ? userData.resumeFileName : undefined,
   };
 
   try {
     await setDoc(doc(db, USERS_COLLECTION, userId), userToSave);
     console.log("User added to Firestore with ID:", userId);
-    // Return with JS Date for createdAt for consistency in app
+    
+    // Send welcome email
+    const welcomeEmailHtml = getWelcomeEmailTemplate(userToSave.name, userToSave.role);
+    await sendEmail(userToSave.email, "Welcome to CodeCrafter!", welcomeEmailHtml);
+
     const fetchedUser = await getUserById(userId);
     if (!fetchedUser) throw new Error("Failed to retrieve user after adding.");
     return fetchedUser;
@@ -69,7 +83,10 @@ export async function getAllUsers(): Promise<User[]> {
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date()),
         portfolioUrls: Array.isArray(data.portfolioUrls) ? data.portfolioUrls : (data.role === 'developer' ? [] : undefined),
         experienceLevel: typeof data.experienceLevel === 'string' ? data.experienceLevel as User['experienceLevel'] : (data.role === 'developer' ? '' : undefined),
-        isFlagged: data.isFlagged === true, // Ensure boolean
+        isFlagged: data.isFlagged === true,
+        accountStatus: data.accountStatus || (data.role === 'developer' ? 'pending_approval' : 'active'),
+        resumeFileUrl: data.resumeFileUrl || undefined,
+        resumeFileName: data.resumeFileName || undefined,
       } as User);
     });
     console.log("Fetched all users from Firestore:", users.length);
@@ -106,6 +123,9 @@ export async function getUserById(userId: string): Promise<User | null> {
         portfolioUrls: Array.isArray(data.portfolioUrls) ? data.portfolioUrls : (data.role === 'developer' ? [] : undefined),
         experienceLevel: typeof data.experienceLevel === 'string' ? data.experienceLevel as User['experienceLevel'] : (data.role === 'developer' ? '' : undefined),
         isFlagged: data.isFlagged === true,
+        accountStatus: data.accountStatus || (data.role === 'developer' ? 'pending_approval' : 'active'),
+        resumeFileUrl: data.resumeFileUrl || undefined,
+        resumeFileName: data.resumeFileName || undefined,
       } as User;
     } else {
       console.log("No such user found in Firestore with ID:", userId);
@@ -138,10 +158,13 @@ export async function updateUser(userId: string, data: Partial<Omit<User, 'id' |
       updateData.skills = deleteField();
       updateData.portfolioUrls = deleteField();
       updateData.experienceLevel = deleteField();
+      updateData.resumeFileUrl = deleteField();
+      updateData.resumeFileName = deleteField();
     } else if (data.role === 'developer') {
-      if (!('skills' in data)) updateData.skills = [];
-      if (!('portfolioUrls' in data)) updateData.portfolioUrls = [];
-      if (!('experienceLevel' in data)) updateData.experienceLevel = '';
+      if (!('skills' in data) && !updateData.skills) updateData.skills = [];
+      if (!('portfolioUrls' in data) && !updateData.portfolioUrls) updateData.portfolioUrls = [];
+      if (!('experienceLevel' in data) && !updateData.experienceLevel) updateData.experienceLevel = '';
+      // resume fields are typically set at signup and not deleted if role remains developer
     }
     
     await updateDoc(userDocRef, updateData);
@@ -160,12 +183,15 @@ export async function updateUser(userId: string, data: Partial<Omit<User, 'id' |
  */
 export async function addProject(
   projectData: Omit<Project, 'id' | 'createdAt' | 'status' | 'clientId'>, 
-  clientId: string
+  clientId: string,
+  clientEmail?: string, 
+  clientName?: string
 ): Promise<Project> {
   if (!db) throw new Error("Firestore is not initialized.");
   if (!clientId) {
     throw new Error("Client ID is required to add a project.");
   }
+  let savedProjectData: Project | null = null;
   try {
     const projectWithMetadata = {
       ...projectData,
@@ -175,10 +201,16 @@ export async function addProject(
     };
     const projectDocRef = await addDoc(collection(db, PROJECTS_COLLECTION), projectWithMetadata);
     console.log("Project added to Firestore with ID:", projectDocRef.id);
-    // Fetch the project to get server-generated timestamp as a Date object
-    const savedProject = await getProjectById(projectDocRef.id);
-    if (!savedProject) throw new Error("Failed to retrieve project after adding.");
-    return savedProject;
+    
+    const fetchedProject = await getProjectById(projectDocRef.id);
+    if (!fetchedProject) throw new Error("Failed to retrieve project after adding.");
+    savedProjectData = fetchedProject;
+
+    if (clientEmail && clientName) {
+      const projectEmailHtml = getClientProjectPostedEmailTemplate(clientName, savedProjectData.name, savedProjectData.id);
+      await sendEmail(clientEmail, `Your Project "${savedProjectData.name}" is Live!`, projectEmailHtml);
+    }
+    return savedProjectData;
   } catch (error) {
     console.error("Error adding project to Firestore: ", error);
     if (error instanceof Error) {
@@ -361,7 +393,36 @@ export async function addAdminActivityLog(logData: Omit<AdminActivityLog, 'id' |
     console.log("Admin activity logged:", logData.action);
   } catch (error) {
     console.error("Error adding admin activity log:", error);
-    // Log the error but don't necessarily throw to break the primary action (e.g., flagging user)
-    // Depending on requirements, you might want to handle this more strictly.
+  }
+}
+
+/**
+ * Updates a user's account status in Firestore and sends notification emails.
+ */
+export async function updateUserAccountStatus(userId: string, newStatus: AccountStatus, userEmail: string, userName: string): Promise<void> {
+  if (!db) throw new Error("Firestore is not initialized.");
+  if (!userId) throw new Error("User ID is required to update account status.");
+
+  try {
+    const userDocRef = doc(db, USERS_COLLECTION, userId);
+    await updateDoc(userDocRef, {
+      accountStatus: newStatus,
+    });
+    console.log(`User ${userId} account status updated to ${newStatus}.`);
+
+    // Send notification email based on status
+    if (newStatus === "active") {
+      const approvedEmailHtml = getDeveloperApprovedEmailTemplate(userName);
+      await sendEmail(userEmail, "Your CodeCrafter Developer Account is Approved!", approvedEmailHtml);
+    } else if (newStatus === "rejected") {
+      const rejectedEmailHtml = getDeveloperRejectedEmailTemplate(userName);
+      await sendEmail(userEmail, "Update on Your CodeCrafter Developer Application", rejectedEmailHtml);
+    }
+  } catch (error) {
+    console.error(`Error updating account status for user ${userId}:`, error);
+    if (error instanceof Error) {
+      throw new Error(`Could not update account status for user ${userId}: ${error.message}`);
+    }
+    throw new Error(`Could not update account status for user ${userId} due to an unknown error.`);
   }
 }
