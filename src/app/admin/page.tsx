@@ -31,14 +31,16 @@ import {
   Users as UsersIcon,
   Flag, 
   ShieldCheck, 
-  ShieldX 
+  ShieldX,
+  CheckSquare,
+  XSquare
 } from "lucide-react";
-import type { User as UserType, Project } from "@/types";
+import type { User as UserType, Project, AccountStatus } from "@/types";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-import { getAllProjects, toggleUserFlag, addAdminActivityLog, getUserById } from "@/lib/firebaseService"; 
+import { getAllProjects, toggleUserFlag, addAdminActivityLog, getUserById, updateUserAccountStatus } from "@/lib/firebaseService"; 
 import { useToast } from "@/hooks/use-toast";
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 
 interface AdminFeatureCardProps {
   icon: React.ReactNode;
@@ -77,7 +79,7 @@ const adminFeatures: Omit<AdminFeatureCardProps, 'icon' | 'accentColor'>[] = [
   { title: "Request Manager", description: "Accept, reject, or assign service requests. (Future Feature)", link: "#" },
   { title: "Payment Control", description: "Monitor transactions, release payments, handle disputes. (Future Feature)", link: "#" },
   { title: "Notification Center", description: "Real-time alerts for user actions or system events. (Future Feature)", link: "#" },
-  { title: "User Management", description: "View, manage, and flag clients and developers.", link: "#users-section" },
+  { title: "User Management", description: "View, manage, flag, and approve/reject users.", link: "#users-section" },
   { title: "Activity Logs", description: "Track all admin-side actions for transparency.", link: "/admin/activity-logs" }, 
 ];
 
@@ -102,11 +104,12 @@ export default function AdminPage() {
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [projectsFetchError, setProjectsFetchError] = useState<string | null>(null);
   const [isTogglingFlag, setIsTogglingFlag] = useState<string | null>(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && allUsers) {
-      setClients(allUsers.filter(u => u.role === 'client'));
-      setDevelopers(allUsers.filter(u => u.role === 'developer'));
+      setClients(allUsers.filter(u => u.role === 'client').sort((a,b) => (a.createdAt instanceof Date ? a.createdAt.getTime() : 0) - (b.createdAt instanceof Date ? b.createdAt.getTime() : 0)));
+      setDevelopers(allUsers.filter(u => u.role === 'developer').sort((a,b) => (a.createdAt instanceof Date ? a.createdAt.getTime() : 0) - (b.createdAt instanceof Date ? b.createdAt.getTime() : 0)));
     }
   }, [allUsers, authLoading]);
 
@@ -119,7 +122,6 @@ export default function AdminPage() {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Could not retrieve project list."
       setProjectsFetchError(errorMsg);
-      // Toast is good for action results, but for initial load errors, direct display is better.
     } finally {
       setIsLoadingProjects(false);
     }
@@ -148,9 +150,9 @@ export default function AdminPage() {
         details: { newFlagStatus: !currentStatus }
       });
       
-      const updatedUser = await getUserById(userIdToFlag); // Re-fetch to get the most up-to-date version
+      const updatedUser = await getUserById(userIdToFlag);
       if (updatedUser) {
-        updateSingleUserInList(updatedUser); // Update AuthContext
+        updateSingleUserInList(updatedUser);
       }
 
       toast({
@@ -162,6 +164,40 @@ export default function AdminPage() {
       toast({ title: "Error", description: errorMsg, variant: "destructive" });
     } finally {
       setIsTogglingFlag(null);
+    }
+  };
+
+  const handleUpdateAccountStatus = async (userIdToUpdate: string, newStatus: AccountStatus, userEmail: string, userName: string) => {
+    if (!adminUser) {
+      toast({ title: "Authentication Error", description: "Admin user not found.", variant: "destructive" });
+      return;
+    }
+    setIsUpdatingStatus(userIdToUpdate);
+    try {
+      await updateUserAccountStatus(userIdToUpdate, newStatus, userEmail, userName);
+      const action = newStatus === 'active' ? 'DEVELOPER_APPROVED' : 'DEVELOPER_REJECTED';
+      await addAdminActivityLog({
+        adminId: adminUser.id,
+        adminName: adminUser.name || "Admin",
+        action: action,
+        targetType: "user",
+        targetId: userIdToUpdate,
+        targetName: userName,
+        details: { newAccountStatus: newStatus }
+      });
+      const updatedUser = await getUserById(userIdToUpdate);
+      if (updatedUser) {
+        updateSingleUserInList(updatedUser);
+      }
+      toast({
+        title: "Account Status Updated",
+        description: `${userName}'s account has been ${newStatus === 'active' ? 'approved' : 'rejected'}.`,
+      });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Could not update account status.";
+      toast({ title: "Error", description: errorMsg, variant: "destructive" });
+    } finally {
+      setIsUpdatingStatus(null);
     }
   };
 
@@ -178,7 +214,7 @@ export default function AdminPage() {
     );
   }
   
-  const hasDataLoadingError = projectsFetchError && allUsers.length === 0; // Only show full page error if users also failed (or haven't loaded)
+  const hasDataLoadingError = projectsFetchError && allUsers.length === 0; 
 
   if (hasDataLoadingError) { 
      return (
@@ -232,12 +268,12 @@ export default function AdminPage() {
                 <Briefcase className="mr-2 h-5 w-5 text-primary" />
                 Clients ({authLoading ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : clients.length})
               </CardTitle>
-              <CardDescription>List of all registered clients from Firestore.</CardDescription>
+              <CardDescription>List of all registered clients from Firestore. Sorted by join date.</CardDescription>
             </CardHeader>
             <CardContent>
               {authLoading && clients.length === 0 ? <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> :
                clients.length === 0 ? <p className="text-muted-foreground text-center py-4">No clients found.</p> :
-              <UserTable users={clients} onToggleFlag={handleToggleFlag} isTogglingFlagId={isTogglingFlag} />}
+              <UserTable users={clients} onToggleFlag={handleToggleFlag} onUpdateStatus={handleUpdateAccountStatus} isTogglingFlagId={isTogglingFlag} isUpdatingStatusId={isUpdatingStatus} />}
             </CardContent>
           </Card>
 
@@ -247,12 +283,12 @@ export default function AdminPage() {
                 <User className="mr-2 h-5 w-5 text-primary" />
                 Developers ({authLoading ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : developers.length})
               </CardTitle>
-              <CardDescription>List of all registered developers from Firestore.</CardDescription>
+              <CardDescription>List of all registered developers from Firestore. Sorted by join date.</CardDescription>
             </CardHeader>
             <CardContent>
                {authLoading && developers.length === 0 ? <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> :
                 developers.length === 0 ? <p className="text-muted-foreground text-center py-4">No developers found.</p> :
-                <UserTable users={developers} onToggleFlag={handleToggleFlag} isTogglingFlagId={isTogglingFlag} />}
+                <UserTable users={developers} onToggleFlag={handleToggleFlag} onUpdateStatus={handleUpdateAccountStatus} isTogglingFlagId={isTogglingFlag} isUpdatingStatusId={isUpdatingStatus} />}
             </CardContent>
           </Card>
         </div>
@@ -300,11 +336,12 @@ export default function AdminPage() {
 interface UserTableProps {
   users: UserType[];
   onToggleFlag: (userId: string, currentStatus: boolean, userName: string) => void;
+  onUpdateStatus: (userId: string, newStatus: AccountStatus, userEmail: string, userName: string) => void;
   isTogglingFlagId: string | null;
+  isUpdatingStatusId: string | null;
 }
 
-function UserTable({ users, onToggleFlag, isTogglingFlagId }: UserTableProps) {
-  // This component assumes users list is already handled for empty/loading states by parent
+function UserTable({ users, onToggleFlag, onUpdateStatus, isTogglingFlagId, isUpdatingStatusId }: UserTableProps) {
   return (
     <div className="overflow-x-auto">
       <Table>
@@ -313,7 +350,9 @@ function UserTable({ users, onToggleFlag, isTogglingFlagId }: UserTableProps) {
             <TableHead>Name</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Role</TableHead>
+            <TableHead>Status</TableHead>
             <TableHead>Flagged</TableHead>
+            <TableHead>Joined</TableHead>
             {users.length > 0 && users[0]?.role === 'developer' && <TableHead>Skills</TableHead>}
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
@@ -329,16 +368,46 @@ function UserTable({ users, onToggleFlag, isTogglingFlagId }: UserTableProps) {
                 </Badge>
               </TableCell>
               <TableCell>
+                 <AccountStatusBadge status={user.accountStatus} />
+              </TableCell>
+              <TableCell>
                 {user.isFlagged ? <ShieldX className="h-5 w-5 text-destructive" /> : <ShieldCheck className="h-5 w-5 text-green-500" />}
               </TableCell>
+              <TableCell className="whitespace-nowrap">
+                {user.createdAt ? format(user.createdAt instanceof Date ? user.createdAt : new Date((user.createdAt as any).seconds * 1000), "PP") : 'N/A'}
+              </TableCell>
               {user.role === 'developer' && (
-                <TableCell>
+                <TableCell className="min-w-[150px]">
                   {user.skills && user.skills.length > 0 
                     ? user.skills.join(", ") 
-                    : <span className="text-muted-foreground italic">No skills listed</span>}
+                    : <span className="text-muted-foreground italic">No skills</span>}
                 </TableCell>
               )}
               <TableCell className="text-right whitespace-nowrap space-x-2">
+                {user.role === 'developer' && user.accountStatus === 'pending_approval' && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-green-500 text-green-600 hover:bg-green-500/10"
+                      onClick={() => onUpdateStatus(user.id, 'active', user.email, user.name)}
+                      disabled={isUpdatingStatusId === user.id}
+                    >
+                      {isUpdatingStatusId === user.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckSquare className="mr-2 h-4 w-4" />}
+                      Approve
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                       className="border-destructive text-destructive hover:bg-destructive/10"
+                      onClick={() => onUpdateStatus(user.id, 'rejected', user.email, user.name)}
+                      disabled={isUpdatingStatusId === user.id}
+                    >
+                       {isUpdatingStatusId === user.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <XSquare className="mr-2 h-4 w-4" />}
+                      Reject
+                    </Button>
+                  </>
+                )}
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -371,7 +440,6 @@ interface ProjectTableProps {
 }
 
 function ProjectTable({ projects, allUsers }: ProjectTableProps) {
- // This component assumes projects list is already handled for empty/loading states by parent
   const getClientName = (clientId: string): string => {
     const client = allUsers.find(user => user.id === clientId && user.role === 'client');
     return client ? client.name || "Unnamed Client" : "Unknown Client";
@@ -393,7 +461,10 @@ function ProjectTable({ projects, allUsers }: ProjectTableProps) {
           {projects.map(project => (
             <TableRow key={project.id}>
               <TableCell className="font-medium whitespace-nowrap">{project.name}</TableCell>
-              <TableCell className="whitespace-nowrap">{getClientName(project.clientId)} ({project.clientId.substring(0,6)}...)</TableCell>
+              <TableCell className="whitespace-nowrap">
+                {getClientName(project.clientId)} 
+                <span className="text-xs text-muted-foreground ml-1">({project.clientId.substring(0,6)}...)</span>
+              </TableCell>
               <TableCell>
                 <ProjectStatusBadge status={project.status} />
               </TableCell>
@@ -423,21 +494,25 @@ function ProjectStatusBadge({ status }: { status?: Project["status"] }) {
   let currentStatus = status || "Unknown";
 
   if (currentStatus === "In Progress") {
-    bgColor = "bg-blue-500/20 text-blue-700 dark:text-blue-300";
-    dotColor = "bg-blue-500";
+    bgColor = "bg-blue-500/20 text-blue-700 dark:bg-blue-300/20 dark:text-blue-300";
+    dotColor = "bg-blue-500 dark:bg-blue-400";
   } else if (currentStatus === "Open") {
-    bgColor = "bg-green-500/20 text-green-700 dark:text-green-300";
-    dotColor = "bg-green-500";
+    bgColor = "bg-green-500/20 text-green-700 dark:bg-green-300/20 dark:text-green-300";
+    dotColor = "bg-green-500 dark:bg-green-400";
     icon = <Eye className="mr-1.5 h-3 w-3" />;
   } else if (currentStatus === "Completed") {
-    bgColor = "bg-purple-500/20 text-purple-700 dark:text-purple-300";
-    dotColor = "bg-purple-500";
+    bgColor = "bg-purple-500/20 text-purple-700 dark:bg-purple-300/20 dark:text-purple-300";
+    dotColor = "bg-purple-500 dark:bg-purple-400";
     icon = <CheckCircle className="mr-1.5 h-3 w-3" />;
   } else if (currentStatus === "Cancelled") {
-    bgColor = "bg-red-500/20 text-red-700 dark:text-red-300";
-    dotColor = "bg-red-500";
+    bgColor = "bg-red-500/20 text-red-700 dark:bg-red-300/20 dark:text-red-300";
+    dotColor = "bg-red-500 dark:bg-red-400";
     icon = <Info className="mr-1.5 h-3 w-3" />;
+  } else if (currentStatus === "Unknown") {
+     bgColor = "bg-gray-500/20 text-gray-700 dark:bg-gray-300/20 dark:text-gray-300";
+     dotColor = "bg-gray-500 dark:bg-gray-400";
   }
+
 
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bgColor} whitespace-nowrap`}>
@@ -449,3 +524,37 @@ function ProjectStatusBadge({ status }: { status?: Project["status"] }) {
     </span>
   );
 }
+
+function AccountStatusBadge({ status }: { status?: UserType["accountStatus"] }) {
+  let bgColor = "bg-muted text-muted-foreground";
+  let icon = <Clock className="mr-1.5 h-3 w-3" />;
+  let currentStatus = status || "unknown";
+  let capitalizedStatus = currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1).replace(/_/g, ' ');
+
+
+  if (currentStatus === "active") {
+    bgColor = "bg-green-500/20 text-green-700 dark:bg-green-300/20 dark:text-green-300";
+    icon = <CheckCircle className="mr-1.5 h-3 w-3" />;
+  } else if (currentStatus === "pending_approval") {
+    bgColor = "bg-yellow-500/20 text-yellow-700 dark:bg-yellow-300/20 dark:text-yellow-300";
+    icon = <Clock className="mr-1.5 h-3 w-3" />;
+  } else if (currentStatus === "rejected") {
+    bgColor = "bg-red-500/20 text-red-700 dark:bg-red-300/20 dark:text-red-300";
+    icon = <XSquare className="mr-1.5 h-3 w-3" />;
+  } else if (currentStatus === "suspended") {
+    bgColor = "bg-orange-500/20 text-orange-700 dark:bg-orange-300/20 dark:text-orange-300";
+    icon = <ShieldAlert className="mr-1.5 h-3 w-3" />;
+  } else { // Unknown
+     bgColor = "bg-gray-500/20 text-gray-700 dark:bg-gray-300/20 dark:text-gray-300";
+     icon = <Info className="mr-1.5 h-3 w-3" />;
+     capitalizedStatus = "Unknown";
+  }
+
+  return (
+    <Badge variant="outline" className={`border-transparent ${bgColor}`}>
+      {icon}
+      {capitalizedStatus}
+    </Badge>
+  );
+}
+

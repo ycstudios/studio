@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ArrowLeft, Briefcase, UserCircle2, FileText, AlertTriangle, Info, Loader2, Flag, ShieldCheck, ShieldX, Link as LinkIcon } from "lucide-react";
-import type { User as UserType } from "@/types";
-import { getUserById, toggleUserFlag, addAdminActivityLog } from "@/lib/firebaseService"; 
+import { ArrowLeft, Briefcase, UserCircle2, FileText, AlertTriangle, Info, Loader2, Flag, ShieldCheck, ShieldX, Link as LinkIcon, CheckSquare, XSquare, ShieldAlert } from "lucide-react";
+import type { User as UserType, AccountStatus } from "@/types";
+import { getUserById, toggleUserFlag, addAdminActivityLog, updateUserAccountStatus } from "@/lib/firebaseService"; 
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -26,6 +26,7 @@ export default function AdminUserDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isTogglingFlag, setIsTogglingFlag] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const fetchUser = useCallback(async () => {
     setIsLoading(true);
@@ -91,11 +92,46 @@ export default function AdminUserDetailPage() {
     }
   };
 
+  const handleUpdateAccountStatus = async (newStatus: AccountStatus) => {
+    if (!adminUser || !user) {
+      toast({ title: "Error", description: "Admin or target user data not available.", variant: "destructive" });
+      return;
+    }
+    setIsUpdatingStatus(true);
+    try {
+      await updateUserAccountStatus(user.id, newStatus, user.email, user.name);
+      const action = newStatus === 'active' ? 'DEVELOPER_APPROVED' : (newStatus === 'rejected' ? 'DEVELOPER_REJECTED' : `STATUS_CHANGED_TO_${newStatus.toUpperCase()}`);
+      await addAdminActivityLog({
+        adminId: adminUser.id,
+        adminName: adminUser.name || "Admin",
+        action: action,
+        targetType: "user",
+        targetId: user.id,
+        targetName: user.name || "Unnamed User",
+        details: { newAccountStatus: newStatus }
+      });
+      const updatedUser = await getUserById(user.id);
+      if (updatedUser) {
+        setUser(updatedUser);
+        updateSingleUserInList(updatedUser);
+      }
+      toast({
+        title: "Account Status Updated",
+        description: `${user.name || "User"}'s account has been ${newStatus === 'active' ? 'approved' : (newStatus === 'rejected' ? 'rejected' : `set to ${newStatus}`)}.`,
+      });
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : "Could not update account status.";
+      toast({ title: "Error", description: errorMsg, variant: "destructive" });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
   const getInitials = (name?: string) => {
     if (!name) return "U";
     const names = name.split(' ');
-    if (names.length > 1 && names[0] && names[names.length -1]) {
-      return `${names[0][0]}${names[names.length - 1][0]}`;
+    if (names.length > 1 && names[0] && names[names.length - 1]) {
+      return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
     }
     return name.substring(0, 2).toUpperCase();
   };
@@ -132,6 +168,8 @@ export default function AdminUserDetailPage() {
     );
   }
 
+  const capitalizedStatus = user.accountStatus.charAt(0).toUpperCase() + user.accountStatus.slice(1).replace(/_/g, ' ');
+
   return (
     <ProtectedPage allowedRoles={["admin"]}>
       <div className="container mx-auto p-4 md:p-6 lg:p-8">
@@ -156,9 +194,15 @@ export default function AdminUserDetailPage() {
                   <ShieldX className="h-4 w-4" /> User Flagged
                 </Badge>
               )}
+               <AccountStatusBadge status={user.accountStatus} className="mt-2" />
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-sm text-muted-foreground">{user.email}</p>
+               {user.resumeFileUrl && user.role === 'developer' && (
+                <Button variant="link" asChild className="mt-2 text-xs">
+                  <a href={user.resumeFileUrl} target="_blank" rel="noopener noreferrer">View Resume</a>
+                </Button>
+              )}
             </CardContent>
           </Card>
 
@@ -181,6 +225,13 @@ export default function AdminUserDetailPage() {
                 <p className={`text-lg flex items-center gap-1.5 ${user.isFlagged ? 'text-destructive' : 'text-green-600'}`}>
                   {user.isFlagged ? <ShieldX className="h-5 w-5" /> : <ShieldCheck className="h-5 w-5" />}
                   {user.isFlagged ? 'Flagged' : 'Not Flagged'}
+                </p>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Account Status</h3>
+                <p className="text-lg flex items-center gap-1.5">
+                  <AccountStatusIcon status={user.accountStatus} className="h-5 w-5" />
+                  {capitalizedStatus}
                 </p>
               </div>
               {user.bio && (
@@ -225,21 +276,51 @@ export default function AdminUserDetailPage() {
                 </div>
               )}
               {user.role === "developer" && (
-                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Experience Level</h3>
-                  <p className="text-base">{user.experienceLevel || <span className="italic text-muted-foreground">Not specified</span>}</p>
-                </div>
+                 <>
+                    <div>
+                        <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Experience Level</h3>
+                        <p className="text-base">{user.experienceLevel || <span className="italic text-muted-foreground">Not specified</span>}</p>
+                    </div>
+                    <div>
+                        <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Resume</h3>
+                        {user.resumeFileUrl ? (
+                             <a href={user.resumeFileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-base">{user.resumeFileName || "View Resume"}</a>
+                        ) : <p className="italic text-muted-foreground">No resume uploaded.</p>}
+                    </div>
+                 </>
               )}
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex-wrap gap-2">
               <Button 
                 variant={user.isFlagged ? "default" : "destructive"} 
                 onClick={handleToggleFlag} 
-                disabled={isTogglingFlag}
+                disabled={isTogglingFlag || isUpdatingStatus}
               >
                 {isTogglingFlag ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Flag className="mr-2 h-4 w-4" />}
                 {isTogglingFlag ? (user.isFlagged ? "Unflagging..." : "Flagging...") : (user.isFlagged ? "Unflag User" : "Flag User")}
               </Button>
+              {user.role === 'developer' && user.accountStatus === 'pending_approval' && (
+                <>
+                  <Button
+                    variant="outline"
+                    className="border-green-500 text-green-600 hover:bg-green-500/10"
+                    onClick={() => handleUpdateAccountStatus('active')}
+                    disabled={isUpdatingStatus || isTogglingFlag}
+                  >
+                    {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckSquare className="mr-2 h-4 w-4" />}
+                    Approve Developer
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="border-destructive text-destructive hover:bg-destructive/10"
+                    onClick={() => handleUpdateAccountStatus('rejected')}
+                    disabled={isUpdatingStatus || isTogglingFlag}
+                  >
+                    {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : <XSquare className="mr-2 h-4 w-4" />}
+                    Reject Developer
+                  </Button>
+                </>
+              )}
             </CardFooter>
           </Card>
         </div>
@@ -247,7 +328,7 @@ export default function AdminUserDetailPage() {
         <Card className="mt-8 shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center">
-              <FileText className="mr-2 h-5 w-5 text-primary" /> User Activity & History
+              <FileText className="mr-2 h-5 w-5 text-primary" /> User Activity & History (Placeholder)
             </CardTitle>
             <CardDescription>Overview of user's interactions and history on the platform.</CardDescription>
           </CardHeader>
@@ -267,3 +348,44 @@ export default function AdminUserDetailPage() {
     </ProtectedPage>
   );
 }
+
+function AccountStatusBadge({ status, className }: { status?: UserType["accountStatus"]; className?: string }) {
+  let bgColor = "bg-muted text-muted-foreground";
+  let icon = <Clock className="h-4 w-4" />;
+  let currentStatus = status || "unknown";
+  let capitalizedStatus = currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1).replace(/_/g, ' ');
+
+  if (currentStatus === "active") {
+    bgColor = "bg-green-500/20 text-green-700 dark:bg-green-300/20 dark:text-green-300";
+    icon = <CheckCircle className="h-4 w-4" />;
+  } else if (currentStatus === "pending_approval") {
+    bgColor = "bg-yellow-500/20 text-yellow-700 dark:bg-yellow-300/20 dark:text-yellow-300";
+    icon = <Clock className="h-4 w-4" />;
+  } else if (currentStatus === "rejected") {
+    bgColor = "bg-red-500/20 text-red-700 dark:bg-red-300/20 dark:text-red-300";
+    icon = <XSquare className="h-4 w-4" />;
+  } else if (currentStatus === "suspended") {
+    bgColor = "bg-orange-500/20 text-orange-700 dark:bg-orange-300/20 dark:text-orange-300";
+    icon = <ShieldAlert className="h-4 w-4" />;
+  } else { 
+     bgColor = "bg-gray-500/20 text-gray-700 dark:bg-gray-300/20 dark:text-gray-300";
+     icon = <Info className="h-4 w-4" />;
+     capitalizedStatus = "Unknown";
+  }
+
+  return (
+    <Badge variant="outline" className={`border-transparent ${bgColor} ${className}`}>
+      {React.cloneElement(icon, {className: "mr-1.5 h-3.5 w-3.5"})}
+      {capitalizedStatus}
+    </Badge>
+  );
+}
+
+function AccountStatusIcon({ status, className }: { status?: UserType["accountStatus"]; className?: string }) {
+  if (status === "active") return <CheckCircle className={`text-green-600 ${className}`} />;
+  if (status === "pending_approval") return <Clock className={`text-yellow-600 ${className}`} />;
+  if (status === "rejected") return <XSquare className={`text-destructive ${className}`} />;
+  if (status === "suspended") return <ShieldAlert className={`text-orange-600 ${className}`} />;
+  return <Info className={`text-muted-foreground ${className}`} />;
+}
+

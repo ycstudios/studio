@@ -30,7 +30,7 @@ function getEmailWrapper(title: string, content: string): string {
 export async function getWelcomeEmailTemplate(userName: string, userRole: User['role']): Promise<string> {
   let roleSpecificMessage = "";
   if (userRole === "developer") {
-    roleSpecificMessage = "<p>Your developer account is currently pending approval. We'll notify you once it's reviewed. In the meantime, feel free to complete your profile!</p>";
+    roleSpecificMessage = "<p>Your developer account is currently pending approval by our team. We'll notify you once it's reviewed. In the meantime, feel free to explore and complete your profile!</p>";
   } else if (userRole === "client") {
     roleSpecificMessage = "<p>You can now start submitting projects and finding talented developers.</p>";
   }
@@ -60,9 +60,11 @@ export async function getDeveloperRejectedEmailTemplate(developerName: string): 
     <p>Hi ${developerName},</p>
     <p>Thank you for your interest in joining CodeCrafter as a developer. After reviewing your application, we've decided not to proceed at this time.</p>
     <p>We appreciate you taking the time to apply. We encourage you to continue developing your skills and wish you the best in your future endeavors.</p>
+    <p>If you have any questions, please feel free to contact our support.</p>
   `;
   return getEmailWrapper("Update on Your CodeCrafter Developer Application", content);
 }
+
 
 export async function getClientProjectPostedEmailTemplate(clientName: string, projectName: string, projectId: string): Promise<string> {
   const content = `
@@ -95,4 +97,5 @@ export async function sendEmail(to: string, subject: string, htmlBody: string): 
   // For this mock, we'll assume it's always successful.
   console.log("--- EMAIL SIMULATION COMPLETE ---");
 }
+
 
