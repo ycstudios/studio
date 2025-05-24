@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,15 +9,15 @@ import { BenefitListItem } from "@/components/BenefitListItem";
 import { ImageCarousel } from "@/components/ImageCarousel"; 
 
 const clientCarouselImages = [
-  { src: "https://placehold.co/600x450.png", alt: "Client reviewing project proposals", dataAiHint: "client meeting business" },
-  { src: "https://placehold.co/600x450.png", alt: "Team planning a project", dataAiHint: "project planning team" },
-  { src: "https://placehold.co/600x450.png", alt: "Successful project launch presentation", dataAiHint: "successful presentation" },
+  { src: "https://www.dropbox.com/scl/fi/tf9c4m5q307qb45r6w62n/1.png?rlkey=ucr5x9pen2ndl58grawxul7xt&st=w1y9w892&dl=1", alt: "Client reviewing project proposals", dataAiHint: "client meeting business" },
+  { src: "https://www.dropbox.com/scl/fi/hqpsqf1ssc85sctwotm3d/5.png?rlkey=0xaucl1y0c0vrdnsft5595okn&st=0e1x9p9y&dl=0https://www.dropbox.com/scl/fi/kv7ve56w2414gwaf269wq/2.png?rlkey=s1cqcqfxdf2ememoqezrvcshp&st=ojo6qt9j&dl=1", alt: "Team planning a project", dataAiHint: "project planning team" },
+  { src: "https://www.dropbox.com/scl/fi/kv7ve56w2414gwaf269wq/2.png?rlkey=s1cqcqfxdf2ememoqezrvcshp&st=ojo6qt9j&dl=1", alt: "Successful project launch presentation", dataAiHint: "successful presentation" },
 ];
 
 const developerCarouselImages = [
-  { src: "https://placehold.co/600x450.png", alt: "Developer coding on a laptop", dataAiHint: "developer coding programming" },
-  { src: "https://placehold.co/600x450.png", alt: "Focused developer examining code", dataAiHint: "focused developer code" },
-  { src: "https://placehold.co/600x450.png", alt: "Two developers collaborating on code", dataAiHint: "collaborative coding pair" },
+  { src: "https://www.dropbox.com/scl/fi/z32zfcmqttj3x4uw7wmfp/4.png?rlkey=dhhd1ruga8j2p59g1m49gsec1&st=ygiv7hmu&dl=1", alt: "Developer coding on a laptop", dataAiHint: "developer coding programming", width: 500, height: 500 },
+  { src: "https://www.dropbox.com/scl/fi/a9nxd7kl8kvj0v0x57b8i/3.png?rlkey=dr38kz8v8eusty9jekrty8ges&st=e8nc4fg0&dl=1", alt: "Focused developer coding", dataAiHint: "focused developer code", width: 500, height: 500 },
+  { src: "https://www.dropbox.com/scl/fi/oy34qipt9kq4ba7y4snbo/WhatsApp-Image-2025-05-20-at-10.14.51-PM.jpeg?rlkey=whc93wr321i8uvi4s958ozueq&st=t7876qd1&dl=1", alt: "Collaborative coding pair", dataAiHint: "collaborative coding pair", width: 500, height: 500 },
 ];
 
 
@@ -48,12 +47,12 @@ export default function HomePage() {
               </div>
             </div>
             <Image
-              src="https://placehold.co/700x500.png"
-              width="700"
-              height="500"
+              src="https://www.dropbox.com/scl/fi/0i84baa0fg3n38bm2j0tc/7.png?rlkey=88j8yfjrgnhmqo92l79cn126a&st=hyclirml&dl=1"
+              width="500"
+              height="400"
               alt="Team collaborating on a project"
               data-ai-hint="modern office collaboration"
-              className="mx-auto aspect-video overflow-hidden rounded-xl object-cover shadow-2xl transform hover:scale-105 transition-transform duration-300 w-full h-auto animate-in fade-in zoom-in-90 duration-700 delay-200"
+              className="mx-auto rounded-xl shadow-2xl transform hover:scale-105 transition-transform duration-300 w-full h-auto max-w-[500px] max-h-[400px] animate-in fade-in zoom-in-90 duration-700 delay-200 object-cover"
               priority
             />
           </div>
@@ -109,7 +108,7 @@ export default function HomePage() {
                 <Link href="/projects/new">Post Your Project <ArrowRight className="ml-2 h-5 w-5" /></Link>
               </Button>
             </div>
-            <ImageCarousel images={clientCarouselImages} className="mx-auto w-full h-auto" />
+            <ImageCarousel images={clientCarouselImages} className="mx-auto w-full h-auto" interval={5000} />
           </div>
         </div>
       </section>
@@ -118,7 +117,7 @@ export default function HomePage() {
       <section className="w-full py-16 md:py-24 lg:py-32 bg-muted/30">
         <div className="container px-4 md:px-6">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
-             <ImageCarousel images={developerCarouselImages} className="mx-auto w-full h-auto lg:order-last" />
+             <ImageCarousel images={developerCarouselImages} className="mx-auto w-full h-auto lg:order-last" interval={5000} />
             <div>
               <div className="inline-block rounded-lg bg-accent/10 px-4 py-1.5 text-sm font-semibold text-accent mb-4">For Developers</div>
               <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl mb-6">Land Exciting Projects That Match Your Skills</h2>
@@ -259,14 +258,11 @@ function TestimonialCard({ quote, name, avatarHint }: TestimonialCardProps) {
       </CardHeader>
       <CardContent className="flex-grow flex items-end pt-2">
         <div className="flex items-center space-x-3">
-          <Image 
-            src={`https://placehold.co/50x50.png`}
-            alt={name} 
-            data-ai-hint={avatarHint}
-            width={50} 
-            height={50} 
-            className="rounded-full"
-          />
+          <div className="w-[50px] h-[50px] rounded-full bg-primary/10 flex items-center justify-center">
+            <span className="text-primary font-semibold text-lg">
+              {name.split(' ').map(n => n[0]).join('').toUpperCase()}
+            </span>
+          </div>
           <div>
             <p className="font-semibold text-sm">{name}</p>
           </div>

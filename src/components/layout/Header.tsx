@@ -1,4 +1,3 @@
-
 "use client";
 
 import { siteConfig, NavItem, UserRole } from "@/config/site";
@@ -8,13 +7,24 @@ import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/Logo";
 import { UserNav } from "./UserNav";
-import { ThemeToggle } from "./ThemeToggle"; // Import ThemeToggle
+import { ThemeToggle } from "./ThemeToggle";
 import { useAuth } from "@/contexts/AuthContext";
-import { LogIn, UserPlus } from "lucide-react";
+import { LogIn, UserPlus, Menu, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 export function Header() {
   const pathname = usePathname();
   const { user, isLoading } = useAuth();
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const getFilteredNav = (navItems: NavItem[]): NavItem[] => {
     if (isLoading) return [];
@@ -29,61 +39,103 @@ export function Header() {
   const protectedNavLinks = getFilteredNav(siteConfig.protectedNav);
   const allVisibleLinks = user ? protectedNavLinks : [];
 
+  const NavLinks = ({ className }: { className?: string }) => (
+    <>
+      {mainNavLinks.map((item) => (
+        <Link
+          key={item.href}
+          href={item.href}
+          className={cn(
+            "text-sm font-medium transition-all duration-150 ease-in-out border-b-2 px-2 py-[22px] sm:py-[22px]", 
+            pathname === item.href
+              ? "text-primary border-primary font-semibold" 
+              : "text-foreground/70 border-transparent hover:text-primary hover:border-primary/70",
+            className
+          )}
+        >
+          {item.title}
+        </Link>
+      ))}
+      {user && allVisibleLinks.map((item) => (
+        <Link
+          key={item.href}
+          href={item.href}
+          className={cn(
+            "text-sm font-medium transition-all duration-150 ease-in-out border-b-2 px-2 py-[22px] sm:py-[22px]", 
+            pathname === item.href
+              ? "text-primary border-primary font-semibold" 
+              : "text-foreground/70 border-transparent hover:text-primary hover:border-primary/70",
+            className
+          )}
+        >
+          {item.title}
+        </Link>
+      ))}
+    </>
+  );
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-auto min-h-16 max-w-screen-2xl items-center py-2 sm:py-0">
-        <Logo />
-        <nav className="ml-6 flex flex-wrap items-center gap-x-1 lg:gap-x-2 gap-y-1">
-          {mainNavLinks.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "text-sm font-medium transition-all duration-150 ease-in-out border-b-2 px-2 py-[22px] sm:py-[22px]", 
-                pathname === item.href
-                  ? "text-primary border-primary font-semibold" 
-                  : "text-foreground/70 border-transparent hover:text-primary hover:border-primary/70" 
-              )}
-            >
-              {item.title}
-            </Link>
-          ))}
-          {user && allVisibleLinks.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "text-sm font-medium transition-all duration-150 ease-in-out border-b-2 px-2 py-[22px] sm:py-[22px]", 
-                pathname === item.href
-                  ? "text-primary border-primary font-semibold" 
-                  : "text-foreground/70 border-transparent hover:text-primary hover:border-primary/70" 
-              )}
-            >
-              {item.title}
-            </Link>
-          ))}
-        </nav>
-        <div className="flex flex-1 items-center justify-end space-x-2 ml-auto">
-          <ThemeToggle /> 
+    <header className={cn(
+      "sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 transition-all duration-200",
+      isScrolled && "shadow-sm"
+    )}>
+      <div className="container flex h-16 items-center justify-between px-4 md:px-6">
+        <div className="flex items-center gap-8">
+          <Logo />
+          <nav className="hidden md:flex items-center space-x-6">
+            <NavLinks />
+          </nav>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <ThemeToggle />
+          
           {isLoading ? (
             <div className="h-8 w-20 animate-pulse rounded-md bg-muted"></div>
           ) : user ? (
             <UserNav />
           ) : (
             <>
-              <Button variant="ghost" asChild>
-                <Link href="/login">
+              <Button variant="ghost" asChild className="hidden sm:flex">
+                <Link href="/login" className="px-4">
                   <LogIn className="mr-2 h-4 w-4" /> Login
                 </Link>
               </Button>
-              <Button asChild>
-                <Link href="/signup">
+              <Button asChild className="hidden sm:flex">
+                <Link href="/signup" className="px-4">
                   <UserPlus className="mr-2 h-4 w-4" /> Sign Up
                 </Link>
               </Button>
             </>
           )}
+
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="md:hidden ml-2">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Toggle menu</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[300px] sm:w-[400px]">
+              <nav className="flex flex-col gap-4 mt-8">
+                <NavLinks className="border-none py-2" />
+                {!user && (
+                  <div className="flex flex-col gap-2 mt-4">
+                    <Button variant="ghost" asChild className="justify-start">
+                      <Link href="/login">
+                        <LogIn className="mr-2 h-4 w-4" /> Login
+                      </Link>
+                    </Button>
+                    <Button asChild className="justify-start">
+                      <Link href="/signup">
+                        <UserPlus className="mr-2 h-4 w-4" /> Sign Up
+                      </Link>
+                    </Button>
+                  </div>
+                )}
+              </nav>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
     </header>

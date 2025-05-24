@@ -1,6 +1,5 @@
-
 import { initializeApp, getApps, getApp, type FirebaseOptions } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, type Firestore } from "firebase/firestore";
 // import { getAuth } from "firebase/auth"; // We'll use this later for Firebase Auth
 
 // Your web app's Firebase configuration should be set in environment variables
@@ -28,7 +27,7 @@ if (!getApps().length) {
   app = getApp();
 }
 
-let db;
+let db: Firestore;
 try {
   db = getFirestore(app);
 } catch (error) {
