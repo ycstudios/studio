@@ -10,7 +10,7 @@ import Image from "next/image";
 
 export default function ReferralsPage() {
   const { toast } = useToast();
-  const referralLink = "https://devconnect.example.com/signup?ref=USER123"; // Mock referral link
+  const referralLink = "https://codecrafter.example.com/signup?ref=USER123"; // Mock referral link
   const referralCode = "USER123";
 
   const copyToClipboard = (text: string) => {
@@ -28,7 +28,7 @@ export default function ReferralsPage() {
         <header className="mb-8 text-center">
           <Gift className="mx-auto h-16 w-16 text-primary mb-4" />
           <h1 className="text-4xl font-bold tracking-tight">Refer & Earn</h1>
-          <p className="text-xl text-muted-foreground mt-2">Invite clients or developers to DevConnect and earn commissions!</p>
+          <p className="text-xl text-muted-foreground mt-2">Invite clients or developers to CodeCrafter and earn commissions!</p>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">

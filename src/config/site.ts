@@ -20,10 +20,10 @@ export type SiteConfig = {
 };
 
 export const siteConfig: SiteConfig = {
-  name: "DevConnect",
+  name: "CodeCrafter",
   description: "Connecting clients with expert developers.",
-  url: "https://devconnect.example.com", // Replace with your actual URL
-  ogImage: "https://devconnect.example.com/og.jpg", // Replace with your actual OG image
+  url: "https://codecrafter.example.com", // Replace with your actual URL
+  ogImage: "https://codecrafter.example.com/og.jpg", // Replace with your actual OG image
   mainNav: [
     {
       title: "Home",

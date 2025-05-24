@@ -3,7 +3,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CheckCircle, Briefcase, Users, Zap, Target, Search, MessageSquare, ThumbsUp, UserCheck, CircleHelp, ArrowRight, Quote, UserPlus } from "lucide-react";
+import { Briefcase, Users, Zap, Target, Search, MessageSquare, ThumbsUp, UserCheck, CircleHelp, ArrowRight, Quote, UserPlus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { BenefitListItem } from "@/components/BenefitListItem";
@@ -21,7 +21,7 @@ export default function HomePage() {
                   Connect, Collaborate, Create.
                 </h1>
                 <p className="max-w-[600px] text-muted-foreground md:text-xl">
-                  DevConnect is your AI-powered platform to seamlessly match innovative projects with expert freelance developers. Build your vision, faster.
+                  CodeCrafter is your AI-powered platform to seamlessly match innovative projects with expert freelance developers. Build your vision, faster.
                 </p>
               </div>
               <div className="flex flex-col gap-3 sm:flex-row">
@@ -49,7 +49,7 @@ export default function HomePage() {
       <section className="w-full py-16 md:py-24 lg:py-32 bg-muted/30">
         <div className="container px-4 md:px-6">
           <div className="flex flex-col items-center justify-center space-y-4 text-center mb-12">
-            <div className="inline-block rounded-lg bg-secondary px-4 py-1.5 text-sm font-semibold text-secondary-foreground">How DevConnect Works</div>
+            <div className="inline-block rounded-lg bg-secondary px-4 py-1.5 text-sm font-semibold text-secondary-foreground">How CodeCrafter Works</div>
             <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl">Simple Steps to Success</h2>
             <p className="max-w-[700px] text-muted-foreground md:text-lg">
               We've streamlined the process so you can focus on what matters most.
@@ -69,7 +69,7 @@ export default function HomePage() {
             <HowItWorksStep
               icon={<Zap className="h-10 w-10 text-primary" />}
               step="3. AI Matchmaking & Facilitated Communication"
-              description="Our system connects clients with suitable developers. DevConnect then acts as an intermediary to manage communication and project milestones."
+              description="Our system connects clients with suitable developers. CodeCrafter then acts as an intermediary to manage communication and project milestones."
             />
           </div>
         </div>
@@ -83,7 +83,7 @@ export default function HomePage() {
               <div className="inline-block rounded-lg bg-primary/10 px-4 py-1.5 text-sm font-semibold text-primary mb-4">For Clients</div>
               <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl mb-6">Find Your Perfect Developer, Stress-Free</h2>
               <p className="text-muted-foreground md:text-lg mb-8">
-                Stop sifting through endless profiles. DevConnect brings top-tier talent directly to you, tailored to your project's unique requirements, and facilitates all interactions.
+                Stop sifting through endless profiles. CodeCrafter brings top-tier talent directly to you, tailored to your project's unique requirements, and facilitates all interactions.
               </p>
               <ul className="space-y-4">
                 <BenefitListItem icon={<Target className="text-accent" />} text="AI-Powered Matching: Get precise developer recommendations." />
@@ -122,7 +122,7 @@ export default function HomePage() {
               <div className="inline-block rounded-lg bg-accent/10 px-4 py-1.5 text-sm font-semibold text-accent mb-4">For Developers</div>
               <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl mb-6">Land Exciting Projects That Match Your Skills</h2>
               <p className="text-muted-foreground md:text-lg mb-8">
-                Focus on what you do best – coding. DevConnect brings you relevant project opportunities and handles client communication, so you can build amazing things.
+                Focus on what you do best – coding. CodeCrafter brings you relevant project opportunities and handles client communication, so you can build amazing things.
               </p>
               <ul className="space-y-4">
                 <BenefitListItem icon={<UserCheck className="text-primary" />} text="Curated Opportunities: Find projects aligned with your expertise." />
@@ -146,17 +146,17 @@ export default function HomePage() {
           </div>
           <div className="mx-auto grid max-w-5xl grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 lg:gap-12">
             <TestimonialCard
-              quote="DevConnect's AI matchmaking was spot on! Found the perfect developer for my startup in days, not weeks. The facilitated communication made everything smooth."
+              quote="CodeCrafter's AI matchmaking was spot on! Found the perfect developer for my startup in days, not weeks. The facilitated communication made everything smooth."
               name="Sarah L., CEO of TechBloom"
               avatarHint="female ceo portrait"
             />
             <TestimonialCard
-              quote="As a developer, I love how DevConnect brings relevant projects to me and handles the initial client interactions. It's saved me so much time."
+              quote="As a developer, I love how CodeCrafter brings relevant projects to me and handles the initial client interactions. It's saved me so much time."
               name="Mike R., Full-Stack Developer"
               avatarHint="male developer happy"
             />
             <TestimonialCard
-              quote="The platform is intuitive and made the hiring process incredibly smooth. Having DevConnect manage communications was a huge plus. Highly recommend!"
+              quote="The platform is intuitive and made the hiring process incredibly smooth. Having CodeCrafter manage communications was a huge plus. Highly recommend!"
               name="Jessica P., Project Manager at Innovate Inc."
               avatarHint="female manager professional"
             />
@@ -179,7 +179,7 @@ export default function HomePage() {
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="item-2">
-              <AccordionTrigger className="text-lg hover:text-primary">Is DevConnect free to use?</AccordionTrigger>
+              <AccordionTrigger className="text-lg hover:text-primary">Is CodeCrafter free to use?</AccordionTrigger>
               <AccordionContent className="text-muted-foreground">
                 Signing up and browsing is free for both clients and developers. We offer various plans for posting projects and accessing premium features. (Note: This is a placeholder, actual pricing model TBD).
               </AccordionContent>
@@ -193,7 +193,7 @@ export default function HomePage() {
              <AccordionItem value="item-4">
               <AccordionTrigger className="text-lg hover:text-primary">How does communication work between clients and developers?</AccordionTrigger>
               <AccordionContent className="text-muted-foreground">
-                DevConnect acts as an intermediary for all communication. Once a potential match is identified or a project proposal is initiated, our platform facilitates the exchange of messages, ensuring a streamlined and managed process. This helps maintain clarity, track progress, and provide support when needed.
+                CodeCrafter acts as an intermediary for all communication. Once a potential match is identified or a project proposal is initiated, our platform facilitates the exchange of messages, ensuring a streamlined and managed process. This helps maintain clarity, track progress, and provide support when needed.
               </AccordionContent>
             </AccordionItem>
           </Accordion>
@@ -208,7 +208,7 @@ export default function HomePage() {
               Ready to Build Your Next Big Thing?
             </h2>
             <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl/relaxed">
-              Join DevConnect today. Whether you're a client with an idea or a developer ready for your next challenge, we're here to make the connection.
+              Join CodeCrafter today. Whether you're a client with an idea or a developer ready for your next challenge, we're here to make the connection.
             </p>
           </div>
           <div className="mx-auto w-full max-w-sm space-y-3 sm:flex sm:flex-row sm:space-y-0 sm:space-x-4 sm:justify-center">

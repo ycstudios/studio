@@ -70,7 +70,7 @@ export function SignupForm() {
       email: values.email,
       role: values.role as UserRole,
       avatarUrl: `https://placehold.co/100x100.png?text=${values.name[0].toUpperCase()}`,
-      bio: `New ${values.role} on DevConnect.`, // Default bio
+      bio: `New ${values.role} on CodeCrafter.`, // Default bio
       skills: values.role === "developer" ? ["New Developer"] : [], // Default skills for developers
     };
 
@@ -86,7 +86,7 @@ export function SignupForm() {
 
       toast({
         title: "Signup Successful",
-        description: `Welcome to DevConnect, ${values.name}! User saved to database.`,
+        description: `Welcome to CodeCrafter, ${values.name}! User saved to database.`,
       });
       router.push("/dashboard");
 
@@ -106,7 +106,7 @@ export function SignupForm() {
     <Card className="w-full max-w-md shadow-xl">
       <CardHeader>
         <CardTitle className="text-2xl">Create an Account</CardTitle>
-        <CardDescription>Join DevConnect as a client or developer.</CardDescription>
+        <CardDescription>Join CodeCrafter as a client or developer.</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>

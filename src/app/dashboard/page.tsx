@@ -30,7 +30,7 @@ export default function DashboardPage() {
       <div className="container mx-auto p-4 md:p-6 lg:p-8">
         <header className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight">Welcome to your Dashboard, {user?.name}!</h1>
-          <p className="text-muted-foreground">Here&apos;s an overview of your activities on DevConnect.</p>
+          <p className="text-muted-foreground">Here&apos;s an overview of your activities on CodeCrafter.</p>
         </header>
 
         {user?.role === "client" && <ClientDashboard />}

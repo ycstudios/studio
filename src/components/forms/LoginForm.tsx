@@ -82,7 +82,7 @@ export function LoginForm() {
   return (
     <Card className="w-full max-w-md shadow-xl">
       <CardHeader>
-        <CardTitle className="text-2xl">Login to DevConnect</CardTitle>
+        <CardTitle className="text-2xl">Login to CodeCrafter</CardTitle>
         <CardDescription>Enter your credentials to access your account. (Use 'admin@example.com' for admin access)</CardDescription>
       </CardHeader>
       <CardContent>

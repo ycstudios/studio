@@ -36,7 +36,7 @@ export default function BillingPage() {
           <Card className="lg:col-span-1 shadow-lg">
             <CardHeader>
               <CardTitle className="text-xl">Current Plan</CardTitle>
-              <CardDescription>Your DevConnect subscription details.</CardDescription>
+              <CardDescription>Your CodeCrafter subscription details.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between items-center">
