@@ -68,8 +68,8 @@ export default function HomePage() {
             />
             <HowItWorksStep
               icon={<Zap className="h-10 w-10 text-primary" />}
-              step="3. AI Matchmaking"
-              description="Our intelligent system connects clients with the most suitable developers based on skills and project needs."
+              step="3. AI Matchmaking & Facilitated Communication"
+              description="Our system connects clients with suitable developers. DevConnect then acts as an intermediary to manage communication and project milestones."
             />
           </div>
         </div>
@@ -83,12 +83,12 @@ export default function HomePage() {
               <div className="inline-block rounded-lg bg-primary/10 px-4 py-1.5 text-sm font-semibold text-primary mb-4">For Clients</div>
               <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl mb-6">Find Your Perfect Developer, Stress-Free</h2>
               <p className="text-muted-foreground md:text-lg mb-8">
-                Stop sifting through endless profiles. DevConnect brings top-tier talent directly to you, tailored to your project's unique requirements.
+                Stop sifting through endless profiles. DevConnect brings top-tier talent directly to you, tailored to your project's unique requirements, and facilitates all interactions.
               </p>
               <ul className="space-y-4">
                 <BenefitListItem icon={<Target className="text-accent" />} text="AI-Powered Matching: Get precise developer recommendations." />
                 <BenefitListItem icon={<Search className="text-accent" />} text="Access Vetted Talent: Connect with skilled and reliable professionals." />
-                <BenefitListItem icon={<MessageSquare className="text-accent" />} text="Streamlined Communication: Manage your projects and collaborate efficiently." />
+                <BenefitListItem icon={<MessageSquare className="text-accent" />} text="Facilitated Communication: We manage communication to ensure clarity and progress." />
               </ul>
               <Button size="lg" asChild className="mt-8">
                 <Link href="/projects/new">Post Your Project <ArrowRight className="ml-2 h-5 w-5" /></Link>
@@ -122,12 +122,12 @@ export default function HomePage() {
               <div className="inline-block rounded-lg bg-accent/10 px-4 py-1.5 text-sm font-semibold text-accent mb-4">For Developers</div>
               <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl mb-6">Land Exciting Projects That Match Your Skills</h2>
               <p className="text-muted-foreground md:text-lg mb-8">
-                Focus on what you do best – coding. DevConnect brings you relevant project opportunities, so you can build amazing things.
+                Focus on what you do best – coding. DevConnect brings you relevant project opportunities and handles client communication, so you can build amazing things.
               </p>
               <ul className="space-y-4">
                 <BenefitListItem icon={<UserCheck className="text-primary" />} text="Curated Opportunities: Find projects aligned with your expertise." />
                 <BenefitListItem icon={<Zap className="text-primary" />} text="AI-Assisted Matching: Get noticed for your unique talents." />
-                <BenefitListItem icon={<ThumbsUp className="text-primary" />} text="Build Your Portfolio: Work on diverse projects and grow your career." />
+                <BenefitListItem icon={<ThumbsUp className="text-primary" />} text="Build Your Portfolio: Work on diverse projects and grow your career with our support." />
               </ul>
               <Button size="lg" asChild className="mt-8">
                 <Link href="/signup">Join as a Developer <ArrowRight className="ml-2 h-5 w-5" /></Link>
@@ -146,17 +146,17 @@ export default function HomePage() {
           </div>
           <div className="mx-auto grid max-w-5xl grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 lg:gap-12">
             <TestimonialCard
-              quote="DevConnect's AI matchmaking was spot on! Found the perfect developer for my startup in days, not weeks."
+              quote="DevConnect's AI matchmaking was spot on! Found the perfect developer for my startup in days, not weeks. The facilitated communication made everything smooth."
               name="Sarah L., CEO of TechBloom"
               avatarHint="female ceo portrait"
             />
             <TestimonialCard
-              quote="As a developer, I love how DevConnect brings relevant projects to me. It's saved me so much time."
+              quote="As a developer, I love how DevConnect brings relevant projects to me and handles the initial client interactions. It's saved me so much time."
               name="Mike R., Full-Stack Developer"
               avatarHint="male developer happy"
             />
             <TestimonialCard
-              quote="The platform is intuitive and made the hiring process incredibly smooth. Highly recommend!"
+              quote="The platform is intuitive and made the hiring process incredibly smooth. Having DevConnect manage communications was a huge plus. Highly recommend!"
               name="Jessica P., Project Manager at Innovate Inc."
               avatarHint="female manager professional"
             />
@@ -191,9 +191,9 @@ export default function HomePage() {
               </AccordionContent>
             </AccordionItem>
              <AccordionItem value="item-4">
-              <AccordionTrigger className="text-lg hover:text-primary">Can I communicate with developers/clients directly?</AccordionTrigger>
+              <AccordionTrigger className="text-lg hover:text-primary">How does communication work between clients and developers?</AccordionTrigger>
               <AccordionContent className="text-muted-foreground">
-                Yes, once a match is made or a proposal is accepted (depending on the workflow), DevConnect provides tools for direct communication and collaboration.
+                DevConnect acts as an intermediary for all communication. Once a potential match is identified or a project proposal is initiated, our platform facilitates the exchange of messages, ensuring a streamlined and managed process. This helps maintain clarity, track progress, and provide support when needed.
               </AccordionContent>
             </AccordionItem>
           </Accordion>
@@ -275,3 +275,4 @@ function TestimonialCard({ quote, name, avatarHint }: TestimonialCardProps) {
     </Card>
   );
 }
+

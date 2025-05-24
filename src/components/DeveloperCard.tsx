@@ -1,8 +1,9 @@
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { MessageSquare, UserCheck } from "lucide-react";
+import { Eye, UserCheck } from "lucide-react"; // Removed MessageSquare
 
 interface DeveloperCardProps {
   name: string;
@@ -24,7 +25,7 @@ export function DeveloperCard({ name, description, skills, availability, timezon
   };
   
   return (
-    <Card className="shadow-md hover:shadow-lg transition-shadow duration-200">
+    <Card className="shadow-md hover:shadow-lg transition-shadow duration-200 flex flex-col">
       <CardHeader className="flex flex-row items-start gap-4">
         <Avatar className="h-12 w-12">
           <AvatarImage src={avatarUrl || `https://placehold.co/100x100.png`} alt={name} data-ai-hint={dataAiHint || "developer portrait"} />
@@ -35,7 +36,7 @@ export function DeveloperCard({ name, description, skills, availability, timezon
           {/* If description from AI is short, it can be CardDescription. Otherwise, in CardContent */}
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 flex-grow">
         <p className="text-sm text-muted-foreground line-clamp-3">{description}</p>
         {skills && skills.length > 0 && (
           <div>
@@ -52,11 +53,9 @@ export function DeveloperCard({ name, description, skills, availability, timezon
       </CardContent>
       <CardFooter className="gap-2">
         <Button variant="default" className="flex-1">
-          <UserCheck className="mr-2 h-4 w-4" /> View Profile
+          <Eye className="mr-2 h-4 w-4" /> View Profile {/* Changed icon for clarity */}
         </Button>
-        <Button variant="outline" className="flex-1">
-          <MessageSquare className="mr-2 h-4 w-4" /> Contact Developer
-        </Button>
+        {/* "Contact Developer" button removed */}
       </CardFooter>
     </Card>
   );
