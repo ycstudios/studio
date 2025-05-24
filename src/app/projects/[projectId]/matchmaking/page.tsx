@@ -50,7 +50,6 @@ export default function ProjectMatchmakingPage() {
             toast({ title: "Error", description: "Project not found.", variant: "destructive" });
           }
         } catch (e) {
-          // console.error("Failed to fetch project:", e); // Removed for production
           const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred.";
           setError(`Failed to load project: ${errorMessage}`);
           toast({ title: "Error Loading Project", description: `Could not load project: ${errorMessage}`, variant: "destructive" });
@@ -64,7 +63,7 @@ export default function ProjectMatchmakingPage() {
         setIsLoadingProject(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, toast, user?.role, user?.id]); // Removed handleRunMatchmaking from dep array as it's memoized
+  }, [projectId, toast, user?.role, user?.id]); 
 
   const handleRunMatchmaking = async (currentProject: ProjectType | null = project) => {
     if (!currentProject) {
@@ -100,7 +99,6 @@ export default function ProjectMatchmakingPage() {
           description: "Potential developer matches have been found for your project.",
         });
       } catch (e) {
-        // console.error("AI Matchmaking error:", e); // Removed for production
         const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred.";
         setError(`AI Matchmaking failed: ${errorMessage}`); 
         toast({
@@ -115,14 +113,12 @@ export default function ProjectMatchmakingPage() {
   };
 
   const handleApplyForProject = () => {
-    // Placeholder for actual application logic (e.g., save to Firestore)
-    // console.log(`Developer ${user?.id} applied for project ${projectId}`); // Removed for production
+    // In a real app, you'd call a service here to save the application
     setApplied(true);
     toast({
       title: "Application Submitted!",
       description: "Your interest in this project has been noted. The project owner will be informed.",
     });
-    // In a real app, you'd call a service here to save the application
   };
 
 
@@ -187,7 +183,7 @@ export default function ProjectMatchmakingPage() {
             <CardDescription>Project ID: {project.id}</CardDescription>
              {project.createdAt && (
                 <p className="text-xs text-muted-foreground">
-                    Posted: {project.createdAt instanceof Date ? format(project.createdAt, "MMMM d, yyyy 'at' h:mm a") : 'Date unavailable'}
+                    Posted: {project.createdAt instanceof Date ? format(project.createdAt, "MMMM d, yyyy 'at' h:mm a") : (typeof project.createdAt === 'string' ? format(new Date(project.createdAt), "MMMM d, yyyy 'at' h:mm a") : 'Date unavailable')}
                 </p>
             )}
           </CardHeader>

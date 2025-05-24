@@ -40,14 +40,14 @@ export function LoginForm() {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    // console.log("Login attempt with:", values); // Removed for production
+    // This is a mock login. In a real app with Firebase Auth, you'd call Firebase's signInWithEmailAndPassword.
     
     let role: UserRole;
     const emailLowerCase = values.email.toLowerCase();
 
     if (emailLowerCase === "admin@example.com") {
       role = "admin";
-    } else if (emailLowerCase.includes("developer")) {
+    } else if (emailLowerCase.includes("developer") || emailLowerCase.includes("dev")) { // Added "dev" for flexibility
       role = "developer";
     } else if (emailLowerCase.includes("client")) {
       role = "client";
@@ -60,17 +60,19 @@ export function LoginForm() {
         return;
     }
 
+    // In a real Firebase Auth scenario, Firebase would provide the user object.
+    // Here, we're still mocking part of it.
     login({
-      id: Math.random().toString(36).substring(7), // This mock ID generation needs to be replaced by actual Firebase Auth ID
-      name: values.email.split('@')[0], 
+      id: Math.random().toString(36).substring(2, 15), // Mock ID generation
+      name: values.email.split('@')[0] || "User", 
       email: values.email,
       role: role,
-      avatarUrl: `https://placehold.co/100x100.png?text=${values.email[0].toUpperCase()}`
+      avatarUrl: `https://placehold.co/100x100.png?text=${(values.email.split('@')[0]?.[0] || 'U').toUpperCase()}`
     });
 
     toast({
       title: "Login Successful",
-      description: `Welcome back, ${values.email.split('@')[0]}!`,
+      description: `Welcome back, ${values.email.split('@')[0] || "User"}!`,
     });
     
     if (role === "admin") {

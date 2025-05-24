@@ -41,7 +41,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased min-h-screen bg-background flex flex-col`}>
         <ThemeProvider
           attribute="class"
-          defaultTheme="dark" // Keep dark as default from previous preference
+          defaultTheme="dark" 
           enableSystem
           disableTransitionOnChange
         >
@@ -55,7 +55,13 @@ export default function RootLayout({
 
         {/* 
           Tawk.to Live Chat Widget Script 
-          IMPORTANT: Replace YOUR_PROPERTY_ID and YOUR_WIDGET_ID with your actual IDs from Tawk.to dashboard.
+          =========================================================================
+          IMPORTANT: FOR PRODUCTION, YOU MUST REPLACE 
+                     'YOUR_PROPERTY_ID' and 'YOUR_WIDGET_ID' 
+                     in the s1.src URL below with your actual IDs 
+                     obtained from your Tawk.to dashboard.
+                     Example: s1.src='https://embed.tawk.to/1234567890abcdef/1gh2ij3kl';
+          =========================================================================
         */}
         <Script id="tawk-to-script" strategy="afterInteractive">
           {`
