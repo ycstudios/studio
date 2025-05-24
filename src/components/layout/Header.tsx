@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/Logo";
 import { UserNav } from "./UserNav";
+import { ThemeToggle } from "./ThemeToggle"; // Import ThemeToggle
 import { useAuth } from "@/contexts/AuthContext";
 import { LogIn, UserPlus } from "lucide-react";
 
@@ -39,10 +40,10 @@ export function Header() {
               key={item.href}
               href={item.href}
               className={cn(
-                "text-sm font-medium transition-all duration-150 ease-in-out border-b-2 px-2 py-[22px] sm:py-[22px]", // Adjusted padding for consistent height with border
+                "text-sm font-medium transition-all duration-150 ease-in-out border-b-2 px-2 py-[22px] sm:py-[22px]", 
                 pathname === item.href
-                  ? "text-primary border-primary font-semibold" // Active state
-                  : "text-foreground/70 border-transparent hover:text-primary hover:border-primary/70" // Default and hover states
+                  ? "text-primary border-primary font-semibold" 
+                  : "text-foreground/70 border-transparent hover:text-primary hover:border-primary/70" 
               )}
             >
               {item.title}
@@ -53,10 +54,10 @@ export function Header() {
               key={item.href}
               href={item.href}
               className={cn(
-                "text-sm font-medium transition-all duration-150 ease-in-out border-b-2 px-2 py-[22px] sm:py-[22px]", // Adjusted padding
+                "text-sm font-medium transition-all duration-150 ease-in-out border-b-2 px-2 py-[22px] sm:py-[22px]", 
                 pathname === item.href
-                  ? "text-primary border-primary font-semibold" // Active state
-                  : "text-foreground/70 border-transparent hover:text-primary hover:border-primary/70" // Default and hover states
+                  ? "text-primary border-primary font-semibold" 
+                  : "text-foreground/70 border-transparent hover:text-primary hover:border-primary/70" 
               )}
             >
               {item.title}
@@ -64,6 +65,7 @@ export function Header() {
           ))}
         </nav>
         <div className="flex flex-1 items-center justify-end space-x-2 ml-auto">
+          <ThemeToggle /> 
           {isLoading ? (
             <div className="h-8 w-20 animate-pulse rounded-md bg-muted"></div>
           ) : user ? (

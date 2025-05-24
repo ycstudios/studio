@@ -5,8 +5,9 @@ import Script from 'next/script'; // Import the Script component
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { Header } from "@/components/layout/Header";
-import { Footer } from "@/components/layout/Footer"; // Import Footer
+import { Footer } from "@/components/layout/Footer"; 
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/components/ThemeProvider"; // Import ThemeProvider
 import { siteConfig } from '@/config/site';
 
 const geistSans = Geist({
@@ -26,7 +27,7 @@ export const metadata: Metadata = {
   },
   description: siteConfig.description,
   icons: {
-    icon: "/favicon.ico", // Assuming you might add a favicon later
+    icon: "/favicon.ico", 
   },
 };
 
@@ -38,12 +39,19 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased min-h-screen bg-background flex flex-col`}>
-        <AuthProvider>
-          <Header />
-          <main className="flex-1 flex flex-col">{children}</main> {/* Ensure main content can take available space */}
-          <Toaster />
-          <Footer /> {/* Add Footer here */}
-        </AuthProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AuthProvider>
+            <Header />
+            <main className="flex-1 flex flex-col">{children}</main> 
+            <Toaster />
+            <Footer /> 
+          </AuthProvider>
+        </ThemeProvider>
 
         {/* Tawk.to Script - Replace YOUR_PROPERTY_ID and YOUR_WIDGET_ID */}
         <Script id="tawk-to-script" strategy="afterInteractive">
