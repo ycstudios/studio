@@ -126,18 +126,15 @@ export async function sendEmail(to: string, subject: string, htmlBody: string, f
     APP_EMAIL_FROM_NAME
   } = process.env;
 
-  console.log('[EmailService] Attempting to send email via EmailJS. Validating environment variables:');
-  console.log(`  > EMAILJS_SERVICE_ID: ${EMAILJS_SERVICE_ID ? 'SET' : 'NOT SET or empty'}`);
-  console.log(`  > EMAILJS_TEMPLATE_ID_GENERIC: ${EMAILJS_TEMPLATE_ID_GENERIC ? 'SET' : 'NOT SET or empty'}`);
-  console.log(`  > EMAILJS_USER_ID (Public Key): ${EMAILJS_USER_ID ? 'SET' : 'NOT SET or empty'}`);
-  // For private key, log its presence and a tiny part for verification, but not the whole key
-  console.log(`  > EMAILJS_PRIVATE_KEY (Access Token): ${EMAILJS_PRIVATE_KEY ? 'SET (e.g., ' + EMAILJS_PRIVATE_KEY.substring(0, Math.min(5, EMAILJS_PRIVATE_KEY.length)) + '...)' : 'NOT SET or empty'}`);
-  console.log(`  > APP_EMAIL_FROM_NAME: ${APP_EMAIL_FROM_NAME ? `SET ('${APP_EMAIL_FROM_NAME}')` : 'NOT SET or empty (will use default)'}`);
+  let emailJsConfigComplete = true;
+  if (!EMAILJS_SERVICE_ID) { console.warn("[EmailService] EMAILJS_SERVICE_ID is NOT SET. Emails will be logged to console."); emailJsConfigComplete = false; }
+  if (!EMAILJS_TEMPLATE_ID_GENERIC) { console.warn("[EmailService] EMAILJS_TEMPLATE_ID_GENERIC is NOT SET. Emails will be logged to console."); emailJsConfigComplete = false; }
+  if (!EMAILJS_USER_ID) { console.warn("[EmailService] EMAILJS_USER_ID (Public Key) is NOT SET. Emails will be logged to console."); emailJsConfigComplete = false; }
+  if (!EMAILJS_PRIVATE_KEY) { console.warn("[EmailService] EMAILJS_PRIVATE_KEY (Access Token) is NOT SET. Emails will be logged to console."); emailJsConfigComplete = false; }
 
 
-  if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID_GENERIC || !EMAILJS_USER_ID || !EMAILJS_PRIVATE_KEY) {
-    console.warn("[EmailService] EmailJS environment variables not fully configured for API sending. Email will be logged to console instead.");
-    console.log("--- MOCK EMAIL (EmailJS Config Incomplete or Missing) ---");
+  if (!emailJsConfigComplete) {
+    console.warn("--- MOCK EMAIL (EmailJS Config Incomplete or Missing) ---");
     console.log("To:", to);
     console.log("From Name:", fromName || APP_EMAIL_FROM_NAME || "CodeCrafter");
     console.log("Reply To:", replyTo || to);
@@ -150,7 +147,7 @@ export async function sendEmail(to: string, subject: string, htmlBody: string, f
   const templateParams = {
     to_email: to,
     from_name: fromName || APP_EMAIL_FROM_NAME || "CodeCrafter",
-    reply_to_email: replyTo || to, // EmailJS often uses the authenticated service email as 'from' by default. Reply-to is important.
+    reply_to_email: replyTo || to,
     subject_line: subject,
     html_body_content: htmlBody,
   };
@@ -158,25 +155,22 @@ export async function sendEmail(to: string, subject: string, htmlBody: string, f
   const data = {
     service_id: EMAILJS_SERVICE_ID,
     template_id: EMAILJS_TEMPLATE_ID_GENERIC,
-    user_id: EMAILJS_USER_ID, // This is your Public Key from EmailJS dashboard
-    accessToken: EMAILJS_PRIVATE_KEY, // This is your Private Key (Access Token) from EmailJS dashboard
+    user_id: EMAILJS_USER_ID,
+    accessToken: EMAILJS_PRIVATE_KEY,
     template_params: templateParams,
   };
 
   try {
-    console.log(`[EmailService] Sending email to ${to} with subject "${subject}" via EmailJS API...`);
+    console.log(`[EmailService] Attempting to send email to ${to} with subject "${subject}" via EmailJS API...`);
     const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // Origin header might sometimes be required or checked by EmailJS even for server-side, though accessToken should bypass it.
-        // For local dev, you might not need it, but for deployed serverless functions, it might be relevant.
-        // 'Origin': process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:9002'
       },
       body: JSON.stringify(data),
     });
 
-    const responseText = await response.text(); // Get text for better error details
+    const responseText = await response.text();
     if (response.ok) {
       console.log(`[EmailService] Successfully sent email to ${to} via EmailJS. Response: ${responseText}`);
     } else {
@@ -191,4 +185,3 @@ export async function sendEmail(to: string, subject: string, htmlBody: string, f
     throw new Error('An unknown error occurred while sending email via EmailJS.');
   }
 }
-

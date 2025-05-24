@@ -52,3 +52,4 @@ if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
 
 export { app, db };
 // export { app, db, auth }; // When auth is ready
+
