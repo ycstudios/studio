@@ -3,8 +3,8 @@
 
 import type { User } from "@/types";
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from "react";
-import { getAllUsers, getUserById } 
-from "@/lib/firebaseService"; 
+import { getAllUsers, getUserById }
+from "@/lib/firebaseService";
 import { useToast } from "@/hooks/use-toast";
 
 interface AuthContextType {
@@ -13,9 +13,9 @@ interface AuthContextType {
   setAllUsers: React.Dispatch<React.SetStateAction<User[]>>;
   login: (userData: User) => void;
   logout: () => void;
-  isLoading: boolean; 
+  isLoading: boolean;
   updateSingleUserInList: (updatedUser: User) => void;
-  refreshUser: (userId: string) => Promise<void>; 
+  refreshUser: (userId: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,8 +27,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
 
   const fetchAllUsersFromDb = useCallback(async () => {
-    // Keep isLoading true until all initial data (auth user & all users) is loaded
-    // setIsLoading(true); // This is handled by the outer loadInitialData
     try {
       const usersFromDb = await getAllUsers();
       setAllUsers(usersFromDb);
@@ -39,9 +37,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         description: "Could not fetch user list from the database. Some features may be limited.",
         variant: "destructive",
       });
-      setAllUsers([]); 
-    } 
-    // finally { setIsLoading(false); } // This is handled by the outer loadInitialData
+      setAllUsers([]);
+    }
   }, [toast]);
 
 
@@ -54,14 +51,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (storedUserString) {
         try {
           const storedUser = JSON.parse(storedUserString) as User;
-          if (storedUser.id) {
-             const freshUser = await getUserById(storedUser.id);
+          if (storedUser && storedUser.id) { // Added check for storedUser itself
+             const freshUser = await getUserById(storedUser.id); // This fetches from Firestore
              if (freshUser) {
-                initialUser = freshUser;
-                localStorage.setItem("codecrafter_user", JSON.stringify(freshUser));
+                initialUser = freshUser; // Use the fresh data from DB
+                localStorage.setItem("codecrafter_user", JSON.stringify(freshUser)); // Update localStorage with fresh data
              } else {
-                localStorage.removeItem("codecrafter_user"); // User deleted from DB
+                // User was in localStorage but not in DB (e.g., deleted)
+                localStorage.removeItem("codecrafter_user");
+                // console.warn(`User ${storedUser.id} found in localStorage but not in DB. Cleared from storage.`);
              }
+          } else {
+            // Malformed or incomplete user in localStorage
+            localStorage.removeItem("codecrafter_user");
           }
         } catch (error) {
           console.error("Failed to parse or refresh stored user:", error);
@@ -69,17 +71,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       setUser(initialUser);
-      await fetchAllUsersFromDb(); 
-      setIsLoading(false); 
+      await fetchAllUsersFromDb();
+      setIsLoading(false);
     };
 
     loadInitialData();
-  }, [fetchAllUsersFromDb]); 
+  }, [fetchAllUsersFromDb]);
 
   const login = (userData: User) => {
-    localStorage.setItem("codecrafter_user", JSON.stringify(userData)); 
+    if (!userData || !userData.id) {
+      console.error("Login attempt with invalid or missing user data:", userData);
+      toast({ title: "Login Error", description: "User data is incomplete or missing.", variant: "destructive" });
+      return;
+    }
+    localStorage.setItem("codecrafter_user", JSON.stringify(userData));
     setUser(userData);
-    // Optimistically update allUsers list if the user is new or updated
+    // Optimistically update allUsers list for immediate UI feedback
     setAllUsers(prevUsers => {
       const userExists = prevUsers.find(u => u.id === userData.id);
       if (userExists) {
@@ -90,12 +97,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem("codecrafter_user"); 
+    localStorage.removeItem("codecrafter_user");
     setUser(null);
   };
 
   const updateSingleUserInList = (updatedUser: User) => {
-    setAllUsers(prevUsers => 
+    setAllUsers(prevUsers =>
       prevUsers.map(u => u.id === updatedUser.id ? updatedUser : u)
                .sort((a,b) => (a.name || "").localeCompare(b.name || ""))
     );
@@ -112,7 +119,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (refreshedUser) {
             updateSingleUserInList(refreshedUser);
         } else {
-           // If user not found (e.g. deleted), and it's the current auth user, log them out
            if (user && user.id === userId) {
               logout();
               toast({ title: "Session Expired", description: "Your user account could not be found. Please log in again.", variant: "destructive" });
@@ -120,13 +126,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     } catch (error) {
         console.error(`Failed to refresh user ${userId}:`, error);
-        toast({
-            title: "Error Refreshing User Data",
-            description: `Could not refresh user data. Please try again later.`,
-            variant: "destructive"
-        });
+        // Do not toast here for background refreshes, can be annoying.
+        // Initial load errors are handled in loadInitialData.
     }
-  }, [toast, user]); // updateSingleUserInList is stable
+  }, [user, toast]); // updateSingleUserInList and logout are stable
 
   return (
     <AuthContext.Provider value={{ user, allUsers, setAllUsers, login, logout, isLoading, updateSingleUserInList, refreshUser }}>
