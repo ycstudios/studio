@@ -1,4 +1,3 @@
-
 import Link from 'next/link';
 import { Heart, Code2, Twitter, Linkedin, Github } from 'lucide-react'; // Added Twitter, Linkedin, Github
 import { siteConfig } from '@/config/site';
@@ -60,13 +59,13 @@ export function Footer() {
         </div>
 
         {/* Sub-footer content */}
-        <div className="border-t border-border/40 pt-6 text-center text-sm text-muted-foreground">
+        <div className="text-center text-sm text-muted-foreground">
           <p className="mb-1">
             © {currentYear} {siteConfig.name}. All rights reserved.
           </p>
           <div className="flex items-center justify-center space-x-1">
             <span>Powered by Numberzz</span>
-            <Heart className="h-4 w-4 text-red-500 animate-heart-blink" />
+            <Heart className="h-4 w-4 fill-red-500 text-red-500 animate-pulse" />
           </div>
         </div>
       </div>

@@ -11,13 +11,13 @@ import { ImageCarousel } from "@/components/ImageCarousel";
 const clientCarouselImages = [
   { src: "https://www.dropbox.com/scl/fi/tf9c4m5q307qb45r6w62n/1.png?rlkey=ucr5x9pen2ndl58grawxul7xt&st=w1y9w892&dl=1", alt: "Client reviewing project proposals", dataAiHint: "client meeting business" },
   { src: "https://www.dropbox.com/scl/fi/hqpsqf1ssc85sctwotm3d/5.png?rlkey=0xaucl1y0c0vrdnsft5595okn&st=0e1x9p9y&dl=0https://www.dropbox.com/scl/fi/kv7ve56w2414gwaf269wq/2.png?rlkey=s1cqcqfxdf2ememoqezrvcshp&st=ojo6qt9j&dl=1", alt: "Team planning a project", dataAiHint: "project planning team" },
-  { src: "https://www.dropbox.com/scl/fi/hqpsqf1ssc85sctwotm3d/5.png?rlkey=0xaucl1y0c0vrdnsft5595okn&st=26u9o3je&dl=1", alt: "Successful project launch presentation", dataAiHint: "successful presentation" },
+  { src: "https://www.dropbox.com/scl/fi/kv7ve56w2414gwaf269wq/2.png?rlkey=s1cqcqfxdf2ememoqezrvcshp&st=ojo6qt9j&dl=1", alt: "Successful project launch presentation", dataAiHint: "successful presentation" },
 ];
 
 const developerCarouselImages = [
   { src: "https://www.dropbox.com/scl/fi/z32zfcmqttj3x4uw7wmfp/4.png?rlkey=dhhd1ruga8j2p59g1m49gsec1&st=ygiv7hmu&dl=1", alt: "Developer coding on a laptop", dataAiHint: "developer coding programming", width: 500, height: 500 },
-  { src: "https://www.dropbox.com/scl/fi/a9nxd7kl8kvj0v0x57b8i/3.png?rlkey=dr38kz8v8eusty9jekrty8ges&st=e8nc4fg0&dl=1", dataAiHint: "focused developer code", width: 500, height: 500 },
-  { src: "https://www.dropbox.com/scl/fi/oy34qipt9kq4ba7y4snbo/WhatsApp-Image-2025-05-20-at-10.14.51-PM.jpeg?rlkey=whc93wr321i8uvi4s958ozueq&st=t7876qd1&dl=1", dataAiHint: "collaborative coding pair", width: 500, height: 500 },
+  { src: "https://www.dropbox.com/scl/fi/a9nxd7kl8kvj0v0x57b8i/3.png?rlkey=dr38kz8v8eusty9jekrty8ges&st=e8nc4fg0&dl=1", alt: "Focused developer coding", dataAiHint: "focused developer code", width: 500, height: 500 },
+  { src: "https://www.dropbox.com/scl/fi/oy34qipt9kq4ba7y4snbo/WhatsApp-Image-2025-05-20-at-10.14.51-PM.jpeg?rlkey=whc93wr321i8uvi4s958ozueq&st=t7876qd1&dl=1", alt: "Collaborative coding pair", dataAiHint: "collaborative coding pair", width: 500, height: 500 },
 ];
 
 
@@ -258,14 +258,11 @@ function TestimonialCard({ quote, name, avatarHint }: TestimonialCardProps) {
       </CardHeader>
       <CardContent className="flex-grow flex items-end pt-2">
         <div className="flex items-center space-x-3">
-          <Image 
-            src={`https://placehold.co/50x50.png`}
-            alt={name} 
-            data-ai-hint={avatarHint}
-            width={50} 
-            height={50} 
-            className="rounded-full"
-          />
+          <div className="w-[50px] h-[50px] rounded-full bg-primary/10 flex items-center justify-center">
+            <span className="text-primary font-semibold text-lg">
+              {name.split(' ').map(n => n[0]).join('').toUpperCase()}
+            </span>
+          </div>
           <div>
             <p className="font-semibold text-sm">{name}</p>
           </div>
