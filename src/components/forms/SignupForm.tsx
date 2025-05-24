@@ -27,13 +27,13 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import type { UserRole } from "@/config/site";
-import { addUser } from "@/lib/firebaseService"; // Import addUser
+import { addUser } from "@/lib/firebaseService"; 
 import type { User } from "@/types";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 
 const formSchema = z.object({
-  name: z.string().min(2, { message: "Name must be at least 2 characters." }),
+  name: z.string().min(2, { message: "Name must be at least 2 characters." }).max(50, {message: "Name must be 50 characters or less."}),
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
   confirmPassword: z.string(),
@@ -44,7 +44,7 @@ const formSchema = z.object({
 });
 
 export function SignupForm() {
-  const { login, setAllUsers } = useAuth(); // Get setAllUsers to update context
+  const { login } = useAuth(); 
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,39 +62,37 @@ export function SignupForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
-    const userId = Math.random().toString(36).substring(2, 15); // Generate a simple unique ID
+    
+    // Note: In a real app, password hashing would happen on the backend before saving.
+    // The ID would typically be the Firebase Auth UID. For this mock, we generate one.
+    // const userId = Math.random().toString(36).substring(2, 15); 
 
-    const newUser: User = {
-      id: userId, // Explicitly set ID here
+    const newUserOmitId: Omit<User, 'id' | 'createdAt'> = {
       name: values.name,
       email: values.email,
       role: values.role as UserRole,
-      avatarUrl: `https://placehold.co/100x100.png?text=${values.name[0].toUpperCase()}`,
-      bio: `New ${values.role} on CodeCrafter.`, // Default bio
-      skills: values.role === "developer" ? ["New Developer"] : [], // Default skills for developers
+      // avatarUrl will be set by default in addUser if not provided
+      // bio and skills will be set by default in addUser if not provided
     };
 
     try {
-      const savedUser = await addUser(newUser); // Save to Firestore, addUser now returns the saved user
+      // addUser in firebaseService now handles ID generation and timestamp
+      const savedUser = await addUser(newUserOmitId); 
       
-      // Update local auth context (for current session)
-      login(savedUser); 
-      
-      // Update the allUsers list in AuthContext
-      setAllUsers(prevUsers => [...prevUsers, savedUser].sort((a, b) => a.name.localeCompare(b.name)));
-
+      login(savedUser); // Update AuthContext with the user object returned from Firestore (which includes ID and approximated createdAt)
 
       toast({
-        title: "Signup Successful",
-        description: `Welcome to CodeCrafter, ${values.name}! User saved to database.`,
+        title: "Signup Successful!",
+        description: `Welcome to CodeCrafter, ${savedUser.name}! Your account has been created.`,
       });
       router.push("/dashboard");
 
     } catch (error) {
       console.error("Signup error:", error);
+      const errorMsg = error instanceof Error ? error.message : "Could not create account. Please try again."
       toast({
         title: "Signup Failed",
-        description: (error as Error).message || "Could not save user to database. Please try again.",
+        description: errorMsg,
         variant: "destructive",
       });
     } finally {
@@ -131,7 +129,7 @@ export function SignupForm() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input placeholder="you@example.com" {...field} disabled={isSubmitting} />
+                    <Input type="email" placeholder="you@example.com" {...field} disabled={isSubmitting} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

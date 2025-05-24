@@ -19,24 +19,36 @@ export default function AdminUserDetailPage() {
   const userId = params.userId as string;
   const { toast } = useToast();
 
-  const [user, setUser] = useState<UserType | null | undefined>(undefined); 
+  const [user, setUser] = useState<UserType | null>(null); 
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (userId) {
       const fetchUser = async () => {
         setIsLoading(true);
+        setError(null);
         try {
           const fetchedUser = await getUserById(userId);
-          setUser(fetchedUser);
-        } catch (error) {
-          console.error("Failed to fetch user:", error);
+          if (fetchedUser) {
+            setUser(fetchedUser);
+          } else {
+            setError(`User with ID '${userId}' not found in the database.`);
+            toast({
+              title: "User Not Found",
+              description: `User with ID '${userId}' could not be found.`,
+              variant: "destructive",
+            });
+          }
+        } catch (e) {
+          console.error("Failed to fetch user:", e);
+          const errorMsg = e instanceof Error ? e.message : "Could not retrieve user details."
+          setError(errorMsg);
           toast({
             title: "Error Fetching User",
-            description: "Could not retrieve user details from the database.",
+            description: errorMsg,
             variant: "destructive",
           });
-          setUser(null); 
         } finally {
           setIsLoading(false);
         }
@@ -44,19 +56,20 @@ export default function AdminUserDetailPage() {
       fetchUser();
     } else {
       setIsLoading(false);
-      setUser(null); 
+      setError("No user ID provided.");
     }
   }, [userId, toast]);
 
-  const getInitials = (name: string = "User") => {
+  const getInitials = (name?: string) => {
+    if (!name) return "U";
     const names = name.split(' ');
-    if (names.length > 1) {
+    if (names.length > 1 && names[0] && names[names.length -1]) {
       return `${names[0][0]}${names[names.length - 1][0]}`;
     }
     return name.substring(0, 2).toUpperCase();
   };
 
-  if (isLoading || user === undefined) { 
+  if (isLoading) { 
     return (
       <ProtectedPage allowedRoles={["admin"]}>
         <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
@@ -67,13 +80,13 @@ export default function AdminUserDetailPage() {
     );
   }
 
-  if (!user) { 
+  if (error || !user) { 
     return (
       <ProtectedPage allowedRoles={["admin"]}>
-        <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
+        <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)] text-center">
           <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
-          <h1 className="text-2xl font-semibold mb-2">User Not Found</h1>
-          <p className="text-muted-foreground">The user with ID '{userId}' could not be found in the database.</p>
+          <h1 className="text-2xl font-semibold mb-2">User Not Found or Error</h1>
+          <p className="text-muted-foreground">{error || `The user with ID '${userId}' could not be found.`}</p>
           <Button onClick={() => router.push('/admin')} className="mt-6">
             <ArrowLeft className="mr-2 h-4 w-4" /> Go Back to Admin Panel
           </Button>
@@ -94,10 +107,10 @@ export default function AdminUserDetailPage() {
           <Card className="md:col-span-1 shadow-lg">
             <CardHeader className="items-center text-center">
               <Avatar className="h-24 w-24 mb-4 ring-2 ring-primary ring-offset-2">
-                <AvatarImage src={user.avatarUrl || `https://placehold.co/150x150.png`} alt={user.name} data-ai-hint="profile avatar" />
+                <AvatarImage src={user.avatarUrl || `https://placehold.co/150x150.png`} alt={user.name || 'User'} data-ai-hint="profile avatar" />
                 <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
               </Avatar>
-              <CardTitle className="text-2xl">{user.name}</CardTitle>
+              <CardTitle className="text-2xl">{user.name || "Unnamed User"}</CardTitle>
               <CardDescription className="capitalize flex items-center justify-center gap-1">
                 {user.role === "client" ? <Briefcase className="h-4 w-4" /> : <UserCircle2 className="h-4 w-4" />}
                 {user.role}
@@ -112,12 +125,12 @@ export default function AdminUserDetailPage() {
           <Card className="md:col-span-2 shadow-lg">
             <CardHeader>
               <CardTitle>User Details</CardTitle>
-              <CardDescription>Viewing profile information for {user.name} from Firestore.</CardDescription>
+              <CardDescription>Viewing profile information for {user.name || "this user"} from Firestore.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground">Full Name</h3>
-                <p className="text-lg">{user.name}</p>
+                <p className="text-lg">{user.name || <span className="italic text-muted-foreground">Not provided</span>}</p>
               </div>
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground">Email Address</h3>
@@ -126,7 +139,7 @@ export default function AdminUserDetailPage() {
               {user.bio && (
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground">Bio</h3>
-                  <p className="text-base text-foreground bg-muted/30 p-3 rounded-md">{user.bio}</p>
+                  <p className="text-base text-foreground bg-muted/30 p-3 rounded-md whitespace-pre-wrap">{user.bio}</p>
                 </div>
               )}
               {user.role === "developer" && user.skills && user.skills.length > 0 && (
@@ -137,6 +150,12 @@ export default function AdminUserDetailPage() {
                       <Badge key={index} variant="secondary">{skill}</Badge>
                     ))}
                   </div>
+                </div>
+              )}
+               {user.role === "developer" && (!user.skills || user.skills.length === 0) && (
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Skills</h3>
+                  <p className="italic text-muted-foreground">No skills listed.</p>
                 </div>
               )}
             </CardContent>

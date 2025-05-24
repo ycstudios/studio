@@ -7,11 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { User, Briefcase, ShieldAlert, Eye, Loader2, Info, FileText, CheckCircle, Clock } from "lucide-react";
+import { User, Briefcase, ShieldAlert, Eye, Loader2, Info, FileText, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import type { User as UserType, Project } from "@/types";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-import { getAllProjects } from "@/lib/firebaseService"; // Import getAllProjects
+import { getAllProjects } from "@/lib/firebaseService"; 
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from 'date-fns';
 
@@ -23,6 +23,7 @@ export default function AdminPage() {
   const [developers, setDevelopers] = useState<UserType[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && allUsers) {
@@ -34,14 +35,17 @@ export default function AdminPage() {
   useEffect(() => {
     const fetchProjects = async () => {
       setIsLoadingProjects(true);
+      setFetchError(null);
       try {
         const fetchedProjects = await getAllProjects();
         setProjects(fetchedProjects);
       } catch (error) {
         console.error("Failed to fetch projects for admin:", error);
+        const errorMsg = error instanceof Error ? error.message : "Could not retrieve project list."
+        setFetchError(errorMsg);
         toast({
           title: "Error Fetching Projects",
-          description: "Could not retrieve project list from the database for admin view.",
+          description: errorMsg,
           variant: "destructive",
         });
       } finally {
@@ -63,6 +67,19 @@ export default function AdminPage() {
       </ProtectedPage>
     );
   }
+  
+  if (fetchError && projects.length === 0) { // Show error prominently if project fetching fails
+     return (
+      <ProtectedPage allowedRoles={["admin"]}>
+        <div className="container mx-auto p-4 md:p-6 lg:p-8 text-center">
+          <AlertTriangle className="h-16 w-16 text-destructive mx-auto mb-4" />
+          <h1 className="text-2xl font-semibold mb-2">Error Loading Projects</h1>
+          <p className="text-muted-foreground">{fetchError}</p>
+        </div>
+      </ProtectedPage>
+    );
+  }
+
 
   return (
     <ProtectedPage allowedRoles={["admin"]}>
@@ -112,11 +129,12 @@ export default function AdminPage() {
             <CardDescription>Overview of all projects submitted on the platform.</CardDescription>
           </CardHeader>
           <CardContent>
+            {fetchError && <p className="text-destructive mb-4">Error loading projects: {fetchError}</p>}
             <ProjectTable projects={projects} allUsers={allUsers} />
           </CardContent>
         </Card>
 
-         {(allUsers.length === 0 && projects.length === 0) && !isLoading && (
+         {(allUsers.length === 0 && projects.length === 0 && !isLoading && !fetchError) && (
           <Card className="mt-8 shadow-md">
             <CardContent className="p-8 text-center">
               <Info className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
@@ -156,7 +174,7 @@ function UserTable({ users }: UserTableProps) {
         <TableBody>
           {users.map(user => (
             <TableRow key={user.id}>
-              <TableCell className="font-medium whitespace-nowrap">{user.name}</TableCell>
+              <TableCell className="font-medium whitespace-nowrap">{user.name || "N/A"}</TableCell>
               <TableCell className="whitespace-nowrap">{user.email}</TableCell>
               <TableCell>
                 <Badge variant={user.role === "admin" ? "destructive" : user.role === "client" ? "secondary" : "default"}>
@@ -189,7 +207,7 @@ function UserTable({ users }: UserTableProps) {
 
 interface ProjectTableProps {
   projects: Project[];
-  allUsers: UserType[]; // To look up client names
+  allUsers: UserType[]; 
 }
 
 function ProjectTable({ projects, allUsers }: ProjectTableProps) {
@@ -224,11 +242,10 @@ function ProjectTable({ projects, allUsers }: ProjectTableProps) {
                 <ProjectStatusBadge status={project.status} />
               </TableCell>
                <TableCell className="whitespace-nowrap">
-                 {project.createdAt ? formatDistanceToNow(new Date(project.createdAt.seconds ? project.createdAt.toDate() : project.createdAt), { addSuffix: true }) : 'N/A'}
+                 {project.createdAt ? formatDistanceToNow(project.createdAt instanceof Date ? project.createdAt : new Date(), { addSuffix: true }) : 'N/A'}
               </TableCell>
               <TableCell className="text-right whitespace-nowrap">
                 <Button variant="outline" size="sm" asChild>
-                  {/* Link to a future admin project detail page */}
                   <Link href={`/projects/${project.id}/matchmaking`}> 
                     <Eye className="mr-2 h-4 w-4" />
                     View
@@ -243,29 +260,28 @@ function ProjectTable({ projects, allUsers }: ProjectTableProps) {
   );
 }
 
-// Re-using ProjectStatusBadge from dashboard
-function ProjectStatusBadge({ status }: { status: Project["status"] }) {
+function ProjectStatusBadge({ status }: { status?: Project["status"] }) {
   let bgColor = "bg-muted text-muted-foreground";
   let dotColor = "bg-gray-500";
   let icon = <Clock className="mr-1.5 h-3 w-3" />;
+  let currentStatus = status || "Unknown";
 
-  if (status === "In Progress") {
-    bgColor = "bg-blue-500/20 text-blue-700 dark:bg-blue-700/30 dark:text-blue-300";
+
+  if (currentStatus === "In Progress") {
+    bgColor = "bg-blue-500/20 text-blue-700 dark:text-blue-300";
     dotColor = "bg-blue-500";
-  } else if (status === "Open") {
-    bgColor = "bg-green-500/20 text-green-700 dark:bg-green-700/30 dark:text-green-300";
+  } else if (currentStatus === "Open") {
+    bgColor = "bg-green-500/20 text-green-700 dark:text-green-300";
     dotColor = "bg-green-500";
     icon = <Eye className="mr-1.5 h-3 w-3" />;
-  } else if (status === "Completed") {
-    bgColor = "bg-purple-500/20 text-purple-700 dark:bg-purple-700/30 dark:text-purple-300";
+  } else if (currentStatus === "Completed") {
+    bgColor = "bg-purple-500/20 text-purple-700 dark:text-purple-300";
     dotColor = "bg-purple-500";
     icon = <CheckCircle className="mr-1.5 h-3 w-3" />;
-  } else if (status === "Cancelled") {
-    bgColor = "bg-red-500/20 text-red-700 dark:bg-red-700/30 dark:text-red-300";
+  } else if (currentStatus === "Cancelled") {
+    bgColor = "bg-red-500/20 text-red-700 dark:text-red-300";
     dotColor = "bg-red-500";
     icon = <Info className="mr-1.5 h-3 w-3" />;
-  } else {
-     status = status || "Unknown";
   }
 
 
@@ -275,8 +291,7 @@ function ProjectStatusBadge({ status }: { status: Project["status"] }) {
         <circle cx="4" cy="4" r="3" />
       </svg>
       {icon}
-      {status}
+      {currentStatus}
     </span>
   );
 }
-

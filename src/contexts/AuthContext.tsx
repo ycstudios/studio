@@ -3,7 +3,7 @@
 
 import type { User } from "@/types";
 import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
-import { getAllUsers } from "@/lib/firebaseService"; // Import Firestore service
+import { getAllUsers } from "@/lib/firebaseService"; 
 import { useToast } from "@/hooks/use-toast";
 
 interface AuthContextType {
@@ -12,7 +12,7 @@ interface AuthContextType {
   setAllUsers: React.Dispatch<React.SetStateAction<User[]>>;
   login: (userData: User) => void;
   logout: () => void;
-  isLoading: boolean; // Indicates loading of current user session AND initial allUsers list
+  isLoading: boolean; 
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -26,18 +26,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const loadInitialData = async () => {
       setIsLoading(true);
-      // Load current user from localStorage
-      const storedUserString = localStorage.getItem("devconnect_user");
+      let storedUser: User | null = null;
+      const storedUserString = localStorage.getItem("codecrafter_user"); // Updated localStorage key
       if (storedUserString) {
         try {
-          setUser(JSON.parse(storedUserString));
+          storedUser = JSON.parse(storedUserString);
+          setUser(storedUser);
         } catch (error) {
           console.error("Failed to parse stored user:", error);
-          localStorage.removeItem("devconnect_user");
+          localStorage.removeItem("codecrafter_user");
         }
       }
 
-      // Fetch all users from Firestore
       try {
         const usersFromDb = await getAllUsers();
         setAllUsers(usersFromDb);
@@ -45,10 +45,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.error("Failed to fetch all users from Firestore:", error);
         toast({
           title: "Error Loading Users",
-          description: "Could not fetch user list from the database.",
+          description: "Could not fetch user list from the database. Some admin features may be limited.",
           variant: "destructive",
         });
-        // Set to empty array or handle as appropriate
         setAllUsers([]); 
       } finally {
         setIsLoading(false);
@@ -56,21 +55,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     loadInitialData();
-  }, [toast]); // Added toast to dependency array
+  }, [toast]); 
 
   const login = (userData: User) => {
-    localStorage.setItem("devconnect_user", JSON.stringify(userData));
+    localStorage.setItem("codecrafter_user", JSON.stringify(userData)); // Updated localStorage key
     setUser(userData);
-    // Note: allUsers list is primarily managed by the initial fetch and signup.
-    // If a user logs in who isn't in the `allUsers` list (e.g. admin user not signed up via form),
-    // they won't appear in the admin panel unless fetched/added separately.
-    // For now, we assume sign-up is the primary way users get into the `allUsers` list via Firestore.
+    // If the logged-in user is not in allUsers or has different data, update/add them
+    setAllUsers(prevUsers => {
+      const userExists = prevUsers.find(u => u.id === userData.id);
+      if (userExists) {
+        return prevUsers.map(u => u.id === userData.id ? userData : u);
+      }
+      return [...prevUsers, userData].sort((a,b) => (a.name || "").localeCompare(b.name || ""));
+    });
   };
 
   const logout = () => {
-    localStorage.removeItem("devconnect_user");
+    localStorage.removeItem("codecrafter_user"); // Updated localStorage key
     setUser(null);
-    // `allUsers` list could be re-fetched or cleared if desired, but for now, it remains.
   };
 
   return (

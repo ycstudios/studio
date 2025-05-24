@@ -6,7 +6,7 @@ import { ProtectedPage } from "@/components/ProtectedPage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import { Briefcase, PlusCircle, Search, Eye, UserCheck, CheckCircle, Clock, Loader2, Info } from "lucide-react";
+import { Briefcase, PlusCircle, Search, Eye, UserCheck, CheckCircle, Clock, Loader2, Info, AlertTriangle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import type { Project } from "@/types";
@@ -15,13 +15,24 @@ import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from 'date-fns';
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+
+  if (authLoading) {
+    return (
+      <ProtectedPage>
+        <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
+          <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
+          <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </ProtectedPage>
+    );
+  }
 
   return (
     <ProtectedPage>
       <div className="container mx-auto p-4 md:p-6 lg:p-8">
         <header className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">Welcome to your Dashboard, {user?.name}!</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Welcome to your Dashboard, {user?.name || "User"}!</h1>
           <p className="text-muted-foreground">Here&apos;s an overview of your activities on CodeCrafter (data from Firestore).</p>
         </header>
 
@@ -37,19 +48,23 @@ function ClientDashboard() {
   const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.id) {
       const fetchProjects = async () => {
         setIsLoading(true);
+        setError(null);
         try {
           const clientProjects = await getProjectsByClientId(user.id);
           setProjects(clientProjects);
-        } catch (error) {
-          console.error("Failed to fetch client projects:", error);
+        } catch (e) {
+          console.error("Failed to fetch client projects:", e);
+          const errorMsg = e instanceof Error ? e.message : "Could not retrieve your projects.";
+          setError(errorMsg);
           toast({
             title: "Error Fetching Projects",
-            description: "Could not retrieve your projects from the database.",
+            description: errorMsg,
             variant: "destructive",
           });
         } finally {
@@ -59,6 +74,7 @@ function ClientDashboard() {
       fetchProjects();
     } else {
       setIsLoading(false); 
+      setError("User not authenticated to fetch projects.");
     }
   }, [user?.id, toast]);
 
@@ -68,6 +84,18 @@ function ClientDashboard() {
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         <p className="text-muted-foreground">Loading your projects...</p>
       </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="text-center py-12 shadow-md border-destructive">
+        <CardHeader>
+          <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" />
+          <CardTitle className="text-destructive">Failed to Load Projects</CardTitle>
+          <CardDescription>{error}</CardDescription>
+        </CardHeader>
+      </Card>
     );
   }
 
@@ -90,12 +118,12 @@ function ClientDashboard() {
                   <CardTitle className="text-xl line-clamp-1">{project.name}</CardTitle>
                   <ProjectStatusBadge status={project.status} />
                 </div>
-                <CardDescription>
-                  Skills: {project.requiredSkills.join(", ") || "Not specified"}
+                <CardDescription className="line-clamp-1">
+                  Skills: {project.requiredSkills?.join(", ") || "Not specified"}
                 </CardDescription>
                  {project.createdAt && (
                   <p className="text-xs text-muted-foreground">
-                    Posted {formatDistanceToNow(new Date(project.createdAt.seconds ? project.createdAt.toDate() : project.createdAt), { addSuffix: true })}
+                    Posted {formatDistanceToNow(project.createdAt instanceof Date ? project.createdAt : new Date(), { addSuffix: true })}
                   </p>
                 )}
               </CardHeader>
@@ -140,27 +168,29 @@ function ClientDashboard() {
   );
 }
 
-function ProjectStatusBadge({ status }: { status: Project["status"] }) {
+function ProjectStatusBadge({ status }: { status?: Project["status"] }) {
   let bgColor = "bg-muted text-muted-foreground";
   let dotColor = "bg-gray-500";
   let icon = <Clock className="mr-1.5 h-3 w-3" />;
+  let currentStatus = status || "Unknown";
 
-  if (status === "In Progress") {
-    bgColor = "bg-blue-500/20 text-blue-700 dark:bg-blue-700/30 dark:text-blue-300";
+  if (currentStatus === "In Progress") {
+    bgColor = "bg-blue-500/20 text-blue-700 dark:text-blue-300";
     dotColor = "bg-blue-500";
-  } else if (status === "Open") {
-    bgColor = "bg-green-500/20 text-green-700 dark:bg-green-700/30 dark:text-green-300";
+  } else if (currentStatus === "Open") {
+    bgColor = "bg-green-500/20 text-green-700 dark:text-green-300";
     dotColor = "bg-green-500";
     icon = <Eye className="mr-1.5 h-3 w-3" />;
-  } else if (status === "Completed") {
-    bgColor = "bg-purple-500/20 text-purple-700 dark:bg-purple-700/30 dark:text-purple-300";
+  } else if (currentStatus === "Completed") {
+    bgColor = "bg-purple-500/20 text-purple-700 dark:text-purple-300";
     dotColor = "bg-purple-500";
     icon = <CheckCircle className="mr-1.5 h-3 w-3" />;
-  } else if (status === "Cancelled") {
-    bgColor = "bg-red-500/20 text-red-700 dark:bg-red-700/30 dark:text-red-300";
+  } else if (currentStatus === "Cancelled") {
+    bgColor = "bg-red-500/20 text-red-700 dark:text-red-300";
     dotColor = "bg-red-500";
     icon = <Info className="mr-1.5 h-3 w-3" />;
   }
+
 
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bgColor} whitespace-nowrap`}>
@@ -168,7 +198,7 @@ function ProjectStatusBadge({ status }: { status: Project["status"] }) {
         <circle cx="4" cy="4" r="3" />
       </svg>
       {icon}
-      {status}
+      {currentStatus}
     </span>
   );
 }
@@ -178,18 +208,22 @@ function DeveloperDashboard() {
   const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchOpenProjects = async () => {
       setIsLoading(true);
+      setError(null);
       try {
         const allProjects = await getAllProjects();
         setProjects(allProjects.filter(p => p.status === "Open"));
-      } catch (error) {
-        console.error("Failed to fetch open projects:", error);
+      } catch (e) {
+        console.error("Failed to fetch open projects:", e);
+        const errorMsg = e instanceof Error ? e.message : "Could not retrieve open projects.";
+        setError(errorMsg);
         toast({
           title: "Error Fetching Projects",
-          description: "Could not retrieve open projects from the database.",
+          description: errorMsg,
           variant: "destructive",
         });
       } finally {
@@ -205,6 +239,18 @@ function DeveloperDashboard() {
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
         <p className="text-muted-foreground">Loading available projects...</p>
       </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="text-center py-12 shadow-md border-destructive">
+        <CardHeader>
+          <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" />
+          <CardTitle className="text-destructive">Failed to Load Projects</CardTitle>
+          <CardDescription>{error}</CardDescription>
+        </CardHeader>
+      </Card>
     );
   }
 
@@ -232,7 +278,7 @@ function DeveloperDashboard() {
               </CardDescription>
                {project.createdAt && (
                   <p className="text-xs text-muted-foreground">
-                    Posted {formatDistanceToNow(new Date(project.createdAt.seconds ? project.createdAt.toDate() : project.createdAt), { addSuffix: true })}
+                    Posted {formatDistanceToNow(project.createdAt instanceof Date ? project.createdAt : new Date(), { addSuffix: true })}
                   </p>
                 )}
             </CardHeader>
@@ -248,14 +294,13 @@ function DeveloperDashboard() {
               <p className="text-sm text-muted-foreground mb-2 line-clamp-3">{project.description}</p>
               <p className="text-sm font-medium mb-1">Required Skills:</p>
               <div className="flex flex-wrap gap-2">
-                {project.requiredSkills.map(skill => (
+                {project.requiredSkills?.map(skill => (
                   <span key={skill} className="px-2 py-1 bg-secondary text-secondary-foreground text-xs rounded-md">{skill}</span>
                 ))}
-                {project.requiredSkills.length === 0 && <span className="text-xs text-muted-foreground italic">No specific skills listed.</span>}
+                {(!project.requiredSkills || project.requiredSkills.length === 0) && <span className="text-xs text-muted-foreground italic">No specific skills listed.</span>}
               </div>
             </CardContent>
             <CardFooter>
-              {/* This link is conceptual. A real apply/view details page for devs would be needed */}
               <Button variant="default" className="w-full" asChild>
                  <Link href={`/projects/${project.id}/matchmaking`}>
                     <Eye className="mr-2 h-4 w-4" /> View Project Details 

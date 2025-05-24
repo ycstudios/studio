@@ -2,26 +2,26 @@
 "use client";
 
 import React, { useEffect, useState, useTransition } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation"; // Combined import
 import { ProtectedPage } from "@/components/ProtectedPage";
 import { DeveloperCard } from "@/components/DeveloperCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Info, AlertTriangle, ArrowLeft } from "lucide-react";
+import { Loader2, Info, AlertTriangle, ArrowLeft, Search, Eye, CheckCircle, Clock } from "lucide-react";
 import { matchDevelopers, MatchDevelopersInput, MatchDevelopersOutput } from "@/ai/flows/match-developers";
 import type { Project as ProjectType } from "@/types";
 import { getProjectById } from "@/lib/firebaseService";
 import { useAuth } from "@/contexts/AuthContext";
-import Link from "next/link"; // Import Link
-import { format } from 'date-fns'; // For date formatting
+import Link from "next/link"; 
+import { format } from 'date-fns'; 
 
 export default function ProjectMatchmakingPage() {
   const params = useParams();
-  const router = useRouter(); // For back button
+  const router = useRouter(); 
   const projectId = params.projectId as string;
   const { toast } = useToast();
-  const { user } = useAuth(); // Get current user
+  const { user } = useAuth(); 
   
   const [isLoadingProject, setIsLoadingProject] = useState(true);
   const [isMatching, setIsMatching] = useState(false);
@@ -40,8 +40,8 @@ export default function ProjectMatchmakingPage() {
           const fetchedProject = await getProjectById(projectId);
           if (fetchedProject) {
             setProject(fetchedProject);
-            // Automatically trigger AI matchmaking if user is client and project is fetched
-            if (user?.role === 'client') {
+            // Automatically trigger AI matchmaking if user is client and project is fetched & open
+            if (user?.role === 'client' && user.id === fetchedProject.clientId && fetchedProject.status === "Open") {
               handleRunMatchmaking(fetchedProject);
             }
           } else {
@@ -52,36 +52,42 @@ export default function ProjectMatchmakingPage() {
           console.error("Failed to fetch project:", e);
           const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred.";
           setError(`Failed to load project: ${errorMessage}`);
-          toast({ title: "Error", description: `Could not load project: ${errorMessage}`, variant: "destructive" });
+          toast({ title: "Error Loading Project", description: `Could not load project: ${errorMessage}`, variant: "destructive" });
         } finally {
           setIsLoadingProject(false);
         }
       };
       fetchProjectData();
+    } else {
+        setError("No project ID provided in URL.");
+        setIsLoadingProject(false);
     }
-  }, [projectId, toast, user?.role]); // Added user?.role to dependencies
+  }, [projectId, toast, user?.role, user?.id]); // Added user.id to dependency array
 
   const handleRunMatchmaking = async (currentProject: ProjectType | null = project) => {
     if (!currentProject) {
       toast({ title: "Error", description: "Project details not available for matchmaking.", variant: "destructive" });
       return;
     }
-    if (user?.role !== 'client') {
-      toast({ title: "Info", description: "Matchmaking is typically run by clients.", variant: "default" });
-      // Allow viewing, but don't run matchmaking for non-clients unless explicitly triggered
-      // Or simply return if you only want clients to trigger it.
-      // return; 
+    // Ensure only the client who owns the project and if it's open can run matchmaking
+    if (user?.role !== 'client' || user.id !== currentProject.clientId || currentProject.status !== "Open") {
+      toast({ 
+        title: "Matchmaking Unavailable", 
+        description: "Matchmaking can only be run by the project owner for open projects.", 
+        variant: "default" 
+      });
+      return; 
     }
 
     setIsMatching(true);
-    setError(null);
-    setMatches(null);
+    setError(null); // Clear previous AI errors
+    // setMatches(null); // Optionally clear previous matches
 
     const inputForAI: MatchDevelopersInput = {
       projectRequirements: currentProject.description,
-      requiredSkills: currentProject.requiredSkills,
-      availability: currentProject.availability,
-      timeZone: currentProject.timeZone,
+      requiredSkills: currentProject.requiredSkills || [],
+      availability: currentProject.availability || "Not specified",
+      timeZone: currentProject.timeZone || "Not specified",
     };
     
     startTransition(async () => {
@@ -95,7 +101,7 @@ export default function ProjectMatchmakingPage() {
       } catch (e) {
         console.error("AI Matchmaking error:", e);
         const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred.";
-        setError(`AI Matchmaking failed: ${errorMessage}`);
+        setError(`AI Matchmaking failed: ${errorMessage}`); // Set AI-specific error
         toast({
           title: "Matchmaking Error",
           description: `AI could not find matches: ${errorMessage}`,
@@ -119,13 +125,13 @@ export default function ProjectMatchmakingPage() {
     );
   }
 
-  if (error || !project) {
+  if (error && !project) { // Show general error if project couldn't be loaded at all
     return (
       <ProtectedPage>
         <div className="container mx-auto p-4 md:p-6 lg:p-8 text-center">
           <AlertTriangle className="h-16 w-16 text-destructive mx-auto mb-4" />
-          <h1 className="text-2xl font-semibold mb-2">Project Not Found</h1>
-          <p className="text-muted-foreground">{error || `We couldn't find the details for this project. It might have been removed or the ID is incorrect.`}</p>
+          <h1 className="text-2xl font-semibold mb-2">Error Loading Project</h1>
+          <p className="text-muted-foreground">{error || `We couldn't find the details for this project.`}</p>
            <Button onClick={() => router.back()} className="mt-6">
             <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
           </Button>
@@ -133,6 +139,22 @@ export default function ProjectMatchmakingPage() {
       </ProtectedPage>
     );
   }
+
+  if (!project) { // Fallback if project is still null after loading and no specific error
+     return (
+      <ProtectedPage>
+        <div className="container mx-auto p-4 md:p-6 lg:p-8 text-center">
+          <Info className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+          <h1 className="text-2xl font-semibold mb-2">Project Not Found</h1>
+          <p className="text-muted-foreground">{`We couldn't find the details for project ID '${projectId}'.`}</p>
+           <Button onClick={() => router.back()} className="mt-6">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
+          </Button>
+        </div>
+      </ProtectedPage>
+    );
+  }
+
 
   return (
     <ProtectedPage>
@@ -150,7 +172,7 @@ export default function ProjectMatchmakingPage() {
             <CardDescription>Project ID: {project.id}</CardDescription>
              {project.createdAt && (
                 <p className="text-xs text-muted-foreground">
-                    Posted: {format(project.createdAt.seconds ? project.createdAt.toDate() : new Date(project.createdAt), "MMMM d, yyyy 'at' h:mm a")}
+                    Posted: {format(project.createdAt instanceof Date ? project.createdAt : new Date(), "MMMM d, yyyy 'at' h:mm a")}
                 </p>
             )}
           </CardHeader>
@@ -160,19 +182,19 @@ export default function ProjectMatchmakingPage() {
             
             <h3 className="font-semibold mb-1 text-lg">Required Skills:</h3>
             <div className="flex flex-wrap gap-2 mb-4">
-              {project.requiredSkills.length > 0 ? 
+              {project.requiredSkills && project.requiredSkills.length > 0 ? 
                 project.requiredSkills.map(skill => <span key={skill} className="px-3 py-1 bg-secondary text-secondary-foreground text-sm rounded-full">{skill}</span>)
                 : <span className="text-sm text-muted-foreground italic">No specific skills listed.</span>
             }
             </div>
 
             <h3 className="font-semibold mb-1 text-lg">Client Availability:</h3>
-            <p className="text-muted-foreground mb-4">{project.availability}</p>
+            <p className="text-muted-foreground mb-4">{project.availability || <span className="italic">Not specified</span>}</p>
 
             <h3 className="font-semibold mb-1 text-lg">Client Timezone:</h3>
-            <p className="text-muted-foreground mb-4">{project.timeZone}</p>
+            <p className="text-muted-foreground mb-4">{project.timeZone || <span className="italic">Not specified</span>}</p>
 
-            {user?.role === 'client' && project.status === "Open" && (
+            {user?.role === 'client' && user.id === project.clientId && project.status === "Open" && (
                  <Button onClick={() => handleRunMatchmaking(project)} disabled={isMatching || isTransitionPending} className="mt-4">
                     {(isMatching || isTransitionPending) ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -197,6 +219,19 @@ export default function ProjectMatchmakingPage() {
             </Card>
         )}
 
+        {/* Display AI-specific error if it occurred, separate from project load error */}
+        {error && !isMatching && !isLoadingProject && !project && ( 
+             <Card className="border-destructive shadow-lg">
+                <CardHeader>
+                    <CardTitle className="text-destructive text-xl">Matchmaking Error</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-destructive-foreground">{error}</p>
+                </CardContent>
+            </Card>
+        )}
+        
+        {/* Display matches only if they exist, and no active matching is happening */}
         {matches && !isMatching && !isTransitionPending && (
           <Card className="shadow-lg">
             <CardHeader>
@@ -206,20 +241,19 @@ export default function ProjectMatchmakingPage() {
             <CardContent className="space-y-6">
               <div>
                 <h3 className="font-semibold mb-2 text-lg">AI Reasoning:</h3>
-                <p className="text-sm text-muted-foreground bg-muted p-4 rounded-md border whitespace-pre-wrap">{matches.reasoning}</p>
+                <p className="text-sm text-muted-foreground bg-muted p-4 rounded-md border whitespace-pre-wrap">{matches.reasoning || "No specific reasoning provided by AI."}</p>
               </div>
               
               <h3 className="font-semibold text-lg">Matched Developer Profiles:</h3>
-              {matches.developerMatches.length > 0 ? (
+              {matches.developerMatches && matches.developerMatches.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {matches.developerMatches.map((devProfileText, index) => (
                      <DeveloperCard 
                       key={index} 
-                      name={`Potential Developer ${index + 1}`} // AI returns array of strings
+                      name={`Potential Developer ${index + 1}`} 
                       description={devProfileText} 
-                      skills={project.requiredSkills} // Base skills from project
+                      skills={project.requiredSkills || []} 
                       dataAiHint="developer profile abstract"
-                      // Placeholder: In a real app, you'd have structured developer objects from AI
                     />
                   ))}
                 </div>
@@ -232,47 +266,34 @@ export default function ProjectMatchmakingPage() {
             </CardContent>
           </Card>
         )}
-        {error && !isMatching && !isLoadingProject && (
-             <Card className="border-destructive shadow-lg">
-                <CardHeader>
-                    <CardTitle className="text-destructive text-xl">Matchmaking Error</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-destructive-foreground">{error}</p>
-                </CardContent>
-            </Card>
-        )}
       </div>
     </ProtectedPage>
   );
 }
 
 
-// Re-using ProjectStatusBadge from dashboard, ensure it's robust
-function ProjectStatusBadge({ status }: { status: ProjectType["status"] }) {
+function ProjectStatusBadge({ status }: { status?: ProjectType["status"] }) {
   let bgColor = "bg-muted text-muted-foreground";
   let dotColor = "bg-gray-500";
   let icon = <Clock className="mr-1.5 h-3 w-3" />;
+  let currentStatus = status || "Unknown";
 
-  if (status === "In Progress") {
-    bgColor = "bg-blue-500/20 text-blue-700 dark:bg-blue-700/30 dark:text-blue-300";
+  if (currentStatus === "In Progress") {
+    bgColor = "bg-blue-500/20 text-blue-700 dark:text-blue-300";
     dotColor = "bg-blue-500";
-  } else if (status === "Open") {
-    bgColor = "bg-green-500/20 text-green-700 dark:bg-green-700/30 dark:text-green-300";
+  } else if (currentStatus === "Open") {
+    bgColor = "bg-green-500/20 text-green-700 dark:text-green-300";
     dotColor = "bg-green-500";
     icon = <Eye className="mr-1.5 h-3 w-3" />;
-  } else if (status === "Completed") {
-    bgColor = "bg-purple-500/20 text-purple-700 dark:bg-purple-700/30 dark:text-purple-300";
+  } else if (currentStatus === "Completed") {
+    bgColor = "bg-purple-500/20 text-purple-700 dark:text-purple-300";
     dotColor = "bg-purple-500";
     icon = <CheckCircle className="mr-1.5 h-3 w-3" />;
-  } else if (status === "Cancelled") {
-    bgColor = "bg-red-500/20 text-red-700 dark:bg-red-700/30 dark:text-red-300";
+  } else if (currentStatus === "Cancelled") {
+    bgColor = "bg-red-500/20 text-red-700 dark:text-red-300";
     dotColor = "bg-red-500";
     icon = <Info className="mr-1.5 h-3 w-3" />;
-  } else { // Default for any other status
-    status = status || "Unknown";
   }
-
 
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bgColor} whitespace-nowrap`}>
@@ -280,10 +301,7 @@ function ProjectStatusBadge({ status }: { status: ProjectType["status"] }) {
         <circle cx="4" cy="4" r="3" />
       </svg>
       {icon}
-      {status}
+      {currentStatus}
     </span>
   );
 }
-
-// Helper for useRouter
-import { useRouter } from "next/navigation";
