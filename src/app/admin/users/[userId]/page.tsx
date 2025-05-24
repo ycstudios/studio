@@ -1,64 +1,107 @@
 
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ProtectedPage } from "@/components/ProtectedPage";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Briefcase, UserCircle2, FileText, AlertTriangle, Info, Loader2 } from "lucide-react";
+import { ArrowLeft, Briefcase, UserCircle2, FileText, AlertTriangle, Info, Loader2, Flag, ShieldCheck, ShieldX } from "lucide-react";
 import type { User as UserType } from "@/types";
-import { getUserById } from "@/lib/firebaseService"; 
+import { getUserById, toggleUserFlag, addAdminActivityLog } from "@/lib/firebaseService"; 
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function AdminUserDetailPage() {
   const params = useParams();
   const router = useRouter();
   const userId = params.userId as string;
   const { toast } = useToast();
+  const { user: adminUser, updateSingleUserInList } = useAuth();
 
   const [user, setUser] = useState<UserType | null>(null); 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isTogglingFlag, setIsTogglingFlag] = useState(false);
+
+  const fetchUser = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const fetchedUser = await getUserById(userId);
+      if (fetchedUser) {
+        setUser(fetchedUser);
+      } else {
+        setError(`User with ID '${userId}' not found in the database.`);
+        toast({
+          title: "User Not Found",
+          description: `User with ID '${userId}' could not be found.`,
+          variant: "destructive",
+        });
+      }
+    } catch (e) {
+      console.error("Failed to fetch user:", e);
+      const errorMsg = e instanceof Error ? e.message : "Could not retrieve user details."
+      setError(errorMsg);
+      toast({
+        title: "Error Fetching User",
+        description: errorMsg,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId, toast]);
 
   useEffect(() => {
     if (userId) {
-      const fetchUser = async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-          const fetchedUser = await getUserById(userId);
-          if (fetchedUser) {
-            setUser(fetchedUser);
-          } else {
-            setError(`User with ID '${userId}' not found in the database.`);
-            toast({
-              title: "User Not Found",
-              description: `User with ID '${userId}' could not be found.`,
-              variant: "destructive",
-            });
-          }
-        } catch (e) {
-          console.error("Failed to fetch user:", e);
-          const errorMsg = e instanceof Error ? e.message : "Could not retrieve user details."
-          setError(errorMsg);
-          toast({
-            title: "Error Fetching User",
-            description: errorMsg,
-            variant: "destructive",
-          });
-        } finally {
-          setIsLoading(false);
-        }
-      };
       fetchUser();
     } else {
       setIsLoading(false);
       setError("No user ID provided.");
     }
-  }, [userId, toast]);
+  }, [userId, fetchUser]);
+
+  const handleToggleFlag = async () => {
+    if (!adminUser || !user) {
+      toast({ title: "Error", description: "Admin or target user data not available.", variant: "destructive" });
+      return;
+    }
+    setIsTogglingFlag(true);
+    try {
+      await toggleUserFlag(user.id, user.isFlagged || false);
+      const action = !(user.isFlagged || false) ? "USER_FLAGGED" : "USER_UNFLAGGED";
+      await addAdminActivityLog({
+        adminId: adminUser.id,
+        adminName: adminUser.name,
+        action: action,
+        targetType: "user",
+        targetId: user.id,
+        targetName: user.name,
+        details: { newFlagStatus: !(user.isFlagged || false) }
+      });
+      
+      // Re-fetch user to get the updated status and update context
+      const updatedUser = await getUserById(user.id);
+      if (updatedUser) {
+        setUser(updatedUser); // Update local state for this page
+        updateSingleUserInList(updatedUser); // Update AuthContext for other components like admin table
+      }
+
+      toast({
+        title: "User Flag Status Updated",
+        description: `${user.name}'s flag status has been updated.`,
+      });
+    } catch (e) {
+      console.error("Error toggling user flag:", e);
+      const errorMsg = e instanceof Error ? e.message : "Could not update user flag status.";
+      toast({ title: "Error", description: errorMsg, variant: "destructive" });
+    } finally {
+      setIsTogglingFlag(false);
+    }
+  };
 
   const getInitials = (name?: string) => {
     if (!name) return "U";
@@ -103,7 +146,6 @@ export default function AdminUserDetailPage() {
         </Button>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {/* User Profile Card */}
           <Card className="md:col-span-1 shadow-lg">
             <CardHeader className="items-center text-center">
               <Avatar className="h-24 w-24 mb-4 ring-2 ring-primary ring-offset-2">
@@ -115,13 +157,17 @@ export default function AdminUserDetailPage() {
                 {user.role === "client" ? <Briefcase className="h-4 w-4" /> : <UserCircle2 className="h-4 w-4" />}
                 {user.role}
               </CardDescription>
+              {user.isFlagged && (
+                <Badge variant="destructive" className="mt-2 flex items-center gap-1.5">
+                  <ShieldX className="h-4 w-4" /> User Flagged
+                </Badge>
+              )}
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-sm text-muted-foreground">{user.email}</p>
             </CardContent>
           </Card>
 
-          {/* User Details */}
           <Card className="md:col-span-2 shadow-lg">
             <CardHeader>
               <CardTitle>User Details</CardTitle>
@@ -135,6 +181,13 @@ export default function AdminUserDetailPage() {
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground">Email Address</h3>
                 <p className="text-lg">{user.email}</p>
+              </div>
+               <div>
+                <h3 className="text-sm font-medium text-muted-foreground">Flag Status</h3>
+                <p className={`text-lg flex items-center gap-1.5 ${user.isFlagged ? 'text-destructive' : 'text-green-600'}`}>
+                  {user.isFlagged ? <ShieldX className="h-5 w-5" /> : <ShieldCheck className="h-5 w-5" />}
+                  {user.isFlagged ? 'Flagged' : 'Not Flagged'}
+                </p>
               </div>
               {user.bio && (
                 <div>
@@ -159,10 +212,19 @@ export default function AdminUserDetailPage() {
                 </div>
               )}
             </CardContent>
+            <CardFooter>
+              <Button 
+                variant={user.isFlagged ? "default" : "destructive"} 
+                onClick={handleToggleFlag} 
+                disabled={isTogglingFlag}
+              >
+                {isTogglingFlag ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Flag className="mr-2 h-4 w-4" />}
+                {isTogglingFlag ? (user.isFlagged ? "Unflagging..." : "Flagging...") : (user.isFlagged ? "Unflag User" : "Flag User")}
+              </Button>
+            </CardFooter>
           </Card>
         </div>
 
-        {/* User History Placeholder */}
         <Card className="mt-8 shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -182,7 +244,6 @@ export default function AdminUserDetailPage() {
             Note: Full history tracking requires further backend integration.
           </CardFooter>
         </Card>
-
       </div>
     </ProtectedPage>
   );

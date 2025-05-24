@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { ProtectedPage } from "@/components/ProtectedPage";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -27,12 +27,15 @@ import {
   History,
   ArrowRight,
   Settings,
-  Users as UsersIcon // Renamed to avoid conflict with User type
+  Users as UsersIcon,
+  Flag, // New icon for flagging
+  ShieldCheck, // For unflagged
+  ShieldX // For flagged
 } from "lucide-react";
 import type { User as UserType, Project } from "@/types";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-import { getAllProjects } from "@/lib/firebaseService"; 
+import { getAllProjects, toggleUserFlag, addAdminActivityLog, getUserById } from "@/lib/firebaseService"; 
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from 'date-fns';
 
@@ -40,7 +43,7 @@ interface AdminFeatureCardProps {
   icon: React.ReactNode;
   title: string;
   description: string;
-  link?: string; // Optional link for the "Manage" button
+  link?: string; 
   accentColor?: 'primary' | 'accent';
 }
 
@@ -68,13 +71,13 @@ function AdminFeatureCard({ icon, title, description, link = "#", accentColor = 
 
 const adminFeatures: Omit<AdminFeatureCardProps, 'icon' | 'accentColor'>[] = [
   { title: "Smart Request Matching", description: "Auto-connect clients to the best-fit developers using tags and pricing.", link: "#" },
-  { title: "Developer Analytics", description: "Track performance, ratings, and project history.", link: "#" },
+  { title: "Developer Analytics", description: "Track performance, ratings, project history, and engagement metrics (placeholder).", link: "#" },
   { title: "Project Monitoring", description: "View ongoing, completed, and pending projects in real-time.", link: "#projects-section" },
   { title: "Request Manager", description: "Accept, reject, or assign service requests to developers.", link: "#" },
   { title: "Payment Control", description: "Monitor transactions, release payments, handle disputes.", link: "#" },
   { title: "Notification Center", description: "Real-time alerts for user actions or system events.", link: "#" },
-  { title: "User Management", description: "View and manage all clients and developers.", link: "#users-section" },
-  { title: "Activity Logs", description: "Track all admin-side actions for transparency.", link: "#" },
+  { title: "User Management", description: "View, manage, and flag clients and developers.", link: "#users-section" },
+  { title: "Activity Logs", description: "Track all admin-side actions for transparency (placeholder).", link: "/admin/activity-logs" }, // Changed link
 ];
 
 const featureIcons = [
@@ -90,13 +93,14 @@ const featureIcons = [
 
 
 export default function AdminPage() {
-  const { allUsers, isLoading: authLoading } = useAuth(); 
+  const { user: adminUser, allUsers, isLoading: authLoading, updateSingleUserInList } = useAuth(); 
   const { toast } = useToast();
   const [clients, setClients] = useState<UserType[]>([]);
   const [developers, setDevelopers] = useState<UserType[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isTogglingFlag, setIsTogglingFlag] = useState<string | null>(null); // Stores ID of user whose flag is being toggled
 
   useEffect(() => {
     if (!authLoading && allUsers) {
@@ -105,32 +109,71 @@ export default function AdminPage() {
     }
   }, [allUsers, authLoading]);
 
-  useEffect(() => {
-    const fetchProjects = async () => {
-      setIsLoadingProjects(true);
-      setFetchError(null);
-      try {
-        const fetchedProjects = await getAllProjects();
-        setProjects(fetchedProjects);
-      } catch (error) {
-        console.error("Failed to fetch projects for admin:", error);
-        const errorMsg = error instanceof Error ? error.message : "Could not retrieve project list."
-        setFetchError(errorMsg);
-        toast({
-          title: "Error Fetching Projects",
-          description: errorMsg,
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoadingProjects(false);
-      }
-    };
-    fetchProjects();
+  const fetchProjects = useCallback(async () => {
+    setIsLoadingProjects(true);
+    setFetchError(null);
+    try {
+      const fetchedProjects = await getAllProjects();
+      setProjects(fetchedProjects);
+    } catch (error) {
+      console.error("Failed to fetch projects for admin:", error);
+      const errorMsg = error instanceof Error ? error.message : "Could not retrieve project list."
+      setFetchError(errorMsg);
+      toast({
+        title: "Error Fetching Projects",
+        description: errorMsg,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingProjects(false);
+    }
   }, [toast]);
+
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
+
+  const handleToggleFlag = async (userIdToFlag: string, currentStatus: boolean, userName: string) => {
+    if (!adminUser) {
+      toast({ title: "Authentication Error", description: "Admin user not found.", variant: "destructive" });
+      return;
+    }
+    setIsTogglingFlag(userIdToFlag);
+    try {
+      await toggleUserFlag(userIdToFlag, currentStatus);
+      const action = !currentStatus ? "USER_FLAGGED" : "USER_UNFLAGGED";
+      await addAdminActivityLog({
+        adminId: adminUser.id,
+        adminName: adminUser.name,
+        action: action,
+        targetType: "user",
+        targetId: userIdToFlag,
+        targetName: userName,
+        details: { newFlagStatus: !currentStatus }
+      });
+      
+      // Refresh the user in the local AuthContext state
+      const updatedUser = await getUserById(userIdToFlag);
+      if (updatedUser) {
+        updateSingleUserInList(updatedUser);
+      }
+
+      toast({
+        title: "User Flag Status Updated",
+        description: `${userName}'s flag status has been ${!currentStatus ? 'set to flagged' : 'cleared'}.`,
+      });
+    } catch (error) {
+      console.error("Error toggling user flag:", error);
+      const errorMsg = error instanceof Error ? error.message : "Could not update user flag status.";
+      toast({ title: "Error", description: errorMsg, variant: "destructive" });
+    } finally {
+      setIsTogglingFlag(null);
+    }
+  };
 
   const isLoading = authLoading || isLoadingProjects;
 
-  if (isLoading) {
+  if (isLoading && projects.length === 0 && allUsers.length === 0) { // Check if initial load for all data
     return (
       <ProtectedPage allowedRoles={["admin"]}>
         <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
@@ -153,7 +196,6 @@ export default function AdminPage() {
     );
   }
 
-
   return (
     <ProtectedPage allowedRoles={["admin"]}>
       <div className="container mx-auto p-4 md:p-6 lg:p-8">
@@ -165,7 +207,6 @@ export default function AdminPage() {
           <p className="text-muted-foreground">Oversee platform operations, manage users, and monitor projects.</p>
         </header>
 
-        {/* Core Admin Features Section */}
         <section className="mb-12">
           <div className="flex items-center mb-6 gap-3">
              <Settings className="h-7 w-7 text-primary" />
@@ -195,7 +236,7 @@ export default function AdminPage() {
               <CardDescription>List of all registered clients from Firestore.</CardDescription>
             </CardHeader>
             <CardContent>
-              <UserTable users={clients} />
+              <UserTable users={clients} onToggleFlag={handleToggleFlag} isTogglingFlagId={isTogglingFlag} />
             </CardContent>
           </Card>
 
@@ -208,7 +249,7 @@ export default function AdminPage() {
               <CardDescription>List of all registered developers from Firestore.</CardDescription>
             </CardHeader>
             <CardContent>
-              <UserTable users={developers} />
+              <UserTable users={developers} onToggleFlag={handleToggleFlag} isTogglingFlagId={isTogglingFlag} />
             </CardContent>
           </Card>
         </div>
@@ -223,7 +264,7 @@ export default function AdminPage() {
               <CardDescription>Overview of all projects submitted on the platform (from Firestore).</CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoadingProjects && <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
+              {isLoadingProjects && projects.length === 0 && <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
               {fetchError && !isLoadingProjects && projects.length === 0 && <p className="text-destructive mb-4 text-center py-4">Error loading projects: {fetchError}</p>}
               {!isLoadingProjects && !fetchError && <ProjectTable projects={projects} allUsers={allUsers} />}
             </CardContent>
@@ -248,9 +289,11 @@ export default function AdminPage() {
 
 interface UserTableProps {
   users: UserType[];
+  onToggleFlag: (userId: string, currentStatus: boolean, userName: string) => void;
+  isTogglingFlagId: string | null;
 }
 
-function UserTable({ users }: UserTableProps) {
+function UserTable({ users, onToggleFlag, isTogglingFlagId }: UserTableProps) {
   if (users.length === 0) {
     return <p className="text-muted-foreground text-center py-4">No users in this category found in the database.</p>;
   }
@@ -263,6 +306,7 @@ function UserTable({ users }: UserTableProps) {
             <TableHead>Name</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Role</TableHead>
+            <TableHead>Flagged</TableHead>
             {users.length > 0 && users[0]?.role === 'developer' && <TableHead>Skills</TableHead>}
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
@@ -277,6 +321,9 @@ function UserTable({ users }: UserTableProps) {
                   {user.role}
                 </Badge>
               </TableCell>
+              <TableCell>
+                {user.isFlagged ? <ShieldX className="h-5 w-5 text-destructive" /> : <ShieldCheck className="h-5 w-5 text-green-500" />}
+              </TableCell>
               {user.role === 'developer' && (
                 <TableCell>
                   {user.skills && user.skills.length > 0 
@@ -284,7 +331,17 @@ function UserTable({ users }: UserTableProps) {
                     : <span className="text-muted-foreground italic">No skills listed</span>}
                 </TableCell>
               )}
-              <TableCell className="text-right whitespace-nowrap">
+              <TableCell className="text-right whitespace-nowrap space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => onToggleFlag(user.id, user.isFlagged || false, user.name || 'Unknown User')}
+                  disabled={isTogglingFlagId === user.id}
+                  className={user.isFlagged ? "border-destructive text-destructive hover:bg-destructive/10" : ""}
+                >
+                  {isTogglingFlagId === user.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Flag className="mr-2 h-4 w-4" />}
+                  {user.isFlagged ? "Unflag" : "Flag"}
+                </Button>
                 <Button variant="outline" size="sm" asChild>
                   <Link href={`/admin/users/${user.id}`}>
                     <Eye className="mr-2 h-4 w-4" />
@@ -315,7 +372,6 @@ function ProjectTable({ projects, allUsers }: ProjectTableProps) {
     const client = allUsers.find(user => user.id === clientId && user.role === 'client');
     return client ? client.name : "Unknown Client";
   };
-
 
   return (
     <div className="overflow-x-auto">
@@ -362,7 +418,6 @@ function ProjectStatusBadge({ status }: { status?: Project["status"] }) {
   let icon = <Clock className="mr-1.5 h-3 w-3" />;
   let currentStatus = status || "Unknown";
 
-
   if (currentStatus === "In Progress") {
     bgColor = "bg-blue-500/20 text-blue-700 dark:text-blue-300";
     dotColor = "bg-blue-500";
@@ -380,7 +435,6 @@ function ProjectStatusBadge({ status }: { status?: Project["status"] }) {
     icon = <Info className="mr-1.5 h-3 w-3" />;
   }
 
-
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bgColor} whitespace-nowrap`}>
       <svg className={`-ml-0.5 mr-1.5 h-2 w-2 ${dotColor} hidden sm:block`} fill="currentColor" viewBox="0 0 8 8">
@@ -391,6 +445,3 @@ function ProjectStatusBadge({ status }: { status?: Project["status"] }) {
     </span>
   );
 }
-
-
-    

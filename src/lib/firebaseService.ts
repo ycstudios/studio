@@ -2,16 +2,17 @@
 // src/lib/firebaseService.ts
 import { collection, doc, setDoc, getDocs, getDoc, query, orderBy, Timestamp, where, addDoc, updateDoc, serverTimestamp, deleteField } from "firebase/firestore";
 import { db } from "./firebase"; // Your Firebase app instance
-import type { User, Project } from "@/types";
+import type { User, Project, AdminActivityLog } from "@/types";
 
 const USERS_COLLECTION = "users";
 const PROJECTS_COLLECTION = "projects";
+const ADMIN_ACTIVITY_LOGS_COLLECTION = "adminActivityLogs";
 
 /**
  * Adds a new user to the Firestore 'users' collection.
  * Includes a createdAt timestamp, generates a referral code, and sets a default plan.
  */
-export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice' | 'portfolioUrls' | 'experienceLevel'> & { id?: string, referredByCode?: string }): Promise<User> {
+export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice' | 'portfolioUrls' | 'experienceLevel' | 'isFlagged'> & { id?: string, referredByCode?: string }): Promise<User> {
   if (!db) throw new Error("Firestore is not initialized.");
   
   const userId = userData.id || doc(collection(db, USERS_COLLECTION)).id;
@@ -32,12 +33,16 @@ export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referra
     planPrice: "$0/month",
     portfolioUrls: userData.role === 'developer' ? [] : undefined,
     experienceLevel: userData.role === 'developer' ? '' : undefined,
+    isFlagged: false, // Default to not flagged
   };
 
   try {
     await setDoc(doc(db, USERS_COLLECTION, userId), userToSave);
     console.log("User added to Firestore with ID:", userId);
-    return { ...userToSave, createdAt: new Date() }; 
+    // Return with JS Date for createdAt for consistency in app
+    const fetchedUser = await getUserById(userId);
+    if (!fetchedUser) throw new Error("Failed to retrieve user after adding.");
+    return fetchedUser;
   } catch (error) {
     console.error("Error adding user to Firestore: ", error);
     if (error instanceof Error) {
@@ -61,10 +66,10 @@ export async function getAllUsers(): Promise<User[]> {
       users.push({ 
         id: docSnap.id, 
         ...data,
-        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt || new Date()),
-        // Ensure portfolioUrls is always an array if it exists, or undefined
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date()),
         portfolioUrls: Array.isArray(data.portfolioUrls) ? data.portfolioUrls : (data.role === 'developer' ? [] : undefined),
-        experienceLevel: typeof data.experienceLevel === 'string' ? data.experienceLevel as User['experienceLevel'] : (data.role === 'developer' ? '' : undefined)
+        experienceLevel: typeof data.experienceLevel === 'string' ? data.experienceLevel as User['experienceLevel'] : (data.role === 'developer' ? '' : undefined),
+        isFlagged: data.isFlagged === true, // Ensure boolean
       } as User);
     });
     console.log("Fetched all users from Firestore:", users.length);
@@ -97,9 +102,10 @@ export async function getUserById(userId: string): Promise<User | null> {
       return { 
         id: userDocSnap.id, 
         ...data,
-        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt || new Date()),
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date()),
         portfolioUrls: Array.isArray(data.portfolioUrls) ? data.portfolioUrls : (data.role === 'developer' ? [] : undefined),
-        experienceLevel: typeof data.experienceLevel === 'string' ? data.experienceLevel as User['experienceLevel'] : (data.role === 'developer' ? '' : undefined)
+        experienceLevel: typeof data.experienceLevel === 'string' ? data.experienceLevel as User['experienceLevel'] : (data.role === 'developer' ? '' : undefined),
+        isFlagged: data.isFlagged === true,
       } as User;
     } else {
       console.log("No such user found in Firestore with ID:", userId);
@@ -128,16 +134,14 @@ export async function updateUser(userId: string, data: Partial<Omit<User, 'id' |
     
     const updateData: any = { ...data };
 
-    if (data.role !== 'developer') {
-      // If role is not developer, ensure developer-specific fields are removed or set to undefined
+    if (data.role && data.role !== 'developer') {
       updateData.skills = deleteField();
       updateData.portfolioUrls = deleteField();
       updateData.experienceLevel = deleteField();
-    } else {
-      // Ensure developer-specific fields are arrays/strings if not being explicitly set to remove them
-      if (data.skills === undefined) updateData.skills = []; // Default to empty array if undefined
-      if (data.portfolioUrls === undefined) updateData.portfolioUrls = [];
-      if (data.experienceLevel === undefined) updateData.experienceLevel = '';
+    } else if (data.role === 'developer') {
+      if (!('skills' in data)) updateData.skills = [];
+      if (!('portfolioUrls' in data)) updateData.portfolioUrls = [];
+      if (!('experienceLevel' in data)) updateData.experienceLevel = '';
     }
     
     await updateDoc(userDocRef, updateData);
@@ -150,7 +154,6 @@ export async function updateUser(userId: string, data: Partial<Omit<User, 'id' |
     throw new Error(`Could not update user ${userId} in database due to an unknown error.`);
   }
 }
-
 
 /**
  * Adds a new project to the Firestore 'projects' collection.
@@ -172,11 +175,10 @@ export async function addProject(
     };
     const projectDocRef = await addDoc(collection(db, PROJECTS_COLLECTION), projectWithMetadata);
     console.log("Project added to Firestore with ID:", projectDocRef.id);
-    return { 
-      id: projectDocRef.id, 
-      ...projectWithMetadata,
-      createdAt: new Date() 
-    } as Project;
+    // Fetch the project to get server-generated timestamp as a Date object
+    const savedProject = await getProjectById(projectDocRef.id);
+    if (!savedProject) throw new Error("Failed to retrieve project after adding.");
+    return savedProject;
   } catch (error) {
     console.error("Error adding project to Firestore: ", error);
     if (error instanceof Error) {
@@ -208,7 +210,7 @@ export async function getProjectsByClientId(clientId: string): Promise<Project[]
       projects.push({ 
         id: docSnap.id, 
         ...data,
-        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt || new Date())
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date())
       } as Project);
     });
     console.log(`Fetched ${projects.length} projects for client ID ${clientId} from Firestore.`);
@@ -241,7 +243,7 @@ export async function getProjectById(projectId: string): Promise<Project | null>
       return { 
         id: projectDocSnap.id, 
         ...data,
-        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt || new Date())
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date())
       } as Project;
     } else {
       console.log("No such project found in Firestore with ID:", projectId);
@@ -270,7 +272,7 @@ export async function getAllProjects(): Promise<Project[]> {
       projects.push({ 
         id: docSnap.id, 
         ...data,
-        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt || new Date())
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date())
       } as Project);
     });
     console.log("Fetched all projects from Firestore:", projects.length);
@@ -301,17 +303,17 @@ export async function getReferredClients(currentUserReferralCode: string): Promi
       orderBy("createdAt", "desc")
     );
     const querySnapshot = await getDocs(referredClientsQuery);
-    const referredClients: User[] = [];
+    const referredClientsData: User[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
-      referredClients.push({
+      referredClientsData.push({
         id: docSnap.id,
         ...data,
-        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt || new Date())
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date())
       } as User);
     });
-    console.log(`Fetched ${referredClients.length} referred clients for code ${currentUserReferralCode}.`);
-    return referredClients;
+    console.log(`Fetched ${referredClientsData.length} referred clients for code ${currentUserReferralCode}.`);
+    return referredClientsData;
   } catch (error) {
     console.error(`Error fetching referred clients for code ${currentUserReferralCode}: `, error);
     if (error instanceof Error) {
@@ -321,3 +323,45 @@ export async function getReferredClients(currentUserReferralCode: string): Promi
   }
 }
 
+/**
+ * Toggles the 'isFlagged' status of a user.
+ */
+export async function toggleUserFlag(userId: string, currentFlagStatus: boolean): Promise<void> {
+  if (!db) throw new Error("Firestore is not initialized.");
+  if (!userId) throw new Error("User ID is required to toggle flag status.");
+
+  try {
+    const userDocRef = doc(db, USERS_COLLECTION, userId);
+    await updateDoc(userDocRef, {
+      isFlagged: !currentFlagStatus,
+    });
+    console.log(`User ${userId} flag status toggled to ${!currentFlagStatus}.`);
+  } catch (error) {
+    console.error(`Error toggling flag for user ${userId}:`, error);
+    if (error instanceof Error) {
+      throw new Error(`Could not toggle flag status for user ${userId}: ${error.message}`);
+    }
+    throw new Error(`Could not toggle flag status for user ${userId} due to an unknown error.`);
+  }
+}
+
+/**
+ * Adds an entry to the Admin Activity Log.
+ */
+export async function addAdminActivityLog(logData: Omit<AdminActivityLog, 'id' | 'timestamp'>): Promise<void> {
+  if (!db) throw new Error("Firestore is not initialized.");
+  
+  const logEntry: Omit<AdminActivityLog, 'id'> = {
+    ...logData,
+    timestamp: serverTimestamp() as Timestamp,
+  };
+
+  try {
+    await addDoc(collection(db, ADMIN_ACTIVITY_LOGS_COLLECTION), logEntry);
+    console.log("Admin activity logged:", logData.action);
+  } catch (error) {
+    console.error("Error adding admin activity log:", error);
+    // Log the error but don't necessarily throw to break the primary action (e.g., flagging user)
+    // Depending on requirements, you might want to handle this more strictly.
+  }
+}
