@@ -8,81 +8,83 @@ body {
 }
 
 @layer base {
-  :root { /* This will be the dark theme by default */
-    --background: 222 47% 11%; /* Dark Desaturated Blue - e.g., #111827 */
-    --foreground: 210 40% 98%; /* Almost White - e.g., #f9fafb */
-    
-    --card: 222 47% 15%; /* Slightly Lighter Dark Blue - e.g., #1f2937 */
-    --card-foreground: 210 40% 98%;
-    
-    --popover: 222 47% 11%; /* Same as background for a seamless look */
-    --popover-foreground: 210 40% 98%;
-    
-    --primary: 217 91% 60%; /* Electric Blue - e.g., #3b82f6 */
-    --primary-foreground: 210 40% 98%; /* Almost white for text on primary buttons */
-    
-    --secondary: 215 28% 17%; /* Dark Gray Blue - e.g., #273040 */
-    --secondary-foreground: 210 40% 98%;
-    
-    --muted: 215 28% 22%; /* Slightly Lighter Gray Blue for muted elements - e.g., #2f3b50 */
-    --muted-foreground: 215 20% 65%; /* Medium Gray Blue for muted text */
-    
-    --accent: 200 80% 55%; /* A slightly brighter, more cyan-ish blue for secondary accents */
-    --accent-foreground: 210 40% 98%;
-    
-    --destructive: 0 62.8% 50.6%; /* Adjusted destructive to be slightly less intense on dark */
-    --destructive-foreground: 0 0% 98%;
-    
-    --border: 215 28% 25%; /* Gray blue border - e.g., #374151 */
-    --input: 215 28% 17%; /* Dark input background */
-    --ring: 217 91% 60%; /* Electric Blue for focus rings */
-    
-    --radius: 0.5rem;
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
 
-    --chart-1: 217 91% 60%; /* Electric blue for charts */
-    --chart-2: 200 80% 55%; /* Cyan-ish blue */
-    --chart-3: 215 28% 60%; /* Lighter Gray Blue */
-    --chart-4: 180 70% 50%; /* Tealish blue */
-    --chart-5: 270 70% 65%; /* Techy Purple */
-  }
- 
-  .light { /* Light theme variables */
-    --background: 0 0% 100%; /* White */
-    --foreground: 222 47% 11%; /* Dark Desaturated Blue text */
-
-    --card: 0 0% 96%; /* Very light gray */
-    --card-foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 217 91% 50%; /* Slightly darker electric blue for light bg contrast */
-    --primary-foreground: 210 40% 98%; /* Almost White */
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
 
-    --secondary: 220 15% 95%; /* Very Light Gray/Almost White */
-    --secondary-foreground: 222 47% 25%; /* Darker text for secondary elements */
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
 
-    --muted: 220 15% 90%; /* Light Gray */
-    --muted-foreground: 215 28% 47%; /* Medium gray text */
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 200 90% 50%; /* Slightly darker cyan-ish blue for light bg */
-    --accent-foreground: 222 47% 11%; /* Dark text on accent */
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
 
-    --destructive: 0 84.2% 60.2%; /* Standard destructive */
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 220 15% 88%; /* Light gray border */
-    --input: 0 0% 92%; /* Light gray input */
-    --ring: 217 91% 55%; /* Electric blue for focus rings */
-    
-    --chart-1: 217 91% 50%;
-    --chart-2: 200 90% 50%;
-    --chart-3: 222 47% 30%;
-    --chart-4: 180 80% 40%;
-    --chart-5: 270 80% 55%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+
+    /* Chart colors for light theme */
+    --chart-1: 222.2 47.4% 11.2%; /* primary */
+    --chart-2: 210 40% 96.1%; /* secondary */
+    --chart-3: 0 84.2% 60.2%; /* destructive */
+    --chart-4: 48 96% 89%; /* Example: a light yellow */
+    --chart-5: 180 50% 60%; /* Example: a teal */
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%; /* Adjusted for dark mode, was 0 72.2% 50.6% */
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 210 40% 98%; /* Was 217.2 32.6% 17.5% */
+
+    /* Chart colors for dark theme */
+    --chart-1: 210 40% 98%; /* primary */
+    --chart-2: 217.2 32.6% 17.5%; /* secondary */
+    --chart-3: 0 70% 50%; /* destructive (adjusted for dark) */
+    --chart-4: 48 90% 50%; /* Example: a darker yellow for dark theme */
+    --chart-5: 180 60% 40%; /* Example: a darker teal for dark theme */
   }
 }
- 
+
 @layer base {
   * {
     @apply border-border;
