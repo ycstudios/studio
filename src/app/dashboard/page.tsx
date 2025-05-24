@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
-import { Briefcase, PlusCircle, Search, Eye, UserCheck, CheckCircle, Clock, Loader2, Info, AlertTriangle } from "lucide-react";
+import { Briefcase, PlusCircle, Search, Eye, UserCheck, CheckCircle, Clock, Loader2, Info, AlertTriangle, FileText } from "lucide-react"; // Added FileText
 import Image from "next/image";
 import Link from "next/link";
 import type { Project } from "@/types";
@@ -63,7 +63,6 @@ function ClientDashboard() {
           console.error("Failed to fetch client projects:", e);
           const errorMsg = e instanceof Error ? e.message : "Could not retrieve your projects.";
           setError(errorMsg);
-          // Toast for action errors, direct display for load errors
         } finally {
           setIsLoading(false);
         }
@@ -109,28 +108,23 @@ function ClientDashboard() {
           {projects.map((project) => (
             <Card key={project.id} className="shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
               <CardHeader>
-                <div className="flex justify-between items-start">
-                  <CardTitle className="text-xl line-clamp-1">{project.name}</CardTitle>
+                <div className="flex justify-between items-start gap-2">
+                  <div className="flex items-start gap-3">
+                    <FileText className="h-6 w-6 text-primary flex-shrink-0 mt-1" />
+                    <CardTitle className="text-xl line-clamp-2">{project.name}</CardTitle>
+                  </div>
                   <ProjectStatusBadge status={project.status} />
                 </div>
-                <CardDescription className="line-clamp-1">
+                <CardDescription className="line-clamp-1 mt-1">
                   Skills: {project.requiredSkills?.join(", ") || "Not specified"}
                 </CardDescription>
                  {project.createdAt && (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground pt-1">
                     Posted {formatDistanceToNow(project.createdAt instanceof Date ? project.createdAt : new Date( (project.createdAt as any).seconds * 1000 ), { addSuffix: true })}
                   </p>
                 )}
               </CardHeader>
               <CardContent className="flex-grow">
-                 <Image 
-                    src={`https://placehold.co/600x300.png`}
-                    alt={project.name}
-                    width={600}
-                    height={300}
-                    data-ai-hint="project abstract"
-                    className="rounded-md object-cover aspect-video w-full h-auto mb-3"
-                  />
                   <p className="text-sm text-muted-foreground line-clamp-3">{project.description}</p>
               </CardContent>
               <CardFooter>
@@ -165,30 +159,32 @@ function ClientDashboard() {
 
 function ProjectStatusBadge({ status }: { status?: Project["status"] }) {
   let bgColor = "bg-muted text-muted-foreground";
-  let dotColor = "bg-gray-500";
+  let dotColor = "bg-gray-500 dark:bg-gray-400"; // Explicit dark mode color for dot
   let icon = <Clock className="mr-1.5 h-3 w-3" />;
   let currentStatus = status || "Unknown";
 
   if (currentStatus === "In Progress") {
-    bgColor = "bg-blue-500/20 text-blue-700 dark:text-blue-300";
-    dotColor = "bg-blue-500";
+    bgColor = "bg-blue-500/20 text-blue-700 dark:bg-blue-300/20 dark:text-blue-300";
+    dotColor = "bg-blue-500 dark:bg-blue-400";
   } else if (currentStatus === "Open") {
-    bgColor = "bg-green-500/20 text-green-700 dark:text-green-300";
-    dotColor = "bg-green-500";
+    bgColor = "bg-green-500/20 text-green-700 dark:bg-green-300/20 dark:text-green-300";
+    dotColor = "bg-green-500 dark:bg-green-400";
     icon = <Eye className="mr-1.5 h-3 w-3" />;
   } else if (currentStatus === "Completed") {
-    bgColor = "bg-purple-500/20 text-purple-700 dark:text-purple-300";
-    dotColor = "bg-purple-500";
+    bgColor = "bg-purple-500/20 text-purple-700 dark:bg-purple-300/20 dark:text-purple-300";
+    dotColor = "bg-purple-500 dark:bg-purple-400";
     icon = <CheckCircle className="mr-1.5 h-3 w-3" />;
   } else if (currentStatus === "Cancelled") {
-    bgColor = "bg-red-500/20 text-red-700 dark:text-red-300";
-    dotColor = "bg-red-500";
+    bgColor = "bg-red-500/20 text-red-700 dark:bg-red-300/20 dark:text-red-300";
+    dotColor = "bg-red-500 dark:bg-red-400";
     icon = <Info className="mr-1.5 h-3 w-3" />;
+  } else { // Unknown
+     bgColor = "bg-gray-500/20 text-gray-700 dark:bg-gray-300/20 dark:text-gray-300";
   }
 
 
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bgColor} whitespace-nowrap`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bgColor} whitespace-nowrap flex-shrink-0`}>
       <svg className={`-ml-0.5 mr-1.5 h-2 w-2 ${dotColor} hidden sm:block`} fill="currentColor" viewBox="0 0 8 8">
         <circle cx="4" cy="4" r="3" />
       </svg>
@@ -256,28 +252,23 @@ function DeveloperDashboard() {
         {projects.map((project) => (
           <Card key={project.id} className="shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
             <CardHeader>
-              <div className="flex justify-between items-start">
-                <CardTitle className="text-xl line-clamp-1">{project.name}</CardTitle>
+              <div className="flex justify-between items-start gap-2">
+                <div className="flex items-start gap-3">
+                    <FileText className="h-6 w-6 text-primary flex-shrink-0 mt-1" />
+                    <CardTitle className="text-xl line-clamp-2">{project.name}</CardTitle>
+                </div>
                 <ProjectStatusBadge status={project.status} />
               </div>
-              <CardDescription>
+              <CardDescription className="mt-1">
                 Client Timezone: {project.timeZone || "Not specified"}
               </CardDescription>
                {project.createdAt && (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground pt-1">
                      Posted {formatDistanceToNow(project.createdAt instanceof Date ? project.createdAt : new Date( (project.createdAt as any).seconds * 1000 ), { addSuffix: true })}
                   </p>
                 )}
             </CardHeader>
             <CardContent className="flex-grow">
-               <Image 
-                  src={`https://placehold.co/600x300.png`}
-                  alt={project.name}
-                  width={600}
-                  height={300}
-                  data-ai-hint="project tech"
-                  className="rounded-md object-cover aspect-video mb-4 w-full h-auto"
-                />
               <p className="text-sm text-muted-foreground mb-2 line-clamp-3">{project.description}</p>
               <p className="text-sm font-medium mb-1">Required Skills:</p>
               <div className="flex flex-wrap gap-2">
@@ -316,3 +307,5 @@ function DeveloperDashboard() {
     </section>
   );
 }
+
+    
