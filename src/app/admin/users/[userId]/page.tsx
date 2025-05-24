@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ArrowLeft, Briefcase, UserCircle2, FileText, AlertTriangle, Info, Loader2, Flag, ShieldCheck, ShieldX, Link as LinkIcon, CheckSquare, XSquare, ShieldAlert, Clock } from "lucide-react";
+import { ArrowLeft, Briefcase, UserCircle2, FileText, AlertTriangle, Info, Loader2, Flag, ShieldCheck, ShieldX, Link as LinkIcon, CheckSquare, XSquare, ShieldAlert, Clock, DollarSign } from "lucide-react";
 import type { User as UserType, AccountStatus } from "@/types";
-import { getUserById, toggleUserFlag, addAdminActivityLog, updateUserAccountStatus } from "@/lib/firebaseService"; 
+import { getUserById, toggleUserFlag, addAdminActivityLog, updateUserAccountStatus } from "@/lib/firebaseService";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
@@ -23,7 +23,7 @@ export default function AdminUserDetailPage() {
   const { toast } = useToast();
   const { user: adminUser, updateSingleUserInList } = useAuth();
 
-  const [user, setUser] = useState<UserType | null>(null); 
+  const [user, setUser] = useState<UserType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isTogglingFlag, setIsTogglingFlag] = useState(false);
@@ -74,11 +74,11 @@ export default function AdminUserDetailPage() {
         targetName: user.name || "Unnamed User",
         details: { newFlagStatus: !(user.isFlagged || false) }
       });
-      
+
       const updatedUser = await getUserById(user.id);
       if (updatedUser) {
-        setUser(updatedUser); 
-        updateSingleUserInList(updatedUser); 
+        setUser(updatedUser);
+        updateSingleUserInList(updatedUser);
       }
 
       toast({
@@ -137,7 +137,7 @@ export default function AdminUserDetailPage() {
     return name.substring(0, 2).toUpperCase();
   };
 
-  if (isLoading) { 
+  if (isLoading) {
     return (
       <ProtectedPage allowedRoles={["admin"]}>
         <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
@@ -148,7 +148,7 @@ export default function AdminUserDetailPage() {
     );
   }
 
-  if (error || !user) { 
+  if (error || !user) {
     return (
       <ProtectedPage allowedRoles={["admin"]}>
         <div className="container mx-auto p-4 md:p-6 lg:p-8">
@@ -196,6 +196,11 @@ export default function AdminUserDetailPage() {
                 </Badge>
               )}
                <AccountStatusBadge status={user.accountStatus} className="mt-2" />
+               {user.role === "developer" && user.hourlyRate !== undefined && (
+                <p className="text-sm text-primary font-semibold mt-2 flex items-center justify-center gap-1">
+                  <DollarSign className="h-4 w-4" /> ${user.hourlyRate}/hr
+                </p>
+              )}
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-sm text-muted-foreground">{user.email}</p>
@@ -257,7 +262,7 @@ export default function AdminUserDetailPage() {
                       <p className="italic text-muted-foreground">No skills listed.</p>
                     </div>
                   )}
-                  
+
                   {user.experienceLevel && (
                     <div>
                         <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Experience Level</h3>
@@ -267,6 +272,19 @@ export default function AdminUserDetailPage() {
                   {(!user.experienceLevel) && (
                      <div>
                         <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Experience Level</h3>
+                        <p className="italic text-muted-foreground">Not specified.</p>
+                    </div>
+                  )}
+
+                  {user.hourlyRate !== undefined && (
+                     <div>
+                        <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Hourly Rate</h3>
+                        <p className="text-base">${user.hourlyRate}/hr</p>
+                    </div>
+                  )}
+                   {user.hourlyRate === undefined && (
+                     <div>
+                        <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Hourly Rate</h3>
                         <p className="italic text-muted-foreground">Not specified.</p>
                     </div>
                   )}
@@ -316,9 +334,9 @@ export default function AdminUserDetailPage() {
               )}
             </CardContent>
             <CardFooter className="flex-wrap gap-2">
-              <Button 
-                variant={user.isFlagged ? "default" : "destructive"} 
-                onClick={handleToggleFlag} 
+              <Button
+                variant={user.isFlagged ? "default" : "destructive"}
+                onClick={handleToggleFlag}
                 disabled={isTogglingFlag || isUpdatingStatus}
               >
                 {isTogglingFlag ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Flag className="mr-2 h-4 w-4" />}
@@ -393,7 +411,7 @@ function AccountStatusBadge({ status, className }: { status?: UserType["accountS
   } else if (currentStatus === "suspended") {
     bgColor = "bg-orange-500/20 text-orange-700 dark:text-orange-300";
     icon = <ShieldAlert className="h-4 w-4" />;
-  } else { 
+  } else {
      bgColor = "bg-gray-500/20 text-gray-700 dark:text-gray-300";
      icon = <Info className="h-4 w-4" />;
      capitalizedStatus = "Unknown";

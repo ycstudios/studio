@@ -18,13 +18,16 @@ const ADMIN_ACTIVITY_LOGS_COLLECTION = "adminActivityLogs";
 // Helper to ensure date is constructed correctly from various Firestore timestamp formats
 function safeCreateDate(timestamp: any): Date | undefined {
     if (!timestamp) return undefined;
+    if (timestamp instanceof Date) return timestamp; // Already a JS Date
     if (timestamp instanceof Timestamp) {
         return timestamp.toDate();
     }
+    // Handle cases where timestamp might be a string or number from older data or different source
     if (typeof timestamp === 'string' || typeof timestamp === 'number') {
         const date = new Date(timestamp);
         if (!isNaN(date.getTime())) return date;
     }
+    // Handle cases where timestamp might be a plain object with seconds/nanoseconds (e.g. from JSON)
     if (timestamp && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
         const date = new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate();
          if (!isNaN(date.getTime())) return date;
@@ -42,6 +45,11 @@ const getInitialsForDefaultAvatar = (nameStr?: string) => {
   return nameStr.substring(0, 2).toUpperCase();
 };
 
+// Define a more specific type for writing user data to avoid issues with serverTimestamp
+interface UserWriteData extends Omit<User, 'id' | 'createdAt'> {
+  createdAt: FieldValue; // Specifically FieldValue for serverTimestamp
+}
+
 
 export async function addUser(
   userData: Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice' | 'isFlagged' | 'accountStatus' | 'avatarUrl' | 'bio'> & { id?: string, referredByCode?: string }
@@ -52,12 +60,11 @@ export async function addUser(
   const generatedReferralCode = `CODECRAFT_${userId.substring(0, 8).toUpperCase()}`;
   const defaultAvatar = `https://placehold.co/100x100.png?text=${getInitialsForDefaultAvatar(userData.name)}`;
 
-  const userDocumentData: Partial<User> = { // Use Partial<User> for flexibility
-    id: userId, // Ensure ID is part of the data to be set
+  const userDocumentData: Partial<UserWriteData> = { // Use Partial for flexibility before role-specific additions
     name: userData.name,
     email: userData.email.toLowerCase(),
     role: userData.role,
-    createdAt: serverTimestamp() as Timestamp, // serverTimestamp for Firestore
+    createdAt: serverTimestamp(),
     bio: `New ${userData.role} on CodeCrafter.`,
     avatarUrl: defaultAvatar,
     referralCode: generatedReferralCode,
@@ -78,10 +85,18 @@ export async function addUser(
     userDocumentData.resumeFileUrl = userData.resumeFileUrl || undefined;
     userDocumentData.resumeFileName = userData.resumeFileName || undefined;
     userDocumentData.pastProjects = userData.pastProjects || undefined;
+    userDocumentData.hourlyRate = userData.hourlyRate || undefined; // Add hourly rate
   }
 
+  // Remove undefined fields explicitly before setting
+  Object.keys(userDocumentData).forEach(key => {
+    if (userDocumentData[key as keyof typeof userDocumentData] === undefined) {
+      delete userDocumentData[key as keyof typeof userDocumentData];
+    }
+  });
+
   try {
-    await setDoc(doc(db, USERS_COLLECTION, userId), userDocumentData);
+    await setDoc(doc(db, USERS_COLLECTION, userId), userDocumentData as UserWriteData); // Cast to ensure type compatibility
 
     const welcomeEmailHtml = await getWelcomeEmailTemplate(userDocumentData.name!, userDocumentData.role!);
     await sendEmail(userDocumentData.email!, "Welcome to CodeCrafter!", welcomeEmailHtml);
@@ -129,6 +144,7 @@ export async function getAllUsers(): Promise<User[]> {
         resumeFileUrl: data.role === 'developer' ? (data.resumeFileUrl || undefined) : undefined,
         resumeFileName: data.role === 'developer' ? (data.resumeFileName || undefined) : undefined,
         pastProjects: data.role === 'developer' ? (data.pastProjects || undefined) : undefined,
+        hourlyRate: data.role === 'developer' ? (typeof data.hourlyRate === 'number' ? data.hourlyRate : undefined) : undefined,
       };
       users.push(user);
     });
@@ -176,6 +192,7 @@ export async function getUserById(userId: string): Promise<User | null> {
         resumeFileUrl: data.role === 'developer' ? (data.resumeFileUrl || undefined) : undefined,
         resumeFileName: data.role === 'developer' ? (data.resumeFileName || undefined) : undefined,
         pastProjects: data.role === 'developer' ? (data.pastProjects || undefined) : undefined,
+        hourlyRate: data.role === 'developer' ? (typeof data.hourlyRate === 'number' ? data.hourlyRate : undefined) : undefined,
       };
       return user;
     } else {
@@ -204,7 +221,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     const usersQuery = query(
       collection(db, USERS_COLLECTION),
       where("email", "==", lowercasedEmail),
-      limit(1) 
+      limit(1)
     );
     const querySnapshot = await getDocs(usersQuery);
 
@@ -215,7 +232,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
       const user: User = {
         id: userDocSnap.id,
         name: data.name || "Unnamed User",
-        email: data.email, 
+        email: data.email,
         role: data.role || "client",
         createdAt: safeCreateDate(data.createdAt),
         bio: data.bio || (data.role === 'developer' ? "Skilled developer." : "Client on CodeCrafter."),
@@ -232,10 +249,11 @@ export async function getUserByEmail(email: string): Promise<User | null> {
         resumeFileUrl: data.role === 'developer' ? (data.resumeFileUrl || undefined) : undefined,
         resumeFileName: data.role === 'developer' ? (data.resumeFileName || undefined) : undefined,
         pastProjects: data.role === 'developer' ? (data.pastProjects || undefined) : undefined,
+        hourlyRate: data.role === 'developer' ? (typeof data.hourlyRate === 'number' ? data.hourlyRate : undefined) : undefined,
       };
       return user;
     } else {
-      return null; 
+      return null;
     }
   } catch (error) {
     console.error(`Error fetching user by email ${lowercasedEmail} from Firestore: `, error);
@@ -274,34 +292,61 @@ export async function updateUser(userId: string, data: Partial<Omit<User, 'id' |
     if (effectiveRole === 'developer') {
       if (updateData.hasOwnProperty('skills')) {
         updateData.skills = Array.isArray(updateData.skills) ? updateData.skills : [];
+      } else if (data.skills === undefined) { // Explicitly undefined means keep existing or default to empty if not there
+        updateData.skills = currentUserData.skills || [];
       }
+
       if (updateData.hasOwnProperty('portfolioUrls')) {
          updateData.portfolioUrls = Array.isArray(updateData.portfolioUrls) ? updateData.portfolioUrls : [];
+      } else if (data.portfolioUrls === undefined) {
+        updateData.portfolioUrls = currentUserData.portfolioUrls || [];
       }
+
       if (updateData.hasOwnProperty('experienceLevel')) {
         updateData.experienceLevel = typeof updateData.experienceLevel === 'string' ? updateData.experienceLevel : '';
+      } else if (data.experienceLevel === undefined) {
+        updateData.experienceLevel = currentUserData.experienceLevel || '';
       }
+
       if (updateData.hasOwnProperty('resumeFileUrl')) {
         updateData.resumeFileUrl = updateData.resumeFileUrl?.trim() || deleteField();
+      } else if (data.resumeFileUrl === undefined && currentUserData.resumeFileUrl) {
+         updateData.resumeFileUrl = currentUserData.resumeFileUrl; // Retain if not explicitly changed
       }
+
+
       if (updateData.hasOwnProperty('resumeFileName')) {
         updateData.resumeFileName = updateData.resumeFileName?.trim() || deleteField();
+      } else if (data.resumeFileName === undefined && currentUserData.resumeFileName) {
+        updateData.resumeFileName = currentUserData.resumeFileName;
       }
+
+
       if (updateData.hasOwnProperty('pastProjects')) {
         updateData.pastProjects = updateData.pastProjects?.trim() || deleteField();
+      } else if (data.pastProjects === undefined && currentUserData.pastProjects) {
+        updateData.pastProjects = currentUserData.pastProjects;
       }
-    } else { 
+
+      if (updateData.hasOwnProperty('hourlyRate')) {
+        updateData.hourlyRate = typeof updateData.hourlyRate === 'number' && updateData.hourlyRate >= 0 ? updateData.hourlyRate : deleteField();
+      } else if (data.hourlyRate === undefined && currentUserData.hourlyRate !== undefined) {
+        updateData.hourlyRate = currentUserData.hourlyRate;
+      }
+
+    } else { // Client or Admin - remove developer-specific fields if present in updateData
       if (data.hasOwnProperty('skills')) updateData.skills = deleteField();
       if (data.hasOwnProperty('portfolioUrls')) updateData.portfolioUrls = deleteField();
       if (data.hasOwnProperty('experienceLevel')) updateData.experienceLevel = deleteField();
       if (data.hasOwnProperty('resumeFileUrl')) updateData.resumeFileUrl = deleteField();
       if (data.hasOwnProperty('resumeFileName')) updateData.resumeFileName = deleteField();
       if (data.hasOwnProperty('pastProjects')) updateData.pastProjects = deleteField();
+      if (data.hasOwnProperty('hourlyRate')) updateData.hourlyRate = deleteField();
     }
-    
+
     Object.keys(updateData).forEach(key => {
         if (updateData[key] === undefined) {
-            delete updateData[key]; 
+            delete updateData[key];
         }
     });
 
@@ -386,8 +431,8 @@ export async function getProjectsByClientId(clientId: string): Promise<Project[]
         availability: data.availability || "Not specified",
         timeZone: data.timeZone || "Not specified",
         status: data.status || "Unknown",
-        clientId: data.clientId, 
-        createdAt: safeCreateDate(data.createdAt) || new Date(), 
+        clientId: data.clientId,
+        createdAt: safeCreateDate(data.createdAt) || new Date(),
       } as Project);
     });
     return projects;
@@ -476,7 +521,7 @@ export async function getReferredClients(currentUserReferralCode: string): Promi
     const referredClientsQuery = query(
       collection(db, USERS_COLLECTION),
       where("referredByCode", "==", currentUserReferralCode),
-      where("role", "==", "client"), 
+      where("role", "==", "client"),
       orderBy("createdAt", "desc")
     );
     const querySnapshot = await getDocs(referredClientsQuery);
@@ -488,12 +533,12 @@ export async function getReferredClients(currentUserReferralCode: string): Promi
         id: docSnap.id,
         name: data.name || "Unnamed User",
         email: data.email || "No email",
-        role: data.role, 
+        role: data.role,
         createdAt: safeCreateDate(data.createdAt),
         bio: data.bio || "Client referred to CodeCrafter.",
         avatarUrl: data.avatarUrl || defaultAvatar,
         referralCode: data.referralCode || undefined,
-        referredByCode: data.referredByCode, 
+        referredByCode: data.referredByCode,
         currentPlan: data.currentPlan || "Free Tier",
         planPrice: data.planPrice || "$0/month",
         isFlagged: data.isFlagged === true,
@@ -504,6 +549,7 @@ export async function getReferredClients(currentUserReferralCode: string): Promi
         resumeFileUrl: data.role === 'developer' ? (data.resumeFileUrl || undefined) : undefined,
         resumeFileName: data.role === 'developer' ? (data.resumeFileName || undefined) : undefined,
         pastProjects: data.role === 'developer' ? (data.pastProjects || undefined) : undefined,
+        hourlyRate: data.role === 'developer' ? (typeof data.hourlyRate === 'number' ? data.hourlyRate : undefined) : undefined,
       });
     });
     return referredClientsData;
@@ -539,12 +585,12 @@ export async function toggleUserFlag(userId: string, currentFlagStatus: boolean)
 export async function addAdminActivityLog(logData: Omit<AdminActivityLog, 'id' | 'timestamp'>): Promise<void> {
   if (!db) {
     console.warn("Admin Activity Log: Firestore is not initialized. Log will not be saved.");
-    return; 
+    return;
   }
 
   const logEntry: Omit<AdminActivityLog, 'id'> = {
     ...logData,
-    timestamp: serverTimestamp() as Timestamp, 
+    timestamp: serverTimestamp() as Timestamp,
   };
 
   try {

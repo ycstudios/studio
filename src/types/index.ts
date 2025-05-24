@@ -1,5 +1,5 @@
 
-import type { Timestamp } from "firebase/firestore"; 
+import type { Timestamp } from "firebase/firestore";
 
 export type UserRole = "client" | "developer" | "admin";
 export type AccountStatus = 'active' | 'pending_approval' | 'suspended' | 'rejected';
@@ -14,45 +14,46 @@ export interface User {
   skills?: string[];
   portfolioUrls?: string[];
   experienceLevel?: 'Entry' | 'Junior' | 'Mid-level' | 'Senior' | 'Lead' | 'Principal' | '';
-  createdAt?: Date | Timestamp; 
+  hourlyRate?: number; // New field for developer's hourly rate
+  createdAt?: Date | Timestamp;
   referralCode?: string;
-  referredByCode?: string; 
+  referredByCode?: string;
   currentPlan?: string;
   planPrice?: string;
   isFlagged?: boolean;
   accountStatus: AccountStatus;
-  resumeFileUrl?: string; 
-  resumeFileName?: string; 
-  pastProjects?: string; // New: For developer's description of past projects
+  resumeFileUrl?: string;
+  resumeFileName?: string;
+  pastProjects?: string;
 }
 
 export interface Project {
   id: string;
-  clientId: string; 
+  clientId: string;
   name: string;
   description: string;
   requiredSkills: string[];
-  availability: string; 
-  timeZone: string; 
+  availability: string;
+  timeZone: string;
   status: "Open" | "In Progress" | "Completed" | "Cancelled" | "Unknown";
   createdAt: Date | Timestamp;
 }
 
 export interface DeveloperMatch {
-  developerId: string; 
+  developerId: string;
   name: string;
   skills: string[];
   timezone: string;
   availability: string;
-  matchScore?: number; 
-  profileUrl?: string; 
+  matchScore?: number;
+  profileUrl?: string;
   avatarUrl?: string;
   matchQuality?: "Strong Fit" | "Moderate Fit" | "Good Fit";
 }
 
 // This is the AI flow output schema from match-developers.ts
 export interface MatchDevelopersOutput {
-  developerMatches: string[]; 
+  developerMatches: string[];
   reasoning: string;
 }
 

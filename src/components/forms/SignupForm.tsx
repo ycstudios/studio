@@ -22,17 +22,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea"; // Added
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import type { UserRole } from "@/config/site";
-import { addUser } from "@/lib/firebaseService"; 
+import { addUser } from "@/lib/firebaseService";
 import type { User } from "@/types";
 import { Loader2 } from "lucide-react";
-import { useState, useEffect } from "react"; // Added useEffect
+import { useState, useEffect } from "react";
 
 const experienceLevels: User["experienceLevel"][] = ['', 'Entry', 'Junior', 'Mid-level', 'Senior', 'Lead', 'Principal'];
 
@@ -43,17 +43,19 @@ const formSchema = z.object({
   confirmPassword: z.string(),
   role: z.enum(["client", "developer"], { required_error: "Please select a role." }),
   referralCode: z.string().max(50, { message: "Referral code too long."}).optional(),
-  // Developer specific fields - made optional in Zod as they are conditionally required by UI
   skills: z.string().optional(),
-  experienceLevel: z.string().optional(), // Zod treats enum values as strings here
+  experienceLevel: z.string().optional(),
   portfolioUrls: z.string().optional(),
   resumeFileUrl: z.string().url({ message: "Please enter a valid URL for your resume." }).optional().or(z.literal('')),
   resumeFileName: z.string().optional(),
   pastProjects: z.string().optional(),
+  hourlyRate: z.string().optional().refine(val => val === '' || val === undefined || !isNaN(parseFloat(val)) && parseFloat(val) >= 0, {
+    message: "Hourly rate must be a positive number.",
+  }),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
-}).refine(data => { // Conditional validation for developer fields
+}).refine(data => {
   if (data.role === "developer") {
     return !!data.skills && data.skills.trim().length > 0;
   }
@@ -73,7 +75,7 @@ const formSchema = z.object({
 
 
 export function SignupForm() {
-  const { login } = useAuth(); 
+  const { login } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -94,6 +96,7 @@ export function SignupForm() {
       resumeFileUrl: "",
       resumeFileName: "",
       pastProjects: "",
+      hourlyRate: "",
     },
   });
 
@@ -106,16 +109,17 @@ export function SignupForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
-    
+
     const skillsArray = values.role === 'developer' && values.skills ? values.skills.split(",").map(s => s.trim()).filter(s => s.length > 0) : [];
     const portfolioUrlsArray = values.role === 'developer' && values.portfolioUrls ? values.portfolioUrls.split(",").map(url => url.trim()).filter(url => url.length > 0 && (url.startsWith('http://') || url.startsWith('https://'))) : [];
+    const hourlyRateNum = values.hourlyRate ? parseFloat(values.hourlyRate) : undefined;
+
 
     const newUserOmitIdAndGeneratedFields: Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice' | 'isFlagged' | 'accountStatus' | 'avatarUrl' | 'bio'> & {referredByCode?: string} = {
       name: values.name,
       email: values.email,
       role: values.role as UserRole,
       referredByCode: values.referralCode?.trim() || undefined,
-      // Add developer specific fields if role is developer
       ...(values.role === 'developer' && {
         skills: skillsArray,
         experienceLevel: values.experienceLevel as User["experienceLevel"] || '',
@@ -123,13 +127,14 @@ export function SignupForm() {
         resumeFileUrl: values.resumeFileUrl?.trim() || undefined,
         resumeFileName: values.resumeFileName?.trim() || undefined,
         pastProjects: values.pastProjects?.trim() || undefined,
+        hourlyRate: hourlyRateNum,
       })
     };
 
     try {
-      const savedUser = await addUser(newUserOmitIdAndGeneratedFields); 
-      
-      login(savedUser); 
+      const savedUser = await addUser(newUserOmitIdAndGeneratedFields);
+
+      login(savedUser);
 
       toast({
         title: "Signup Successful!",
@@ -217,12 +222,12 @@ export function SignupForm() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>I am a...</FormLabel>
-                  <Select 
+                  <Select
                     onValueChange={(value) => {
                       field.onChange(value);
                       setSelectedRole(value as UserRole);
-                    }} 
-                    defaultValue={field.value} 
+                    }}
+                    defaultValue={field.value}
                     disabled={isSubmitting}
                   >
                     <FormControl>
@@ -269,11 +274,25 @@ export function SignupForm() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {experienceLevels.filter(level => level !== '').map(level => ( // Filter out empty string for placeholder
+                          {experienceLevels.filter(level => level !== '').map(level => (
                             <SelectItem key={level} value={level!}>{level}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="hourlyRate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Hourly Rate ($ USD - Optional)</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="e.g., 50" {...field} disabled={isSubmitting} min="0" step="1"/>
+                      </FormControl>
+                      <FormDescription>Your preferred hourly rate in USD.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -16,8 +16,8 @@ export default function DevelopersListPage() {
     setIsLoading(authLoading);
     if (!authLoading && allUsers) {
       const fetchedDevelopers = allUsers
-        .filter(u => u.role === 'developer' && u.accountStatus === 'active') // Only show active developers
-        .sort((a, b) => (a.name || "").localeCompare(b.name || "")); 
+        .filter(u => u.role === 'developer' && u.accountStatus === 'active')
+        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
       setDevelopers(fetchedDevelopers);
     }
   }, [allUsers, authLoading]);
@@ -54,11 +54,11 @@ export default function DevelopersListPage() {
               skills={dev.skills || []}
               avatarUrl={dev.avatarUrl}
               experienceLevel={dev.experienceLevel || ''}
+              hourlyRate={dev.hourlyRate}
               portfolioUrls={dev.portfolioUrls || []}
               resumeFileUrl={dev.resumeFileUrl}
               resumeFileName={dev.resumeFileName}
-              // pastProjects={dev.pastProjects} // Not displayed on card for brevity
-              dataAiHint="developer profile" 
+              dataAiHint="developer profile"
             />
           ))}
         </div>

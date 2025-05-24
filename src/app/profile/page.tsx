@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Edit3, Save, UserCircle2, Briefcase, Loader2, AlertTriangle, Link as LinkIcon, Trash2 } from "lucide-react";
+import { Edit3, Save, UserCircle2, Briefcase, Loader2, AlertTriangle, Link as LinkIcon, Trash2, DollarSign } from "lucide-react";
 import { getUserById, updateUser } from "@/lib/firebaseService";
 import type { User } from "@/types";
 import {
@@ -39,15 +39,16 @@ export default function ProfilePage() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  
+
   const [name, setName] = useState("");
-  const [email, setEmail] = useState(""); 
+  const [email, setEmail] = useState("");
   const [bio, setBio] = useState("");
-  const [skills, setSkills] = useState(""); 
-  const [currentAvatarUrl, setCurrentAvatarUrl] = useState(""); // For the Avatar component display
-  const [newAvatarUrlInput, setNewAvatarUrlInput] = useState(""); // For the input field during edit
+  const [skills, setSkills] = useState("");
+  const [currentAvatarUrl, setCurrentAvatarUrl] = useState("");
+  const [newAvatarUrlInput, setNewAvatarUrlInput] = useState("");
   const [portfolioUrls, setPortfolioUrls] = useState("");
   const [experienceLevel, setExperienceLevel] = useState<User["experienceLevel"]>('');
+  const [hourlyRate, setHourlyRate] = useState<string>(""); // Stored as string for input, converted to number on save
 
   const [initialData, setInitialData] = useState<Partial<User>>({});
 
@@ -78,18 +79,20 @@ export default function ProfilePage() {
         setSkills(fetchedUser.skills?.join(", ") || "");
         const avatarToDisplay = fetchedUser.avatarUrl || defaultAvatarPlaceholder(fetchedUser.name);
         setCurrentAvatarUrl(avatarToDisplay);
-        setNewAvatarUrlInput(fetchedUser.avatarUrl || ""); // Initialize input with current or empty if default
+        setNewAvatarUrlInput(fetchedUser.avatarUrl || "");
         setPortfolioUrls(fetchedUser.portfolioUrls?.join(", ") || "");
         setExperienceLevel(fetchedUser.experienceLevel || '');
-        
-        setInitialData({ 
+        setHourlyRate(fetchedUser.hourlyRate?.toString() || "");
+
+        setInitialData({
           name: fetchedUser.name,
-          email: fetchedUser.email, // Store email in initialData too
+          email: fetchedUser.email,
           bio: fetchedUser.bio,
           skills: fetchedUser.skills,
-          avatarUrl: fetchedUser.avatarUrl, // Store the raw avatarUrl
+          avatarUrl: fetchedUser.avatarUrl,
           portfolioUrls: fetchedUser.portfolioUrls,
           experienceLevel: fetchedUser.experienceLevel,
+          hourlyRate: fetchedUser.hourlyRate,
         });
       } else {
         setFetchError("Could not load your profile data. It might be missing or an error occurred.");
@@ -105,14 +108,14 @@ export default function ProfilePage() {
   useEffect(() => {
     if (authUser?.id && !authLoading) {
       fetchUserData();
-    } else if (!authLoading && !authUser) { 
+    } else if (!authLoading && !authUser) {
       setIsLoadingProfile(false);
       setFetchError("User not authenticated. Please log in to view your profile.");
     }
   }, [authUser?.id, authLoading, fetchUserData, authUser]);
 
   const handleEditToggle = () => {
-    if (isEditing) { 
+    if (isEditing) {
       // Revert form fields to initialData
       setName(initialData.name || "");
       setBio(initialData.bio || (authUser?.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
@@ -122,8 +125,8 @@ export default function ProfilePage() {
       setNewAvatarUrlInput(initialData.avatarUrl || "");
       setPortfolioUrls(initialData.portfolioUrls?.join(", ") || "");
       setExperienceLevel(initialData.experienceLevel || '');
+      setHourlyRate(initialData.hourlyRate?.toString() || "");
     } else {
-      // When entering edit mode, set the input field to the current avatar URL (could be empty if it's default)
       setNewAvatarUrlInput(initialData.avatarUrl || "");
     }
     setIsEditing(!isEditing);
@@ -148,16 +151,23 @@ export default function ProfilePage() {
       setIsSaving(false);
       return;
     }
-    if (!finalAvatarUrl) { // User cleared the field or it was empty
-      finalAvatarUrl = defaultAvatarPlaceholder(name.trim()); // Use current name for initials
+    if (!finalAvatarUrl) {
+      finalAvatarUrl = defaultAvatarPlaceholder(name.trim());
     }
-    
+
     const skillsArray = skills.split(",").map(s => s.trim()).filter(s => s.length > 0);
     const portfolioUrlsArray = portfolioUrls.split(",").map(url => url.trim()).filter(url => url.length > 0 && (url.startsWith('http://') || url.startsWith('https://')));
+    const hourlyRateNum = hourlyRate.trim() === '' ? undefined : parseFloat(hourlyRate);
+    if (hourlyRate.trim() !== '' && (isNaN(hourlyRateNum!) || hourlyRateNum! < 0)) {
+        toast({ title: "Invalid Hourly Rate", description: "Hourly rate must be a positive number or empty.", variant: "destructive"});
+        setIsSaving(false);
+        return;
+    }
 
-    const updatedData: Partial<Omit<User, 'id' | 'createdAt' | 'email' | 'role'>> = { 
-      name: name.trim(), 
-      bio: bio.trim() || null, // Send null to delete if bio is empty
+
+    const updatedData: Partial<Omit<User, 'id' | 'createdAt' | 'email' | 'role'>> = {
+      name: name.trim(),
+      bio: bio.trim() || null,
       avatarUrl: finalAvatarUrl,
     };
 
@@ -165,33 +175,36 @@ export default function ProfilePage() {
       updatedData.skills = skillsArray;
       updatedData.portfolioUrls = portfolioUrlsArray;
       updatedData.experienceLevel = experienceLevel;
+      updatedData.hourlyRate = hourlyRateNum; // Can be undefined if cleared
     }
-    
+
     try {
       await updateUser(authUser.id, updatedData);
-      
-      const updatedAuthUser: User = { 
-        ...authUser, 
-        name: updatedData.name || authUser.name, 
+
+      const updatedAuthUser: User = {
+        ...authUser,
+        name: updatedData.name || authUser.name,
         bio: updatedData.bio === null ? undefined : (updatedData.bio || authUser.bio),
         avatarUrl: updatedData.avatarUrl || authUser.avatarUrl,
         skills: authUser.role === 'developer' ? skillsArray : authUser.skills,
         portfolioUrls: authUser.role === 'developer' ? portfolioUrlsArray : authUser.portfolioUrls,
         experienceLevel: authUser.role === 'developer' ? experienceLevel : authUser.experienceLevel,
+        hourlyRate: authUser.role === 'developer' ? hourlyRateNum : authUser.hourlyRate,
       };
-      updateAuthContextUser(updatedAuthUser); 
-      
-      setCurrentAvatarUrl(finalAvatarUrl); // Update displayed avatar
-      setInitialData(prev => ({ 
-        ...prev, 
-        ...updatedData, 
+      updateAuthContextUser(updatedAuthUser);
+
+      setCurrentAvatarUrl(finalAvatarUrl);
+      setInitialData(prev => ({
+        ...prev,
+        ...updatedData,
         bio: updatedData.bio === null ? undefined : updatedData.bio,
-        skills: skillsArray, 
-        portfolioUrls: portfolioUrlsArray, 
+        skills: skillsArray,
+        portfolioUrls: portfolioUrlsArray,
         experienceLevel,
-        avatarUrl: finalAvatarUrl, // Store the saved URL
+        avatarUrl: finalAvatarUrl,
+        hourlyRate: hourlyRateNum,
       }));
-      
+
       setIsEditing(false);
       toast({ title: "Profile Updated", description: "Your changes have been saved." });
     } catch (e) {
@@ -209,7 +222,7 @@ export default function ProfilePage() {
       duration: 7000,
     });
   };
-  
+
   if (authLoading || isLoadingProfile) {
     return (
       <ProtectedPage>
@@ -244,7 +257,8 @@ export default function ProfilePage() {
     (authUser.role === 'developer' && (
       skills !== (initialData.skills?.join(", ") || "") ||
       portfolioUrls !== (initialData.portfolioUrls?.join(", ") || "") ||
-      experienceLevel !== (initialData.experienceLevel || '')
+      experienceLevel !== (initialData.experienceLevel || '') ||
+      (hourlyRate.trim() === '' ? undefined : parseFloat(hourlyRate)) !== initialData.hourlyRate
     ))
   );
 
@@ -256,10 +270,10 @@ export default function ProfilePage() {
             <h1 className="text-3xl font-bold tracking-tight">Your Profile</h1>
             <p className="text-muted-foreground">Manage your account settings and public profile information from Firestore.</p>
           </div>
-          <Button 
-            onClick={isEditing ? (hasChanges ? handleSaveChanges : () => setIsEditing(false)) : handleEditToggle} 
-            variant={isEditing && hasChanges ? "default" : "outline"} 
-            className="w-full sm:w-auto" 
+          <Button
+            onClick={isEditing ? (hasChanges ? handleSaveChanges : () => setIsEditing(false)) : handleEditToggle}
+            variant={isEditing && hasChanges ? "default" : "outline"}
+            className="w-full sm:w-auto"
             disabled={isSaving || (isEditing && !name.trim())}
           >
             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isEditing && hasChanges ? <Save className="mr-2 h-4 w-4" /> : <Edit3 className="mr-2 h-4 w-4" />)}
@@ -282,6 +296,11 @@ export default function ProfilePage() {
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-sm text-muted-foreground">{initialData.email}</p>
+              {authUser.role === "developer" && initialData.hourlyRate !== undefined && (
+                <p className="text-sm text-primary font-semibold mt-1">
+                  ${initialData.hourlyRate}/hr
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -301,7 +320,7 @@ export default function ProfilePage() {
                   <p className="text-lg font-medium p-2 border rounded-md bg-muted/30 min-h-[40px]">{initialData.name || <span className="italic text-muted-foreground">Not set</span>}</p>
                 )}
               </div>
-              
+
               <div>
                 <Label htmlFor="email">Email Address</Label>
                  <p className="text-lg p-2 border rounded-md bg-muted/30 text-muted-foreground min-h-[40px]">{initialData.email} (Not editable)</p>
@@ -310,11 +329,11 @@ export default function ProfilePage() {
               {isEditing && (
                 <div>
                   <Label htmlFor="avatarUrl">Avatar URL</Label>
-                  <Input 
-                    id="avatarUrl" 
-                    placeholder="https://example.com/avatar.png (leave blank for default)" 
-                    value={newAvatarUrlInput} 
-                    onChange={(e) => setNewAvatarUrlInput(e.target.value)} 
+                  <Input
+                    id="avatarUrl"
+                    placeholder="https://example.com/avatar.png (leave blank for default)"
+                    value={newAvatarUrlInput}
+                    onChange={(e) => setNewAvatarUrlInput(e.target.value)}
                     disabled={isSaving}
                   />
                    <p className="text-xs text-muted-foreground mt-1">Enter a full URL to an image, or leave blank to use the default placeholder.</p>
@@ -347,6 +366,37 @@ export default function ProfilePage() {
                   </div>
 
                   <div>
+                    <Label htmlFor="experienceLevel">Experience Level</Label>
+                    {isEditing ? (
+                       <Select value={experienceLevel || ''} onValueChange={(value) => setExperienceLevel(value as User["experienceLevel"])} disabled={isSaving}>
+                        <SelectTrigger id="experienceLevel">
+                          <SelectValue placeholder="Select experience level" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {experienceLevels.map(level => (
+                            <SelectItem key={level || 'none'} value={level || 'none'}>{level || 'Not specified'}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-lg font-medium p-2 border rounded-md bg-muted/30 min-h-[40px]">{initialData.experienceLevel || <span className="italic text-muted-foreground">Not specified</span>}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label htmlFor="hourlyRate">Hourly Rate ($ USD)</Label>
+                    {isEditing ? (
+                      <Input id="hourlyRate" type="number" placeholder="e.g., 50" value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} disabled={isSaving} min="0" step="1"/>
+                    ) : (
+                      <p className="text-lg font-medium p-2 border rounded-md bg-muted/30 min-h-[40px]">
+                        {initialData.hourlyRate !== undefined ? `$${initialData.hourlyRate}/hr` : <span className="italic text-muted-foreground">Not specified</span>}
+                      </p>
+                    )}
+                     {isEditing && <p className="text-xs text-muted-foreground mt-1">Enter your preferred hourly rate. Leave blank if not applicable.</p>}
+                  </div>
+
+
+                  <div>
                     <Label htmlFor="portfolioUrls">Portfolio URLs</Label>
                     {isEditing ? (
                       <Input id="portfolioUrls" placeholder="e.g., https://github.com/user, https://linkedin.com/in/user" value={portfolioUrls} onChange={(e) => setPortfolioUrls(e.target.value)} disabled={isSaving} />
@@ -366,31 +416,13 @@ export default function ProfilePage() {
                     )}
                      {isEditing && <p className="text-xs text-muted-foreground mt-1">Enter valid URLs (http:// or https://) separated by commas.</p>}
                   </div>
-
-                  <div>
-                    <Label htmlFor="experienceLevel">Experience Level</Label>
-                    {isEditing ? (
-                       <Select value={experienceLevel || ''} onValueChange={(value) => setExperienceLevel(value as User["experienceLevel"])} disabled={isSaving}>
-                        <SelectTrigger id="experienceLevel">
-                          <SelectValue placeholder="Select experience level" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {experienceLevels.map(level => (
-                            <SelectItem key={level || 'none'} value={level || 'none'}>{level || 'Not specified'}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <p className="text-lg font-medium p-2 border rounded-md bg-muted/30 min-h-[40px]">{initialData.experienceLevel || <span className="italic text-muted-foreground">Not specified</span>}</p>
-                    )}
-                  </div>
                 </>
               )}
-              
+
               {isEditing && (
-                <Button 
-                  onClick={handleSaveChanges} 
-                  className="w-full md:w-auto" 
+                <Button
+                  onClick={handleSaveChanges}
+                  className="w-full md:w-auto"
                   disabled={isSaving || !name.trim() || !hasChanges}
                 >
                   {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
@@ -409,7 +441,7 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground mb-4">
-              Options like password changes and notification preferences will be available here in the future.
+              Request account deletion below. Password changes and notification preferences will be available here in the future.
             </p>
             <AlertDialog>
               <AlertDialogTrigger asChild>
