@@ -1,3 +1,4 @@
+
 "use client";
 
 import { ProtectedPage } from "@/components/ProtectedPage";
@@ -8,15 +9,16 @@ import { useToast } from "@/hooks/use-toast";
 import { Copy, Gift, Share2, Users, Info, Loader2, AlertTriangle } from "lucide-react";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
-import React, { useEffect, useState, useCallback } from "react"; 
+import React, { useEffect, useState, useCallback } from "react";
 import { getReferredClients } from "@/lib/firebaseService";
 import type { User as UserType } from "@/types";
 import { format } from 'date-fns';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Added missing import
 
 export default function ReferralsPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
-  
+
   const [referralLink, setReferralLink] = useState("");
   const [referralCode, setReferralCode] = useState("");
   const [referredClients, setReferredClients] = useState<UserType[]>([]);
@@ -48,8 +50,7 @@ export default function ReferralsPage() {
     } else if (user && !user.referralCode && !authLoading) {
        setReferralCode("Not yet available");
        setReferralLink("Not yet available");
-    } else if (!authLoading) {
-      // Handle case where user is loaded but no referral code (e.g., older user)
+    } else if (!authLoading && !user) {
       setReferralCode("N/A");
       setReferralLink("N/A");
     }
@@ -67,7 +68,7 @@ export default function ReferralsPage() {
     });
   };
 
-  if (authLoading || (!user && !authLoading)) {
+  if (authLoading || (!user && !authLoading && !fetchReferredError && referredClients.length === 0)) { // Adjusted loading condition
     return (
       <ProtectedPage>
         <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
@@ -165,14 +166,14 @@ export default function ReferralsPage() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="mt-8 shadow-lg">
             <CardHeader>
-                <CardTitle>Your Referred Clients ({referredClients.length})</CardTitle>
+                <CardTitle>Your Referred Clients ({isLoadingReferred ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : referredClients.length})</CardTitle>
                 <CardDescription>Track clients who signed up using your code.</CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoadingReferred ? (
+              {isLoadingReferred && referredClients.length === 0 ? (
                 <div className="flex items-center justify-center p-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary mr-3" />
                   <p className="text-muted-foreground">Loading your referred clients...</p>
@@ -183,7 +184,7 @@ export default function ReferralsPage() {
                     <AlertTitle>Error Loading Referred Clients</AlertTitle>
                     <AlertDescription>{fetchReferredError} Please try again later.</AlertDescription>
                   </Alert>
-              ) : referredClients.length === 0 ? (
+              ) : !isLoadingReferred && referredClients.length === 0 ? (
                 <div className="flex items-center justify-center text-center p-8 border-2 border-dashed rounded-lg">
                     <Info className="h-8 w-8 text-muted-foreground mr-3" />
                     <p className="text-muted-foreground">
@@ -218,14 +219,7 @@ export default function ReferralsPage() {
         </Card>
 
         <div className="mt-12 text-center">
-            <Image 
-              src="/images/referral-banner.png" 
-              alt="Referral Banner" 
-              data-ai-hint="people network" 
-              width={800} 
-              height={300} 
-              className="rounded-lg mx-auto shadow-md w-full h-auto max-w-[800px]" 
-            />
+            <Image src="https://placehold.co/800x300.png" alt="Referral Banner" data-ai-hint="people network" width={800} height={300} className="rounded-lg mx-auto shadow-md w-full h-auto max-w-[800px]" />
         </div>
       </div>
     </ProtectedPage>
