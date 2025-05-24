@@ -1,5 +1,6 @@
+
 import Link from 'next/link';
-import { Heart, Code2, Twitter, Linkedin, Github } from 'lucide-react'; // Added Twitter, Linkedin, Github
+import { Heart, Code2, Twitter, Linkedin, Github } from 'lucide-react';
 import { siteConfig } from '@/config/site';
 
 export function Footer() {
@@ -7,13 +8,13 @@ export function Footer() {
 
   return (
     <footer className="bg-card text-card-foreground border-t border-border/40 mt-auto">
-      <div className="container mx-auto py-8 px-4 md:px-6 lg:px-8">
+      <div className="container mx-auto py-6 sm:py-8 px-4 md:px-6 lg:px-8">
         {/* Main footer content */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 mb-8 text-center sm:text-left">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 md:gap-8 mb-6 sm:mb-8 text-center sm:text-left">
           <div>
             <Link href="/" className="flex items-center justify-center sm:justify-start space-x-2 mb-3">
-              <Code2 className="h-7 w-7 text-primary" />
-              <span className="font-bold text-xl text-foreground">{siteConfig.name}</span>
+              <Code2 className="h-6 w-6 sm:h-7 sm:w-7 text-primary" />
+              <span className="font-bold text-lg sm:text-xl text-foreground">{siteConfig.name}</span>
             </Link>
             <p className="text-sm text-muted-foreground">
               {siteConfig.description}
