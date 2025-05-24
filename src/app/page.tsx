@@ -7,6 +7,20 @@ import { Briefcase, Users, Zap, Target, Search, MessageSquare, ThumbsUp, UserChe
 import Image from "next/image";
 import Link from "next/link";
 import { BenefitListItem } from "@/components/BenefitListItem";
+import { ImageCarousel } from "@/components/ImageCarousel"; // Import the new carousel component
+
+const clientCarouselImages = [
+  { src: "https://placehold.co/600x450.png", alt: "Client reviewing project proposals", dataAiHint: "client meeting business" },
+  { src: "https://placehold.co/600x450.png", alt: "Team planning a project", dataAiHint: "project planning team" },
+  { src: "https://placehold.co/600x450.png", alt: "Successful project launch presentation", dataAiHint: "successful presentation" },
+];
+
+const developerCarouselImages = [
+  { src: "https://placehold.co/600x450.png", alt: "Developer coding on a laptop", dataAiHint: "developer coding programming" },
+  { src: "https://placehold.co/600x450.png", alt: "Focused developer examining code", dataAiHint: "focused developer code" },
+  { src: "https://placehold.co/600x450.png", alt: "Two developers collaborating on code", dataAiHint: "collaborative coding pair" },
+];
+
 
 export default function HomePage() {
   return (
@@ -40,6 +54,7 @@ export default function HomePage() {
               alt="Team collaborating on a project"
               data-ai-hint="modern office collaboration"
               className="mx-auto aspect-video overflow-hidden rounded-xl object-cover shadow-2xl transform hover:scale-105 transition-transform duration-300 w-full h-auto"
+              priority
             />
           </div>
         </div>
@@ -94,14 +109,7 @@ export default function HomePage() {
                 <Link href="/projects/new">Post Your Project <ArrowRight className="ml-2 h-5 w-5" /></Link>
               </Button>
             </div>
-            <Image
-              src="https://placehold.co/600x450.png"
-              width="600"
-              height="450"
-              alt="Client reviewing developer profiles"
-              data-ai-hint="client meeting business"
-              className="mx-auto rounded-xl object-cover shadow-lg w-full h-auto"
-            />
+            <ImageCarousel images={clientCarouselImages} className="mx-auto w-full h-auto" />
           </div>
         </div>
       </section>
@@ -110,14 +118,7 @@ export default function HomePage() {
       <section className="w-full py-16 md:py-24 lg:py-32 bg-muted/30">
         <div className="container px-4 md:px-6">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
-             <Image
-              src="https://placehold.co/600x450.png"
-              width="600"
-              height="450"
-              alt="Developer working on a laptop"
-              data-ai-hint="developer coding programming"
-              className="mx-auto rounded-xl object-cover shadow-lg lg:order-last w-full h-auto"
-            />
+             <ImageCarousel images={developerCarouselImages} className="mx-auto w-full h-auto lg:order-last" />
             <div>
               <div className="inline-block rounded-lg bg-accent/10 px-4 py-1.5 text-sm font-semibold text-accent mb-4">For Developers</div>
               <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl mb-6">Land Exciting Projects That Match Your Skills</h2>
