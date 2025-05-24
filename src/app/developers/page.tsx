@@ -17,7 +17,7 @@ export default function DevelopersListPage() {
     if (!authLoading && allUsers) {
       const fetchedDevelopers = allUsers
         .filter(u => u.role === 'developer')
-        .sort((a, b) => a.name.localeCompare(b.name)); // Simple ranking: alphabetical by name
+        .sort((a, b) => (a.name || "").localeCompare(b.name || "")); 
       setDevelopers(fetchedDevelopers);
     }
   }, [allUsers, authLoading]);
@@ -48,11 +48,13 @@ export default function DevelopersListPage() {
           {developers.map(dev => (
             <DeveloperCard
               key={dev.id}
-              name={dev.name}
+              developerId={dev.id}
+              name={dev.name || "Unnamed Developer"}
               description={dev.bio || "Experienced developer."}
               skills={dev.skills || []}
               avatarUrl={dev.avatarUrl}
-              // In a real app, dataAiHint could be more specific if developer profiles had distinct imagery
+              experienceLevel={dev.experienceLevel || ''}
+              portfolioUrls={dev.portfolioUrls || []}
               dataAiHint="developer profile" 
             />
           ))}
@@ -69,3 +71,4 @@ export default function DevelopersListPage() {
     </div>
   );
 }
+

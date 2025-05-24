@@ -1,6 +1,6 @@
 
 // src/lib/firebaseService.ts
-import { collection, doc, setDoc, getDocs, getDoc, query, orderBy, Timestamp, where, addDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, doc, setDoc, getDocs, getDoc, query, orderBy, Timestamp, where, addDoc, updateDoc, serverTimestamp, deleteField } from "firebase/firestore";
 import { db } from "./firebase"; // Your Firebase app instance
 import type { User, Project } from "@/types";
 
@@ -11,7 +11,7 @@ const PROJECTS_COLLECTION = "projects";
  * Adds a new user to the Firestore 'users' collection.
  * Includes a createdAt timestamp, generates a referral code, and sets a default plan.
  */
-export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice'> & { id?: string, referredByCode?: string }): Promise<User> {
+export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice' | 'portfolioUrls' | 'experienceLevel'> & { id?: string, referredByCode?: string }): Promise<User> {
   if (!db) throw new Error("Firestore is not initialized.");
   
   const userId = userData.id || doc(collection(db, USERS_COLLECTION)).id;
@@ -22,7 +22,7 @@ export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referra
     email: userData.email,
     role: userData.role,
     id: userId,
-    createdAt: serverTimestamp() as Timestamp, // Use serverTimestamp for accurate creation time
+    createdAt: serverTimestamp() as Timestamp, 
     bio: userData.bio || `New ${userData.role} on CodeCrafter.`,
     skills: userData.skills || (userData.role === 'developer' ? [] : undefined),
     avatarUrl: userData.avatarUrl || `https://placehold.co/100x100.png?text=${userData.name?.[0]?.toUpperCase() || 'U'}`,
@@ -30,12 +30,13 @@ export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referra
     referredByCode: userData.referredByCode || undefined,
     currentPlan: "Free Tier",
     planPrice: "$0/month",
+    portfolioUrls: userData.role === 'developer' ? [] : undefined,
+    experienceLevel: userData.role === 'developer' ? '' : undefined,
   };
 
   try {
     await setDoc(doc(db, USERS_COLLECTION, userId), userToSave);
     console.log("User added to Firestore with ID:", userId);
-    // For immediate return, create a Date object. Firestore will have the server timestamp.
     return { ...userToSave, createdAt: new Date() }; 
   } catch (error) {
     console.error("Error adding user to Firestore: ", error);
@@ -60,7 +61,10 @@ export async function getAllUsers(): Promise<User[]> {
       users.push({ 
         id: docSnap.id, 
         ...data,
-        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt || new Date()) 
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt || new Date()),
+        // Ensure portfolioUrls is always an array if it exists, or undefined
+        portfolioUrls: Array.isArray(data.portfolioUrls) ? data.portfolioUrls : (data.role === 'developer' ? [] : undefined),
+        experienceLevel: typeof data.experienceLevel === 'string' ? data.experienceLevel as User['experienceLevel'] : (data.role === 'developer' ? '' : undefined)
       } as User);
     });
     console.log("Fetched all users from Firestore:", users.length);
@@ -93,7 +97,9 @@ export async function getUserById(userId: string): Promise<User | null> {
       return { 
         id: userDocSnap.id, 
         ...data,
-        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt || new Date())
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt || new Date()),
+        portfolioUrls: Array.isArray(data.portfolioUrls) ? data.portfolioUrls : (data.role === 'developer' ? [] : undefined),
+        experienceLevel: typeof data.experienceLevel === 'string' ? data.experienceLevel as User['experienceLevel'] : (data.role === 'developer' ? '' : undefined)
       } as User;
     } else {
       console.log("No such user found in Firestore with ID:", userId);
@@ -119,13 +125,19 @@ export async function updateUser(userId: string, data: Partial<Omit<User, 'id' |
   }
   try {
     const userDocRef = doc(db, USERS_COLLECTION, userId);
-    const updateData = { ...data };
-    if (updateData.skills === undefined && data.role === 'developer') {
-      // If skills are explicitly set to undefined for a developer, ensure it's an empty array or handled.
-      // Firestore doesn't store undefined. If you want to remove the field, use delete operator on data before spreading.
-      // For now, assuming if undefined, it's not meant to be updated or should be empty array for devs.
-    } else if (updateData.skills === undefined) {
-       delete updateData.skills; // Remove if not a developer or not being set
+    
+    const updateData: any = { ...data };
+
+    if (data.role !== 'developer') {
+      // If role is not developer, ensure developer-specific fields are removed or set to undefined
+      updateData.skills = deleteField();
+      updateData.portfolioUrls = deleteField();
+      updateData.experienceLevel = deleteField();
+    } else {
+      // Ensure developer-specific fields are arrays/strings if not being explicitly set to remove them
+      if (data.skills === undefined) updateData.skills = []; // Default to empty array if undefined
+      if (data.portfolioUrls === undefined) updateData.portfolioUrls = [];
+      if (data.experienceLevel === undefined) updateData.experienceLevel = '';
     }
     
     await updateDoc(userDocRef, updateData);
@@ -308,3 +320,4 @@ export async function getReferredClients(currentUserReferralCode: string): Promi
     throw new Error("Could not fetch referred clients due to an unknown error.");
   }
 }
+

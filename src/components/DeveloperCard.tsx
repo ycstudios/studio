@@ -3,60 +3,109 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, UserCheck } from "lucide-react"; // Removed MessageSquare
+import { Eye, Briefcase, Link as LinkIcon, Star } from "lucide-react"; 
+import type { User } from "@/types";
+import Link from "next/link";
+
 
 interface DeveloperCardProps {
   name: string;
-  description: string; // This is the AI output string
-  skills?: string[]; // Optional, if we can parse or have them separately
-  availability?: string;
-  timezone?: string;
+  description: string; 
+  skills?: string[]; 
   avatarUrl?: string;
   dataAiHint?: string;
+  experienceLevel?: User["experienceLevel"];
+  portfolioUrls?: string[];
+  developerId?: string; // For linking to a full profile if needed
+  matchQuality?: "Strong Fit" | "Moderate Fit" | "Good Fit"; // For AI matchmaking results
 }
 
-export function DeveloperCard({ name, description, skills, availability, timezone, avatarUrl, dataAiHint }: DeveloperCardProps) {
-  const getInitials = (name: string) => {
-    const names = name.split(' ');
-    if (names.length > 1) {
-      return `${names[0][0]}${names[names.length - 1][0]}`;
+export function DeveloperCard({ 
+  name, 
+  description, 
+  skills, 
+  avatarUrl, 
+  dataAiHint, 
+  experienceLevel, 
+  portfolioUrls,
+  developerId,
+  matchQuality 
+}: DeveloperCardProps) {
+  const getInitials = (nameStr: string) => {
+    if (!nameStr) return "DV";
+    const names = nameStr.split(' ');
+    if (names.length > 1 && names[0] && names[names.length - 1]) {
+      return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
     }
-    return name.substring(0, 2).toUpperCase();
+    return nameStr.substring(0, 2).toUpperCase();
   };
   
   return (
     <Card className="shadow-md hover:shadow-lg transition-shadow duration-200 flex flex-col">
-      <CardHeader className="flex flex-row items-start gap-4">
-        <Avatar className="h-12 w-12">
+      <CardHeader className="flex flex-row items-start gap-4 pb-3">
+        <Avatar className="h-12 w-12 flex-shrink-0">
           <AvatarImage src={avatarUrl || `https://placehold.co/100x100.png`} alt={name} data-ai-hint={dataAiHint || "developer portrait"} />
           <AvatarFallback>{getInitials(name)}</AvatarFallback>
         </Avatar>
-        <div>
-          <CardTitle className="text-xl">{name}</CardTitle>
-          {/* If description from AI is short, it can be CardDescription. Otherwise, in CardContent */}
+        <div className="flex-grow">
+          <CardTitle className="text-xl line-clamp-1">{name}</CardTitle>
+          {experienceLevel && (
+            <CardDescription className="text-xs flex items-center">
+              <Briefcase className="h-3 w-3 mr-1 text-muted-foreground" />
+              {experienceLevel}
+            </CardDescription>
+          )}
         </div>
+         {matchQuality && (
+          <Badge variant={matchQuality === "Strong Fit" ? "default" : "secondary"} className="whitespace-nowrap">
+            <Star className="h-3 w-3 mr-1" /> {matchQuality}
+          </Badge>
+        )}
       </CardHeader>
-      <CardContent className="space-y-3 flex-grow">
+      <CardContent className="space-y-3 flex-grow pt-0">
         <p className="text-sm text-muted-foreground line-clamp-3">{description}</p>
+        
         {skills && skills.length > 0 && (
           <div>
             <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Skills</h4>
             <div className="flex flex-wrap gap-1">
-              {skills.map((skill, index) => (
-                <Badge key={index} variant="secondary">{skill}</Badge>
+              {skills.slice(0, 5).map((skill, index) => ( // Show max 5 skills
+                <Badge key={index} variant="secondary" className="text-xs">{skill}</Badge>
               ))}
+              {skills.length > 5 && <Badge variant="outline" className="text-xs">+{skills.length - 5} more</Badge>}
             </div>
           </div>
         )}
-        {availability && <p className="text-sm"><span className="font-semibold">Availability:</span> {availability}</p>}
-        {timezone && <p className="text-sm"><span className="font-semibold">Timezone:</span> {timezone}</p>}
+
+        {portfolioUrls && portfolioUrls.length > 0 && (
+          <div>
+            <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-1 mt-2">Portfolio</h4>
+            <a 
+              href={portfolioUrls[0]} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-sm text-primary hover:underline flex items-center gap-1 truncate"
+            >
+              <LinkIcon className="h-3.5 w-3.5 flex-shrink-0" /> 
+              <span className="truncate">{portfolioUrls[0].replace(/^https?:\/\//, '')}</span>
+            </a>
+          </div>
+        )}
       </CardContent>
       <CardFooter className="gap-2">
-        <Button variant="default" className="flex-1">
-          <Eye className="mr-2 h-4 w-4" /> View Profile {/* Changed icon for clarity */}
-        </Button>
-        {/* "Contact Developer" button removed */}
+        {developerId ? (
+            <Button variant="default" className="flex-1" asChild>
+                <Link href={`/admin/users/${developerId}`}> {/* Or a public developer profile page if it exists */}
+                    <Eye className="mr-2 h-4 w-4" /> View Profile
+                </Link>
+            </Button>
+        ) : (
+            <Button variant="default" className="flex-1" disabled>
+                <Eye className="mr-2 h-4 w-4" /> View Profile (N/A)
+            </Button>
+        )}
       </CardFooter>
     </Card>
   );
 }
+

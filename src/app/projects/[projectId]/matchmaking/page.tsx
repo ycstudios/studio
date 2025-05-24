@@ -2,13 +2,13 @@
 "use client";
 
 import React, { useEffect, useState, useTransition } from "react";
-import { useParams, useRouter } from "next/navigation"; // Combined import
+import { useParams, useRouter } from "next/navigation"; 
 import { ProtectedPage } from "@/components/ProtectedPage";
 import { DeveloperCard } from "@/components/DeveloperCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Info, AlertTriangle, ArrowLeft, Search, Eye, CheckCircle, Clock } from "lucide-react";
+import { Loader2, Info, AlertTriangle, ArrowLeft, Search, Eye, CheckCircle, Clock, UserCheck } from "lucide-react";
 import { matchDevelopers, MatchDevelopersInput, MatchDevelopersOutput } from "@/ai/flows/match-developers";
 import type { Project as ProjectType } from "@/types";
 import { getProjectById } from "@/lib/firebaseService";
@@ -21,7 +21,7 @@ export default function ProjectMatchmakingPage() {
   const router = useRouter(); 
   const projectId = params.projectId as string;
   const { toast } = useToast();
-  const { user } = useAuth(); 
+  const { user, isLoading: authLoading } = useAuth(); 
   
   const [isLoadingProject, setIsLoadingProject] = useState(true);
   const [isMatching, setIsMatching] = useState(false);
@@ -29,6 +29,7 @@ export default function ProjectMatchmakingPage() {
   const [matches, setMatches] = useState<MatchDevelopersOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isTransitionPending, startTransition] = useTransition();
+  const [applied, setApplied] = useState(false); // For "Apply for Project" button
 
 
   useEffect(() => {
@@ -40,7 +41,6 @@ export default function ProjectMatchmakingPage() {
           const fetchedProject = await getProjectById(projectId);
           if (fetchedProject) {
             setProject(fetchedProject);
-            // Automatically trigger AI matchmaking if user is client and project is fetched & open
             if (user?.role === 'client' && user.id === fetchedProject.clientId && fetchedProject.status === "Open") {
               handleRunMatchmaking(fetchedProject);
             }
@@ -62,14 +62,13 @@ export default function ProjectMatchmakingPage() {
         setError("No project ID provided in URL.");
         setIsLoadingProject(false);
     }
-  }, [projectId, toast, user?.role, user?.id]); // Added user.id to dependency array
+  }, [projectId, toast, user?.role, user?.id]); 
 
   const handleRunMatchmaking = async (currentProject: ProjectType | null = project) => {
     if (!currentProject) {
       toast({ title: "Error", description: "Project details not available for matchmaking.", variant: "destructive" });
       return;
     }
-    // Ensure only the client who owns the project and if it's open can run matchmaking
     if (user?.role !== 'client' || user.id !== currentProject.clientId || currentProject.status !== "Open") {
       toast({ 
         title: "Matchmaking Unavailable", 
@@ -80,8 +79,8 @@ export default function ProjectMatchmakingPage() {
     }
 
     setIsMatching(true);
-    setError(null); // Clear previous AI errors
-    // setMatches(null); // Optionally clear previous matches
+    setError(null); 
+    // setMatches(null); 
 
     const inputForAI: MatchDevelopersInput = {
       projectRequirements: currentProject.description,
@@ -101,7 +100,7 @@ export default function ProjectMatchmakingPage() {
       } catch (e) {
         console.error("AI Matchmaking error:", e);
         const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred.";
-        setError(`AI Matchmaking failed: ${errorMessage}`); // Set AI-specific error
+        setError(`AI Matchmaking failed: ${errorMessage}`); 
         toast({
           title: "Matchmaking Error",
           description: `AI could not find matches: ${errorMessage}`,
@@ -113,8 +112,20 @@ export default function ProjectMatchmakingPage() {
     });
   };
 
+  const handleApplyForProject = () => {
+    // Placeholder for actual application logic (e.g., save to Firestore)
+    console.log(`Developer ${user?.id} applied for project ${projectId}`);
+    setApplied(true);
+    toast({
+      title: "Application Submitted!",
+      description: "Your interest in this project has been noted. The project owner will be informed.",
+    });
+    // In a real app, you'd call a service here to save the application
+    // and potentially disable the button permanently or change its text
+  };
 
-  if (isLoadingProject) {
+
+  if (isLoadingProject || authLoading) {
     return (
       <ProtectedPage>
         <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
@@ -125,7 +136,7 @@ export default function ProjectMatchmakingPage() {
     );
   }
 
-  if (error && !project) { // Show general error if project couldn't be loaded at all
+  if (error && !project) { 
     return (
       <ProtectedPage>
         <div className="container mx-auto p-4 md:p-6 lg:p-8 text-center">
@@ -140,7 +151,7 @@ export default function ProjectMatchmakingPage() {
     );
   }
 
-  if (!project) { // Fallback if project is still null after loading and no specific error
+  if (!project) { 
      return (
       <ProtectedPage>
         <div className="container mx-auto p-4 md:p-6 lg:p-8 text-center">
@@ -154,6 +165,8 @@ export default function ProjectMatchmakingPage() {
       </ProtectedPage>
     );
   }
+
+  const canApply = user?.role === 'developer' && project.status === "Open" && user.id !== project.clientId;
 
 
   return (
@@ -172,7 +185,7 @@ export default function ProjectMatchmakingPage() {
             <CardDescription>Project ID: {project.id}</CardDescription>
              {project.createdAt && (
                 <p className="text-xs text-muted-foreground">
-                    Posted: {format(project.createdAt instanceof Date ? project.createdAt : new Date(), "MMMM d, yyyy 'at' h:mm a")}
+                    Posted: {project.createdAt instanceof Date ? format(project.createdAt, "MMMM d, yyyy 'at' h:mm a") : 'Date unavailable'}
                 </p>
             )}
           </CardHeader>
@@ -204,6 +217,12 @@ export default function ProjectMatchmakingPage() {
                     {(isMatching || isTransitionPending) ? "Finding Matches..." : "Run AI Matchmaking Again"}
                 </Button>
             )}
+            {canApply && (
+              <Button onClick={handleApplyForProject} disabled={applied} className="mt-4 w-full sm:w-auto">
+                {applied ? <CheckCircle className="mr-2 h-4 w-4" /> : <UserCheck className="mr-2 h-4 w-4" />}
+                {applied ? "Application Submitted" : "Apply for Project"}
+              </Button>
+            )}
           </CardContent>
         </Card>
 
@@ -219,8 +238,7 @@ export default function ProjectMatchmakingPage() {
             </Card>
         )}
 
-        {/* Display AI-specific error if it occurred, separate from project load error */}
-        {error && !isMatching && !isLoadingProject && !project && ( 
+        {error && !isMatching && !isLoadingProject && ( 
              <Card className="border-destructive shadow-lg">
                 <CardHeader>
                     <CardTitle className="text-destructive text-xl">Matchmaking Error</CardTitle>
@@ -231,12 +249,11 @@ export default function ProjectMatchmakingPage() {
             </Card>
         )}
         
-        {/* Display matches only if they exist, and no active matching is happening */}
         {matches && !isMatching && !isTransitionPending && (
           <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle className="text-2xl">AI Developer Matches</CardTitle>
-              <CardDescription>Here are the developers our AI believes are a good fit for your project based on the latest run.</CardDescription>
+              <CardTitle className="text-2xl">AI Developer Suggestions</CardTitle>
+              <CardDescription>Here are developer profiles our AI believes could be a good fit for your project based on the latest run.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div>
@@ -244,16 +261,17 @@ export default function ProjectMatchmakingPage() {
                 <p className="text-sm text-muted-foreground bg-muted p-4 rounded-md border whitespace-pre-wrap">{matches.reasoning || "No specific reasoning provided by AI."}</p>
               </div>
               
-              <h3 className="font-semibold text-lg">Matched Developer Profiles:</h3>
+              <h3 className="font-semibold text-lg">Suggested Developer Profiles:</h3>
               {matches.developerMatches && matches.developerMatches.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {matches.developerMatches.map((devProfileText, index) => (
                      <DeveloperCard 
                       key={index} 
-                      name={`Potential Developer ${index + 1}`} 
+                      name={`Suggested Developer Profile ${index + 1}`} 
                       description={devProfileText} 
-                      skills={project.requiredSkills || []} 
+                      skills={project.requiredSkills || []} // Show project skills as context
                       dataAiHint="developer profile abstract"
+                      matchQuality="Good Fit" // Placeholder as AI doesn't provide this yet
                     />
                   ))}
                 </div>
@@ -305,3 +323,4 @@ function ProjectStatusBadge({ status }: { status?: ProjectType["status"] }) {
     </span>
   );
 }
+

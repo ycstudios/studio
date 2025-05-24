@@ -11,9 +11,11 @@ export interface User {
   avatarUrl?: string;
   bio?: string;
   skills?: string[];
-  createdAt?: Date | Timestamp; // Firestore uses Timestamp, client might use Date
+  portfolioUrls?: string[]; // New: For developer portfolio links
+  experienceLevel?: 'Entry' | 'Junior' | 'Mid-level' | 'Senior' | 'Lead' | 'Principal' | ''; // New: For developer experience
+  createdAt?: Date | Timestamp; 
   referralCode?: string;
-  referredByCode?: string; // Code of the user who referred this user
+  referredByCode?: string; 
   currentPlan?: string;
   planPrice?: string;
 }

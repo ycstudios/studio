@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState, useTransition } from "react";
+import React, { useEffect, useState } from "react";
 import { ProtectedPage } from "@/components/ProtectedPage";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -10,11 +10,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Edit3, Save, UserCircle2, Briefcase, Palette, Loader2, AlertTriangle } from "lucide-react";
+import { Edit3, Save, UserCircle2, Briefcase, Palette, Loader2, AlertTriangle, Link as LinkIcon } from "lucide-react";
 import { getUserById, updateUser } from "@/lib/firebaseService";
 import type { User } from "@/types";
+
+const experienceLevels: User["experienceLevel"][] = ['', 'Entry', 'Junior', 'Mid-level', 'Senior', 'Lead', 'Principal'];
+
 
 export default function ProfilePage() {
   const { user: authUser, login: updateAuthContextUser, isLoading: authLoading } = useAuth();
@@ -30,8 +34,9 @@ export default function ProfilePage() {
   const [bio, setBio] = useState("");
   const [skills, setSkills] = useState(""); 
   const [avatar, setAvatar] = useState("");
+  const [portfolioUrls, setPortfolioUrls] = useState(""); // Stored as comma-separated string in UI
+  const [experienceLevel, setExperienceLevel] = useState<User["experienceLevel"]>('');
 
-  // Store initial fetched data to revert on cancel
   const [initialData, setInitialData] = useState<Partial<User>>({});
 
 
@@ -48,11 +53,16 @@ export default function ProfilePage() {
             setBio(fetchedUser.bio || (fetchedUser.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
             setSkills(fetchedUser.skills?.join(", ") || (fetchedUser.role === 'developer' ? "" : ""));
             setAvatar(fetchedUser.avatarUrl || `https://placehold.co/150x150.png`);
-            setInitialData({ // Store initial data for cancel
+            setPortfolioUrls(fetchedUser.portfolioUrls?.join(", ") || "");
+            setExperienceLevel(fetchedUser.experienceLevel || '');
+            
+            setInitialData({ 
               name: fetchedUser.name,
               bio: fetchedUser.bio,
               skills: fetchedUser.skills,
-              avatarUrl: fetchedUser.avatarUrl
+              avatarUrl: fetchedUser.avatarUrl,
+              portfolioUrls: fetchedUser.portfolioUrls,
+              experienceLevel: fetchedUser.experienceLevel,
             });
           } else {
             setFetchError("Could not load profile data from the database.");
@@ -68,18 +78,20 @@ export default function ProfilePage() {
         }
       };
       fetchUserData();
-    } else if (!authLoading) { // No authUser ID, but auth context has loaded
+    } else if (!authLoading) { 
       setIsLoadingProfile(false);
       setFetchError("User not authenticated.");
     }
   }, [authUser?.id, authLoading, toast]);
 
   const handleEditToggle = () => {
-    if (isEditing) { // If was editing and now cancelling
+    if (isEditing) { 
       setName(initialData.name || authUser?.name || "");
       setBio(initialData.bio || authUser?.bio || (authUser?.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
       setSkills(initialData.skills?.join(", ") || authUser?.skills?.join(", ") || (authUser?.role === 'developer' ? "" : ""));
       setAvatar(initialData.avatarUrl || authUser?.avatarUrl || `https://placehold.co/150x150.png`);
+      setPortfolioUrls(initialData.portfolioUrls?.join(", ") || "");
+      setExperienceLevel(initialData.experienceLevel || '');
     }
     setIsEditing(!isEditing);
   };
@@ -89,32 +101,41 @@ export default function ProfilePage() {
       toast({ title: "Error", description: "User not found.", variant: "destructive" });
       return;
     }
+    if (!name.trim()) {
+      toast({ title: "Validation Error", description: "Name cannot be empty.", variant: "destructive" });
+      return;
+    }
+
     setIsSaving(true);
     setFetchError(null);
 
     const skillsArray = skills.split(",").map(s => s.trim()).filter(s => s.length > 0);
+    const portfolioUrlsArray = portfolioUrls.split(",").map(url => url.trim()).filter(url => url.length > 0);
+
     const updatedData: Partial<Omit<User, 'id' | 'createdAt' | 'email' | 'role' | 'avatarUrl'>> = { 
-      name, 
-      bio 
+      name: name.trim(), 
+      bio: bio.trim(),
     };
+
     if (authUser.role === 'developer') {
       updatedData.skills = skillsArray;
+      updatedData.portfolioUrls = portfolioUrlsArray;
+      updatedData.experienceLevel = experienceLevel;
     }
-    // Avatar update logic would go here if implemented (e.g., updatedData.avatarUrl = newAvatarUrl)
-
+    
     try {
       await updateUser(authUser.id, updatedData);
       
-      // Update AuthContext immediately for responsive UI
-      const updatedAuthUser = { 
+      const updatedAuthUser: User = { 
         ...authUser, 
-        name, 
-        bio, 
+        name: updatedData.name || authUser.name, 
+        bio: updatedData.bio || authUser.bio, 
         skills: authUser.role === 'developer' ? skillsArray : authUser.skills,
-        // avatarUrl would be updated if changed
+        portfolioUrls: authUser.role === 'developer' ? portfolioUrlsArray : authUser.portfolioUrls,
+        experienceLevel: authUser.role === 'developer' ? experienceLevel : authUser.experienceLevel,
       };
       updateAuthContextUser(updatedAuthUser);
-      setInitialData({ ...initialData, name, bio, skills: skillsArray }); // Update initial data to new saved state
+      setInitialData({ ...initialData, ...updatedData, skills: skillsArray, portfolioUrls: portfolioUrlsArray }); 
       
       setIsEditing(false);
       toast({ title: "Profile Updated", description: "Your changes have been saved to the database." });
@@ -176,7 +197,6 @@ export default function ProfilePage() {
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {/* Profile Card */}
           <Card className="md:col-span-1 shadow-lg">
             <CardHeader className="items-center text-center">
                <Avatar className="h-24 w-24 mb-4 ring-2 ring-primary ring-offset-2">
@@ -199,7 +219,6 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Profile Details Form/Display */}
           <Card className="md:col-span-2 shadow-lg">
             <CardHeader>
               <CardTitle>Profile Details</CardTitle>
@@ -232,23 +251,64 @@ export default function ProfilePage() {
               </div>
 
               {authUser.role === "developer" && (
-                 <div>
-                  <Label htmlFor="skills">Skills</Label>
-                  {isEditing ? (
-                    <Input id="skills" placeholder="e.g., JavaScript, React, Figma" value={skills} onChange={(e) => setSkills(e.target.value)} disabled={isSaving} />
-                  ) : (
-                    <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-muted/30 min-h-[40px]">
-                      {(skills.split(",").map(s => s.trim()).filter(s => s).length > 0 ? skills.split(",").map(s => s.trim()).filter(s => s) : ["No skills listed"]).map((skill, index) => (
-                        <span key={index} className={`px-2 py-1 text-xs rounded-md ${skill === "No skills listed" ? "text-muted-foreground italic" : "bg-primary/10 text-primary font-medium"}`}>{skill}</span>
-                      ))}
-                    </div>
-                  )}
-                  {isEditing && <p className="text-xs text-muted-foreground mt-1">Enter skills separated by commas.</p>}
-                </div>
+                <>
+                  <div>
+                    <Label htmlFor="skills">Skills</Label>
+                    {isEditing ? (
+                      <Input id="skills" placeholder="e.g., JavaScript, React, Figma" value={skills} onChange={(e) => setSkills(e.target.value)} disabled={isSaving} />
+                    ) : (
+                      <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-muted/30 min-h-[40px]">
+                        {(skills.split(",").map(s => s.trim()).filter(s => s).length > 0 ? skills.split(",").map(s => s.trim()).filter(s => s) : ["No skills listed"]).map((skill, index) => (
+                          <span key={index} className={`px-2 py-1 text-xs rounded-md ${skill === "No skills listed" ? "text-muted-foreground italic" : "bg-primary/10 text-primary font-medium"}`}>{skill}</span>
+                        ))}
+                      </div>
+                    )}
+                    {isEditing && <p className="text-xs text-muted-foreground mt-1">Enter skills separated by commas.</p>}
+                  </div>
+
+                  <div>
+                    <Label htmlFor="portfolioUrls">Portfolio URLs</Label>
+                    {isEditing ? (
+                      <Input id="portfolioUrls" placeholder="e.g., https://github.com/user, https://linkedin.com/in/user" value={portfolioUrls} onChange={(e) => setPortfolioUrls(e.target.value)} disabled={isSaving} />
+                    ) : (
+                      <div className="p-2 border rounded-md bg-muted/30 min-h-[40px]">
+                        {initialData.portfolioUrls && initialData.portfolioUrls.length > 0 ? (
+                          <ul className="space-y-1">
+                            {initialData.portfolioUrls.map((url, index) => (
+                              <li key={index} className="text-sm flex items-center">
+                                <LinkIcon className="h-3 w-3 mr-1.5 text-muted-foreground" />
+                                <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">{url}</a>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : <p className="italic text-muted-foreground">No portfolio URLs listed.</p>}
+                      </div>
+                    )}
+                     {isEditing && <p className="text-xs text-muted-foreground mt-1">Enter URLs separated by commas.</p>}
+                  </div>
+
+                  <div>
+                    <Label htmlFor="experienceLevel">Experience Level</Label>
+                    {isEditing ? (
+                       <Select value={experienceLevel} onValueChange={(value) => setExperienceLevel(value as User["experienceLevel"])} disabled={isSaving}>
+                        <SelectTrigger id="experienceLevel">
+                          <SelectValue placeholder="Select experience level" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {experienceLevels.map(level => (
+                            <SelectItem key={level} value={level || 'none'}>{level || 'Not specified'}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-lg font-medium p-2 border rounded-md bg-muted/30 min-h-[40px]">{experienceLevel || <span className="italic text-muted-foreground">Not specified</span>}</p>
+                    )}
+                  </div>
+                </>
               )}
               
               {isEditing && (
-                <Button onClick={handleSaveChanges} className="w-full md:w-auto" disabled={isSaving || !name}>
+                <Button onClick={handleSaveChanges} className="w-full md:w-auto" disabled={isSaving || !name.trim()}>
                   {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                    {isSaving ? "Saving Changes..." : "Save All Changes"}
                 </Button>
@@ -274,3 +334,4 @@ export default function ProfilePage() {
     </ProtectedPage>
   );
 }
+
