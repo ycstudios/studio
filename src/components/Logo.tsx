@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { siteConfig } from "@/config/site";
 import { Code2 } from "lucide-react";
 import Link from "next/link";
@@ -10,16 +10,20 @@ export function Logo() {
   const targetName = siteConfig.name;
   const [typedName, setTypedName] = useState('');
   const [showCursor, setShowCursor] = useState(true);
+  const charIndexRef = useRef(0); // Use ref for charIndex
 
   useEffect(() => {
-    setTypedName(''); // Reset in case targetName changes (though unlikely)
+    // Reset state for the animation
+    setTypedName('');
     setShowCursor(true);
+    charIndexRef.current = 0; // Reset ref
 
-    let charIndex = 0;
     const intervalId = setInterval(() => {
-      if (charIndex < targetName.length) {
-        setTypedName((prev) => prev + targetName.charAt(charIndex));
-        charIndex++;
+      // Ensure targetName is accessed fresh in case of HMR or other updates, though unlikely for siteConfig
+      const currentTargetName = siteConfig.name; 
+      if (charIndexRef.current < currentTargetName.length) {
+        setTypedName((prev) => prev + currentTargetName.charAt(charIndexRef.current));
+        charIndexRef.current++; // Increment ref's current value
       } else {
         clearInterval(intervalId);
         setShowCursor(false);
@@ -29,7 +33,7 @@ export function Logo() {
     return () => {
       clearInterval(intervalId); // Cleanup interval on component unmount
     };
-  }, [targetName]); // Re-run if targetName ever changes
+  }, [targetName]); // targetName ensures effect re-runs if siteConfig.name were to change (though it's static)
 
   return (
     <Link href="/" className="flex items-center space-x-2" aria-label={`${siteConfig.name} homepage`}>
