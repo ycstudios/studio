@@ -39,14 +39,14 @@ const formSchema = z.object({
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
   confirmPassword: z.string(),
   role: z.enum(["client", "developer"], { required_error: "Please select a role." }),
-  referralCode: z.string().optional(),
+  referralCode: z.string().max(50, { message: "Referral code too long."}).optional(),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
 });
 
 export function SignupForm() {
-  const { login, setAllUsers } = useAuth(); 
+  const { login } = useAuth(); // Removed setAllUsers, login handles optimistic update
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -66,19 +66,19 @@ export function SignupForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
     
-    const newUserOmitIdAndGeneratedFields: Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice' | 'avatarUrl' | 'bio' | 'skills'> & {referredByCode?: string} = {
+    const newUserOmitIdAndGeneratedFields: Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice' | 'avatarUrl' | 'bio' | 'skills' | 'portfolioUrls' | 'experienceLevel' | 'isFlagged' | 'accountStatus' | 'resumeFileUrl' | 'resumeFileName'> & {referredByCode?: string} = {
       name: values.name,
       email: values.email,
+      // Password is not directly stored in User object for Firestore, assume auth provider handles it.
+      // For this mock system, it's not used beyond the form.
       role: values.role as UserRole,
-      referredByCode: values.referralCode || undefined,
+      referredByCode: values.referralCode?.trim() || undefined,
     };
 
     try {
       const savedUser = await addUser(newUserOmitIdAndGeneratedFields); 
       
       login(savedUser); 
-      setAllUsers(prevUsers => [...prevUsers, savedUser].sort((a,b) => (a.name || "").localeCompare(b.name || "")));
-
 
       toast({
         title: "Signup Successful!",

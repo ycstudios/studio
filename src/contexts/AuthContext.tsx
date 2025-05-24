@@ -3,7 +3,7 @@
 
 import type { User } from "@/types";
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from "react";
-import { getAllUsers, getUserById } // Import getUserById if needed for refreshing single user
+import { getAllUsers, getUserById } 
 from "@/lib/firebaseService"; 
 import { useToast } from "@/hooks/use-toast";
 
@@ -14,8 +14,8 @@ interface AuthContextType {
   login: (userData: User) => void;
   logout: () => void;
   isLoading: boolean; 
-  updateSingleUserInList: (updatedUser: User) => void; // New function
-  refreshUser: (userId: string) => Promise<void>; // New function
+  updateSingleUserInList: (updatedUser: User) => void;
+  refreshUser: (userId: string) => Promise<void>; 
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,7 +27,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
 
   const fetchAllUsersFromDb = useCallback(async () => {
-    setIsLoading(true);
+    // Keep isLoading true until all initial data (auth user & all users) is loaded
+    // setIsLoading(true); // This is handled by the outer loadInitialData
     try {
       const usersFromDb = await getAllUsers();
       setAllUsers(usersFromDb);
@@ -35,45 +36,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error("Failed to fetch all users from Firestore:", error);
       toast({
         title: "Error Loading Users",
-        description: "Could not fetch user list from the database. Admin features may be limited.",
+        description: "Could not fetch user list from the database. Some features may be limited.",
         variant: "destructive",
       });
       setAllUsers([]); 
-    } finally {
-      setIsLoading(false);
-    }
+    } 
+    // finally { setIsLoading(false); } // This is handled by the outer loadInitialData
   }, [toast]);
 
 
   useEffect(() => {
     const loadInitialData = async () => {
       setIsLoading(true);
+      let initialUser: User | null = null;
       const storedUserString = localStorage.getItem("codecrafter_user");
+
       if (storedUserString) {
         try {
           const storedUser = JSON.parse(storedUserString) as User;
-          setUser(storedUser);
-          // Optionally refresh the stored user from DB to ensure it's up-to-date
           if (storedUser.id) {
              const freshUser = await getUserById(storedUser.id);
              if (freshUser) {
-                setUser(freshUser);
+                initialUser = freshUser;
                 localStorage.setItem("codecrafter_user", JSON.stringify(freshUser));
              } else {
-                // User might have been deleted from DB
-                localStorage.removeItem("codecrafter_user");
-                setUser(null);
+                localStorage.removeItem("codecrafter_user"); // User deleted from DB
              }
           }
-
         } catch (error) {
           console.error("Failed to parse or refresh stored user:", error);
           localStorage.removeItem("codecrafter_user");
-          setUser(null);
         }
       }
-      await fetchAllUsersFromDb(); // Fetches all users for admin panel etc.
-      // setIsLoading(false); // Already handled in fetchAllUsersFromDb
+      setUser(initialUser);
+      await fetchAllUsersFromDb(); 
+      setIsLoading(false); 
     };
 
     loadInitialData();
@@ -82,6 +79,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = (userData: User) => {
     localStorage.setItem("codecrafter_user", JSON.stringify(userData)); 
     setUser(userData);
+    // Optimistically update allUsers list if the user is new or updated
     setAllUsers(prevUsers => {
       const userExists = prevUsers.find(u => u.id === userData.id);
       if (userExists) {
@@ -101,7 +99,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       prevUsers.map(u => u.id === updatedUser.id ? updatedUser : u)
                .sort((a,b) => (a.name || "").localeCompare(b.name || ""))
     );
-    // If the updated user is the currently logged-in user, update them too
     if (user && user.id === updatedUser.id) {
       setUser(updatedUser);
       localStorage.setItem("codecrafter_user", JSON.stringify(updatedUser));
@@ -114,16 +111,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const refreshedUser = await getUserById(userId);
         if (refreshedUser) {
             updateSingleUserInList(refreshedUser);
+        } else {
+           // If user not found (e.g. deleted), and it's the current auth user, log them out
+           if (user && user.id === userId) {
+              logout();
+              toast({ title: "Session Expired", description: "Your user account could not be found. Please log in again.", variant: "destructive" });
+           }
         }
     } catch (error) {
         console.error(`Failed to refresh user ${userId}:`, error);
         toast({
-            title: "Error Refreshing User",
-            description: `Could not refresh user data for ${userId}.`,
+            title: "Error Refreshing User Data",
+            description: `Could not refresh user data. Please try again later.`,
             variant: "destructive"
         });
     }
-  }, [toast]); // updateSingleUserInList is stable due to how setAllUsers works
+  }, [toast, user]); // updateSingleUserInList is stable
 
   return (
     <AuthContext.Provider value={{ user, allUsers, setAllUsers, login, logout, isLoading, updateSingleUserInList, refreshUser }}>

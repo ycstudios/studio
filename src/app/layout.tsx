@@ -1,13 +1,13 @@
 
 import type {Metadata} from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
-import Script from 'next/script'; // Import the Script component
+import Script from 'next/script'; 
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer"; 
 import { AuthProvider } from "@/contexts/AuthContext";
-import { ThemeProvider } from "@/components/ThemeProvider"; // Import ThemeProvider
+import { ThemeProvider } from "@/components/ThemeProvider"; 
 import { siteConfig } from '@/config/site';
 
 const geistSans = Geist({
@@ -41,7 +41,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased min-h-screen bg-background flex flex-col`}>
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          defaultTheme="dark" // Keep dark as default from previous preference
           enableSystem
           disableTransitionOnChange
         >
@@ -53,14 +53,18 @@ export default function RootLayout({
           </AuthProvider>
         </ThemeProvider>
 
-        {/* Tawk.to Script - Replace YOUR_PROPERTY_ID and YOUR_WIDGET_ID */}
+        {/* 
+          Tawk.to Live Chat Widget Script 
+          IMPORTANT: Replace YOUR_PROPERTY_ID and YOUR_WIDGET_ID with your actual IDs from Tawk.to dashboard.
+        */}
         <Script id="tawk-to-script" strategy="afterInteractive">
           {`
             var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
             (function(){
             var s1=document.createElement("script"),s0=document.getElementsByTagName("script")[0];
             s1.async=true;
-            s1.src='https://embed.tawk.to/YOUR_PROPERTY_ID/YOUR_WIDGET_ID';
+            // IMPORTANT: Replace YOUR_PROPERTY_ID and YOUR_WIDGET_ID with your actual IDs
+            s1.src='https://embed.tawk.to/YOUR_PROPERTY_ID/YOUR_WIDGET_ID'; 
             s1.charset='UTF-8';
             s1.setAttribute('crossorigin','*');
             s0.parentNode.insertBefore(s1,s0);

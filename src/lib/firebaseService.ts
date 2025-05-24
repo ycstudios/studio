@@ -1,4 +1,3 @@
-
 // src/lib/firebaseService.ts
 import { collection, doc, setDoc, getDocs, getDoc, query, orderBy, Timestamp, where, addDoc, updateDoc, serverTimestamp, deleteField } from "firebase/firestore";
 import { db } from "./firebase"; // Your Firebase app instance
@@ -19,8 +18,8 @@ const ADMIN_ACTIVITY_LOGS_COLLECTION = "adminActivityLogs";
  * Adds a new user to the Firestore 'users' collection.
  * Includes a createdAt timestamp, generates a referral code, and sets a default plan.
  */
-export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice' | 'portfolioUrls' | 'experienceLevel' | 'isFlagged' | 'accountStatus' | 'resumeFileUrl' | 'resumeFileName'> & { id?: string, referredByCode?: string, resumeFileUrl?: string, resumeFileName?: string }): Promise<User> {
-  if (!db) throw new Error("Firestore is not initialized.");
+export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice' | 'portfolioUrls' | 'experienceLevel' | 'isFlagged' | 'accountStatus' | 'avatarUrl' | 'bio' | 'skills' | 'resumeFileUrl' | 'resumeFileName'> & { id?: string, referredByCode?: string, resumeFileUrl?: string, resumeFileName?: string }): Promise<User> {
+  if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   
   const userId = userData.id || doc(collection(db, USERS_COLLECTION)).id;
   const generatedReferralCode = `CODECRAFT_${userId.substring(0, 6).toUpperCase()}`;
@@ -31,9 +30,9 @@ export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referra
     role: userData.role,
     id: userId,
     createdAt: serverTimestamp() as Timestamp, 
-    bio: userData.bio || `New ${userData.role} on CodeCrafter.`,
-    skills: userData.skills || (userData.role === 'developer' ? [] : undefined),
-    avatarUrl: userData.avatarUrl || `https://placehold.co/100x100.png?text=${userData.name?.[0]?.toUpperCase() || 'U'}`,
+    bio: `New ${userData.role} on CodeCrafter.`,
+    skills: userData.role === 'developer' ? [] : undefined,
+    avatarUrl: `https://placehold.co/100x100.png?text=${userData.name?.[0]?.toUpperCase() || 'U'}`,
     referralCode: generatedReferralCode,
     referredByCode: userData.referredByCode || undefined,
     currentPlan: "Free Tier",
@@ -48,14 +47,12 @@ export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referra
 
   try {
     await setDoc(doc(db, USERS_COLLECTION, userId), userToSave);
-    console.log("User added to Firestore with ID:", userId);
     
-    // Send welcome email
-    const welcomeEmailHtml = getWelcomeEmailTemplate(userToSave.name, userToSave.role);
+    const welcomeEmailHtml = await getWelcomeEmailTemplate(userToSave.name, userToSave.role);
     await sendEmail(userToSave.email, "Welcome to CodeCrafter!", welcomeEmailHtml);
 
     const fetchedUser = await getUserById(userId);
-    if (!fetchedUser) throw new Error("Failed to retrieve user after adding.");
+    if (!fetchedUser) throw new Error(`User ${userId} was supposedly added but could not be retrieved immediately.`);
     return fetchedUser;
   } catch (error) {
     console.error("Error adding user to Firestore: ", error);
@@ -70,7 +67,7 @@ export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referra
  * Fetches all users from the Firestore 'users' collection, ordered by name.
  */
 export async function getAllUsers(): Promise<User[]> {
-  if (!db) throw new Error("Firestore is not initialized.");
+  if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   try {
     const usersQuery = query(collection(db, USERS_COLLECTION), orderBy("name", "asc"));
     const querySnapshot = await getDocs(usersQuery);
@@ -89,7 +86,6 @@ export async function getAllUsers(): Promise<User[]> {
         resumeFileName: data.resumeFileName || undefined,
       } as User);
     });
-    console.log("Fetched all users from Firestore:", users.length);
     return users;
   } catch (error) {
     console.error("Error fetching all users from Firestore: ", error);
@@ -104,7 +100,7 @@ export async function getAllUsers(): Promise<User[]> {
  * Fetches a single user by their ID from the Firestore 'users' collection.
  */
 export async function getUserById(userId: string): Promise<User | null> {
-  if (!db) throw new Error("Firestore is not initialized.");
+  if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   if (!userId) {
     console.warn("getUserById called with no userId");
     return null;
@@ -114,7 +110,6 @@ export async function getUserById(userId: string): Promise<User | null> {
     const userDocSnap = await getDoc(userDocRef);
 
     if (userDocSnap.exists()) {
-      console.log("Fetched user by ID from Firestore:", userId);
       const data = userDocSnap.data();
       return { 
         id: userDocSnap.id, 
@@ -128,11 +123,10 @@ export async function getUserById(userId: string): Promise<User | null> {
         resumeFileName: data.resumeFileName || undefined,
       } as User;
     } else {
-      console.log("No such user found in Firestore with ID:", userId);
       return null;
     }
   } catch (error) {
-    console.error("Error fetching user by ID from Firestore: ", error);
+    console.error(`Error fetching user by ID ${userId} from Firestore: `, error);
      if (error instanceof Error) {
       throw new Error(`Could not fetch user ${userId} from database: ${error.message}`);
     }
@@ -143,34 +137,36 @@ export async function getUserById(userId: string): Promise<User | null> {
 /**
  * Updates a user's document in Firestore.
  */
-export async function updateUser(userId: string, data: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<void> {
-  if (!db) throw new Error("Firestore is not initialized.");
+export async function updateUser(userId: string, data: Partial<Omit<User, 'id' | 'createdAt' | 'email' | 'role'>>): Promise<void> {
+  if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   if (!userId) {
-    console.warn("updateUser called with no userId");
     throw new Error("User ID is required to update user.");
   }
   try {
     const userDocRef = doc(db, USERS_COLLECTION, userId);
     
     const updateData: any = { ...data };
+    
+    // If role is part of the update and it's not developer, clear developer-specific fields
+    const currentUserData = await getUserById(userId); // Fetch current role if not in update data
+    const currentRole = data.role || currentUserData?.role;
 
-    if (data.role && data.role !== 'developer') {
+    if (currentRole && currentRole !== 'developer') {
       updateData.skills = deleteField();
       updateData.portfolioUrls = deleteField();
       updateData.experienceLevel = deleteField();
       updateData.resumeFileUrl = deleteField();
       updateData.resumeFileName = deleteField();
-    } else if (data.role === 'developer') {
-      if (!('skills' in data) && !updateData.skills) updateData.skills = [];
-      if (!('portfolioUrls' in data) && !updateData.portfolioUrls) updateData.portfolioUrls = [];
-      if (!('experienceLevel' in data) && !updateData.experienceLevel) updateData.experienceLevel = '';
-      // resume fields are typically set at signup and not deleted if role remains developer
+    } else if (currentRole === 'developer') {
+      // Ensure developer fields are arrays/strings if not being explicitly set to undefined/null
+      if (data.skills === undefined && !updateData.skills) updateData.skills = currentUserData?.skills || [];
+      if (data.portfolioUrls === undefined && !updateData.portfolioUrls) updateData.portfolioUrls = currentUserData?.portfolioUrls || [];
+      if (data.experienceLevel === undefined && !updateData.experienceLevel) updateData.experienceLevel = currentUserData?.experienceLevel || '';
     }
     
     await updateDoc(userDocRef, updateData);
-    console.log("User updated in Firestore:", userId);
   } catch (error) {
-    console.error("Error updating user in Firestore: ", error);
+    console.error(`Error updating user ${userId} in Firestore: `, error);
     if (error instanceof Error) {
       throw new Error(`Could not update user ${userId} in database: ${error.message}`);
     }
@@ -187,11 +183,11 @@ export async function addProject(
   clientEmail?: string, 
   clientName?: string
 ): Promise<Project> {
-  if (!db) throw new Error("Firestore is not initialized.");
+  if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   if (!clientId) {
     throw new Error("Client ID is required to add a project.");
   }
-  let savedProjectData: Project | null = null;
+  
   try {
     const projectWithMetadata = {
       ...projectData,
@@ -200,17 +196,16 @@ export async function addProject(
       createdAt: serverTimestamp() as Timestamp,
     };
     const projectDocRef = await addDoc(collection(db, PROJECTS_COLLECTION), projectWithMetadata);
-    console.log("Project added to Firestore with ID:", projectDocRef.id);
     
     const fetchedProject = await getProjectById(projectDocRef.id);
-    if (!fetchedProject) throw new Error("Failed to retrieve project after adding.");
-    savedProjectData = fetchedProject;
+    if (!fetchedProject) throw new Error(`Project ${projectDocRef.id} was supposedly added but could not be retrieved.`);
+    
 
     if (clientEmail && clientName) {
-      const projectEmailHtml = getClientProjectPostedEmailTemplate(clientName, savedProjectData.name, savedProjectData.id);
-      await sendEmail(clientEmail, `Your Project "${savedProjectData.name}" is Live!`, projectEmailHtml);
+      const projectEmailHtml = await getClientProjectPostedEmailTemplate(clientName, fetchedProject.name, fetchedProject.id);
+      await sendEmail(clientEmail, `Your Project "${fetchedProject.name}" is Live!`, projectEmailHtml);
     }
-    return savedProjectData;
+    return fetchedProject;
   } catch (error) {
     console.error("Error adding project to Firestore: ", error);
     if (error instanceof Error) {
@@ -224,7 +219,7 @@ export async function addProject(
  * Fetches all projects for a specific client ID from Firestore, ordered by creation date (descending).
  */
 export async function getProjectsByClientId(clientId: string): Promise<Project[]> {
-  if (!db) throw new Error("Firestore is not initialized.");
+  if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   if (!clientId) {
     console.warn("getProjectsByClientId called with no clientId");
     return [];
@@ -245,7 +240,6 @@ export async function getProjectsByClientId(clientId: string): Promise<Project[]
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date())
       } as Project);
     });
-    console.log(`Fetched ${projects.length} projects for client ID ${clientId} from Firestore.`);
     return projects;
   } catch (error) {
     console.error(`Error fetching projects for client ${clientId} from Firestore: `, error);
@@ -260,7 +254,7 @@ export async function getProjectsByClientId(clientId: string): Promise<Project[]
  * Fetches a single project by its ID from the Firestore 'projects' collection.
  */
 export async function getProjectById(projectId: string): Promise<Project | null> {
-  if (!db) throw new Error("Firestore is not initialized.");
+  if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   if (!projectId) {
     console.warn("getProjectById called with no projectId");
     return null;
@@ -270,7 +264,6 @@ export async function getProjectById(projectId: string): Promise<Project | null>
     const projectDocSnap = await getDoc(projectDocRef);
 
     if (projectDocSnap.exists()) {
-      console.log("Fetched project by ID from Firestore:", projectId);
       const data = projectDocSnap.data();
       return { 
         id: projectDocSnap.id, 
@@ -278,11 +271,10 @@ export async function getProjectById(projectId: string): Promise<Project | null>
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date())
       } as Project;
     } else {
-      console.log("No such project found in Firestore with ID:", projectId);
       return null;
     }
   } catch (error) {
-    console.error("Error fetching project by ID from Firestore: ", error);
+    console.error(`Error fetching project by ID ${projectId} from Firestore: `, error);
     if (error instanceof Error) {
       throw new Error(`Could not fetch project ${projectId} from database: ${error.message}`);
     }
@@ -294,7 +286,7 @@ export async function getProjectById(projectId: string): Promise<Project | null>
  * Fetches all projects from the Firestore 'projects' collection, ordered by creation date (descending).
  */
 export async function getAllProjects(): Promise<Project[]> {
-  if (!db) throw new Error("Firestore is not initialized.");
+  if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   try {
     const projectsQuery = query(collection(db, PROJECTS_COLLECTION), orderBy("createdAt", "desc"));
     const querySnapshot = await getDocs(projectsQuery);
@@ -307,7 +299,6 @@ export async function getAllProjects(): Promise<Project[]> {
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date())
       } as Project);
     });
-    console.log("Fetched all projects from Firestore:", projects.length);
     return projects;
   } catch (error) {
     console.error("Error fetching all projects from Firestore: ", error);
@@ -322,7 +313,7 @@ export async function getAllProjects(): Promise<Project[]> {
  * Fetches all client users referred by a specific referral code.
  */
 export async function getReferredClients(currentUserReferralCode: string): Promise<User[]> {
-  if (!db) throw new Error("Firestore is not initialized.");
+  if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   if (!currentUserReferralCode) {
     console.warn("getReferredClients called with no currentUserReferralCode");
     return [];
@@ -344,7 +335,6 @@ export async function getReferredClients(currentUserReferralCode: string): Promi
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date())
       } as User);
     });
-    console.log(`Fetched ${referredClientsData.length} referred clients for code ${currentUserReferralCode}.`);
     return referredClientsData;
   } catch (error) {
     console.error(`Error fetching referred clients for code ${currentUserReferralCode}: `, error);
@@ -359,7 +349,7 @@ export async function getReferredClients(currentUserReferralCode: string): Promi
  * Toggles the 'isFlagged' status of a user.
  */
 export async function toggleUserFlag(userId: string, currentFlagStatus: boolean): Promise<void> {
-  if (!db) throw new Error("Firestore is not initialized.");
+  if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   if (!userId) throw new Error("User ID is required to toggle flag status.");
 
   try {
@@ -367,7 +357,6 @@ export async function toggleUserFlag(userId: string, currentFlagStatus: boolean)
     await updateDoc(userDocRef, {
       isFlagged: !currentFlagStatus,
     });
-    console.log(`User ${userId} flag status toggled to ${!currentFlagStatus}.`);
   } catch (error) {
     console.error(`Error toggling flag for user ${userId}:`, error);
     if (error instanceof Error) {
@@ -381,7 +370,7 @@ export async function toggleUserFlag(userId: string, currentFlagStatus: boolean)
  * Adds an entry to the Admin Activity Log.
  */
 export async function addAdminActivityLog(logData: Omit<AdminActivityLog, 'id' | 'timestamp'>): Promise<void> {
-  if (!db) throw new Error("Firestore is not initialized.");
+  if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   
   const logEntry: Omit<AdminActivityLog, 'id'> = {
     ...logData,
@@ -390,9 +379,9 @@ export async function addAdminActivityLog(logData: Omit<AdminActivityLog, 'id' |
 
   try {
     await addDoc(collection(db, ADMIN_ACTIVITY_LOGS_COLLECTION), logEntry);
-    console.log("Admin activity logged:", logData.action);
   } catch (error) {
     console.error("Error adding admin activity log:", error);
+    // Optionally re-throw or handle logging errors differently for production
   }
 }
 
@@ -400,7 +389,7 @@ export async function addAdminActivityLog(logData: Omit<AdminActivityLog, 'id' |
  * Updates a user's account status in Firestore and sends notification emails.
  */
 export async function updateUserAccountStatus(userId: string, newStatus: AccountStatus, userEmail: string, userName: string): Promise<void> {
-  if (!db) throw new Error("Firestore is not initialized.");
+  if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   if (!userId) throw new Error("User ID is required to update account status.");
 
   try {
@@ -408,14 +397,13 @@ export async function updateUserAccountStatus(userId: string, newStatus: Account
     await updateDoc(userDocRef, {
       accountStatus: newStatus,
     });
-    console.log(`User ${userId} account status updated to ${newStatus}.`);
 
     // Send notification email based on status
     if (newStatus === "active") {
-      const approvedEmailHtml = getDeveloperApprovedEmailTemplate(userName);
+      const approvedEmailHtml = await getDeveloperApprovedEmailTemplate(userName);
       await sendEmail(userEmail, "Your CodeCrafter Developer Account is Approved!", approvedEmailHtml);
     } else if (newStatus === "rejected") {
-      const rejectedEmailHtml = getDeveloperRejectedEmailTemplate(userName);
+      const rejectedEmailHtml = await getDeveloperRejectedEmailTemplate(userName);
       await sendEmail(userEmail, "Update on Your CodeCrafter Developer Application", rejectedEmailHtml);
     }
   } catch (error) {

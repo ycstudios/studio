@@ -28,9 +28,9 @@ import {
   ArrowRight,
   Settings,
   Users as UsersIcon,
-  Flag, // New icon for flagging
-  ShieldCheck, // For unflagged
-  ShieldX // For flagged
+  Flag, 
+  ShieldCheck, 
+  ShieldX 
 } from "lucide-react";
 import type { User as UserType, Project } from "@/types";
 import Link from "next/link";
@@ -70,14 +70,14 @@ function AdminFeatureCard({ icon, title, description, link = "#", accentColor = 
 }
 
 const adminFeatures: Omit<AdminFeatureCardProps, 'icon' | 'accentColor'>[] = [
-  { title: "Smart Request Matching", description: "Auto-connect clients to the best-fit developers using tags and pricing.", link: "#" },
-  { title: "Developer Analytics", description: "Track performance, ratings, project history, and engagement metrics (placeholder).", link: "#" },
+  { title: "Smart Request Matching", description: "AI-connects clients to developers. (Future Feature)", link: "#" },
+  { title: "Developer Analytics", description: "Track performance, ratings, project history, and engagement metrics. (Future Feature)", link: "#" },
   { title: "Project Monitoring", description: "View ongoing, completed, and pending projects in real-time.", link: "#projects-section" },
-  { title: "Request Manager", description: "Accept, reject, or assign service requests to developers.", link: "#" },
-  { title: "Payment Control", description: "Monitor transactions, release payments, handle disputes.", link: "#" },
-  { title: "Notification Center", description: "Real-time alerts for user actions or system events.", link: "#" },
+  { title: "Request Manager", description: "Accept, reject, or assign service requests. (Future Feature)", link: "#" },
+  { title: "Payment Control", description: "Monitor transactions, release payments, handle disputes. (Future Feature)", link: "#" },
+  { title: "Notification Center", description: "Real-time alerts for user actions or system events. (Future Feature)", link: "#" },
   { title: "User Management", description: "View, manage, and flag clients and developers.", link: "#users-section" },
-  { title: "Activity Logs", description: "Track all admin-side actions for transparency (placeholder).", link: "/admin/activity-logs" }, // Changed link
+  { title: "Activity Logs", description: "Track all admin-side actions for transparency.", link: "/admin/activity-logs" }, 
 ];
 
 const featureIcons = [
@@ -99,8 +99,8 @@ export default function AdminPage() {
   const [developers, setDevelopers] = useState<UserType[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [isTogglingFlag, setIsTogglingFlag] = useState<string | null>(null); // Stores ID of user whose flag is being toggled
+  const [projectsFetchError, setProjectsFetchError] = useState<string | null>(null);
+  const [isTogglingFlag, setIsTogglingFlag] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && allUsers) {
@@ -111,14 +111,13 @@ export default function AdminPage() {
 
   const fetchProjects = useCallback(async () => {
     setIsLoadingProjects(true);
-    setFetchError(null);
+    setProjectsFetchError(null);
     try {
       const fetchedProjects = await getAllProjects();
       setProjects(fetchedProjects);
     } catch (error) {
-      console.error("Failed to fetch projects for admin:", error);
       const errorMsg = error instanceof Error ? error.message : "Could not retrieve project list."
-      setFetchError(errorMsg);
+      setProjectsFetchError(errorMsg);
       toast({
         title: "Error Fetching Projects",
         description: errorMsg,
@@ -144,7 +143,7 @@ export default function AdminPage() {
       const action = !currentStatus ? "USER_FLAGGED" : "USER_UNFLAGGED";
       await addAdminActivityLog({
         adminId: adminUser.id,
-        adminName: adminUser.name,
+        adminName: adminUser.name || "Admin",
         action: action,
         targetType: "user",
         targetId: userIdToFlag,
@@ -152,7 +151,6 @@ export default function AdminPage() {
         details: { newFlagStatus: !currentStatus }
       });
       
-      // Refresh the user in the local AuthContext state
       const updatedUser = await getUserById(userIdToFlag);
       if (updatedUser) {
         updateSingleUserInList(updatedUser);
@@ -163,7 +161,6 @@ export default function AdminPage() {
         description: `${userName}'s flag status has been ${!currentStatus ? 'set to flagged' : 'cleared'}.`,
       });
     } catch (error) {
-      console.error("Error toggling user flag:", error);
       const errorMsg = error instanceof Error ? error.message : "Could not update user flag status.";
       toast({ title: "Error", description: errorMsg, variant: "destructive" });
     } finally {
@@ -171,26 +168,26 @@ export default function AdminPage() {
     }
   };
 
-  const isLoading = authLoading || isLoadingProjects;
+  const isLoadingInitialData = authLoading || (isLoadingProjects && projects.length === 0);
 
-  if (isLoading && projects.length === 0 && allUsers.length === 0) { // Check if initial load for all data
+  if (isLoadingInitialData && allUsers.length === 0) {
     return (
       <ProtectedPage allowedRoles={["admin"]}>
         <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
           <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
-          <p className="text-muted-foreground">Loading admin data from database...</p>
+          <p className="text-muted-foreground">Loading admin data...</p>
         </div>
       </ProtectedPage>
     );
   }
   
-  if (fetchError && projects.length === 0 && clients.length === 0 && developers.length === 0) { 
+  if (projectsFetchError && projects.length === 0 && clients.length === 0 && developers.length === 0 && !authLoading) { 
      return (
       <ProtectedPage allowedRoles={["admin"]}>
         <div className="container mx-auto p-4 md:p-6 lg:p-8 text-center">
           <AlertTriangle className="h-16 w-16 text-destructive mx-auto mb-4" />
           <h1 className="text-2xl font-semibold mb-2">Error Loading Admin Data</h1>
-          <p className="text-muted-foreground">{fetchError}</p>
+          <p className="text-muted-foreground">{projectsFetchError || "An error occurred loading essential data."}</p>
         </div>
       </ProtectedPage>
     );
@@ -233,7 +230,7 @@ export default function AdminPage() {
                 <Briefcase className="mr-2 h-5 w-5 text-primary" />
                 Clients ({clients.length})
               </CardTitle>
-              <CardDescription>List of all registered clients from Firestore.</CardDescription>
+              <CardDescription>List of all registered clients.</CardDescription>
             </CardHeader>
             <CardContent>
               <UserTable users={clients} onToggleFlag={handleToggleFlag} isTogglingFlagId={isTogglingFlag} />
@@ -246,7 +243,7 @@ export default function AdminPage() {
                 <User className="mr-2 h-5 w-5 text-primary" />
                 Developers ({developers.length})
               </CardTitle>
-              <CardDescription>List of all registered developers from Firestore.</CardDescription>
+              <CardDescription>List of all registered developers.</CardDescription>
             </CardHeader>
             <CardContent>
               <UserTable users={developers} onToggleFlag={handleToggleFlag} isTogglingFlagId={isTogglingFlag} />
@@ -261,23 +258,23 @@ export default function AdminPage() {
                 <FileText className="mr-2 h-5 w-5 text-primary" />
                 All Projects ({projects.length})
               </CardTitle>
-              <CardDescription>Overview of all projects submitted on the platform (from Firestore).</CardDescription>
+              <CardDescription>Overview of all projects on the platform.</CardDescription>
             </CardHeader>
             <CardContent>
               {isLoadingProjects && projects.length === 0 && <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
-              {fetchError && !isLoadingProjects && projects.length === 0 && <p className="text-destructive mb-4 text-center py-4">Error loading projects: {fetchError}</p>}
-              {!isLoadingProjects && !fetchError && <ProjectTable projects={projects} allUsers={allUsers} />}
+              {projectsFetchError && !isLoadingProjects && projects.length === 0 && <p className="text-destructive mb-4 text-center py-4">Error loading projects: {projectsFetchError}</p>}
+              {!isLoadingProjects && !projectsFetchError && <ProjectTable projects={projects} allUsers={allUsers} />}
             </CardContent>
           </Card>
         </div>
 
-         {(allUsers.length === 0 && projects.length === 0 && !isLoading && !fetchError) && (
+         {(allUsers.length === 0 && projects.length === 0 && !isLoadingInitialData && !projectsFetchError && !authLoading) && (
           <Card className="mt-8 shadow-md">
             <CardContent className="p-8 text-center">
               <Info className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-xl font-semibold mb-2">No Data Found in Database</h3>
+              <h3 className="text-xl font-semibold mb-2">No Data Found</h3>
               <p className="text-muted-foreground">
-                The user and project lists from Firestore are currently empty. Once users sign up and projects are submitted, they will appear here.
+                The user and project lists are currently empty. Once users sign up and projects are submitted, they will appear here.
               </p>
             </CardContent>
           </Card>
@@ -295,7 +292,7 @@ interface UserTableProps {
 
 function UserTable({ users, onToggleFlag, isTogglingFlagId }: UserTableProps) {
   if (users.length === 0) {
-    return <p className="text-muted-foreground text-center py-4">No users in this category found in the database.</p>;
+    return <p className="text-muted-foreground text-center py-4">No users in this category found.</p>;
   }
 
   return (
@@ -365,7 +362,7 @@ interface ProjectTableProps {
 
 function ProjectTable({ projects, allUsers }: ProjectTableProps) {
   if (projects.length === 0) {
-    return <p className="text-muted-foreground text-center py-4">No projects found in the database.</p>;
+    return <p className="text-muted-foreground text-center py-4">No projects found.</p>;
   }
 
   const getClientName = (clientId: string) => {
