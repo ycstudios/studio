@@ -9,79 +9,81 @@ body {
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Light Theme - Clean, Professional, Trustworthy */
+    --background: 220 20% 98%; /* Very light cool gray, almost white */
+    --foreground: 220 15% 25%; /* Dark, slightly desaturated blue-gray for text */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%; /* White cards for clean separation */
+    --card-foreground: 220 15% 20%; /* Slightly darker text for cards */
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 220 15% 20%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 217 91% 60%; /* A strong, trustworthy, vibrant blue */
+    --primary-foreground: 0 0% 100%; /* White text on primary */
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 220 15% 94%; /* Lighter gray for secondary elements */
+    --secondary-foreground: 217 91% 55%; /* Primary blue for text on secondary (can be adjusted) */
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 220 15% 90%; /* Slightly darker muted background/text */
+    --muted-foreground: 220 10% 45%; /* Softer muted text */
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 217 80% 65%; /* A slightly lighter/brighter blue for accents if needed */
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 75% 55%; /* A clear, strong red for destructive actions */
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 220 15% 88%; /* Soft, light gray border */
+    --input: 220 15% 92%; /* Slightly darker input background than main background */
+    --ring: 217 91% 65%; /* Focus ring using primary-like blue */
 
     --radius: 0.5rem;
 
     /* Chart colors for light theme */
-    --chart-1: 222.2 47.4% 11.2%; /* primary */
-    --chart-2: 210 40% 96.1%; /* secondary */
-    --chart-3: 0 84.2% 60.2%; /* destructive */
-    --chart-4: 48 96% 89%; /* Example: a light yellow */
-    --chart-5: 180 50% 60%; /* Example: a teal */
+    --chart-1: 217 91% 60%; /* primary */
+    --chart-2: 210 40% 70%; /* A lighter shade of secondary */
+    --chart-3: 25 95% 55%;  /* A warm accent like orange/amber */
+    --chart-4: 160 70% 40%; /* A contrasting teal/green */
+    --chart-5: 280 70% 60%; /* A contrasting purple */
   }
 
   .dark {
-    --background: 220 13% 11%; /* Dark cool gray */
-    --foreground: 210 20% 95%; /* Very light gray */
+    /* Dark Theme - Techy, Premium, Electric Blue Accents */
+    --background: 220 18% 12%; /* Deep, very dark cool gray/blue */
+    --foreground: 210 25% 92%; /* Light, soft gray for text */
 
-    --card: 220 13% 15%; /* Slightly lighter than background */
-    --card-foreground: 210 20% 95%;
+    --card: 220 18% 16%; /* Slightly lighter than background for cards */
+    --card-foreground: 210 25% 90%; /* Text on cards */
 
-    --popover: 220 13% 18%; /* A bit lighter than card for modals */
-    --popover-foreground: 210 20% 95%;
+    --popover: 220 18% 14%; /* Popovers can be a bit darker or same as card */
+    --popover-foreground: 210 25% 90%;
 
-    --primary: 217 91% 60%; /* Electric/bright blue */
-    --primary-foreground: 210 20% 5%; /* Very dark for text on primary */
+    --primary: 205 100% 55%; /* Vibrant, electric/sky blue */
+    --primary-foreground: 220 20% 10%; /* Very dark (almost black) text for contrast on electric blue */
 
-    --secondary: 215 28% 17%; /* Dark desaturated blue/gray for secondary buttons */
-    --secondary-foreground: 210 20% 95%; /* Light text on secondary */
+    --secondary: 220 15% 25%; /* Darker, desaturated blue-gray for secondary buttons/elements */
+    --secondary-foreground: 210 25% 85%; /* Lighter text on secondary elements */
 
-    --muted: 220 13% 20%; /* Lighter gray for subtle backgrounds/dividers */
-    --muted-foreground: 215 20% 60%; /* Medium-light gray for muted text */
+    --muted: 220 15% 20%; /* Muted backgrounds/dividers */
+    --muted-foreground: 210 20% 65%; /* Muted text, still readable */
 
-    --accent: 217 91% 65%; /* Slightly lighter variant of primary blue for hovers/accents */
-    --accent-foreground: 210 20% 5%; /* Dark text for accent color */
+    --accent: 200 100% 60%; /* A slightly more cyan-leaning electric blue for accents */
+    --accent-foreground: 220 20% 5%;
 
-    --destructive: 0 75% 55%; /* Clearer red in dark mode */
-    --destructive-foreground: 210 20% 95%;
+    --destructive: 0 70% 60%; /* A clear, vibrant red in dark mode */
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 220 13% 25%; /* Subtle border, lighter than card */
-    --input: 220 13% 22%; /* Input background, distinct */
-    --ring: 217 80% 65%; /* Softer blue for focus rings, related to primary */
+    --border: 220 15% 22%; /* Subtle border, darker than card */
+    --input: 220 15% 19%; /* Input background, distinct from card and main background */
+    --ring: 205 90% 60%; /* Brighter blue for focus rings, related to primary */
 
     /* Chart colors for dark theme */
-    --chart-1: 217 91% 60%; /* Primary Blue */
-    --chart-2: 210 20% 60%; /* Medium Gray */
-    --chart-3: 0 75% 55%;  /* Destructive Red */
-    --chart-4: 48 90% 55%; /* Visible yellow/orange */
-    --chart-5: 160 70% 50%; /* Teal/cyan */
+    --chart-1: 205 100% 55%; /* Primary Electric Blue */
+    --chart-2: 210 30% 50%;  /* Muted Blue/Gray */
+    --chart-3: 30 100% 60%;  /* Bright Orange/Yellow */
+    --chart-4: 150 80% 55%;  /* Bright Teal/Green */
+    --chart-5: 270 80% 70%;  /* Bright Purple/Magenta */
   }
 }
 
@@ -91,6 +93,8 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
@@ -109,4 +113,3 @@ body {
 .animate-heart-blink {
   animation: heart-blink 1.5s infinite ease-in-out;
 }
-
