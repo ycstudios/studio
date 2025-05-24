@@ -1,3 +1,4 @@
+
 export type NavItem = {
   title: string;
   href: string;
@@ -41,6 +42,12 @@ export const siteConfig: SiteConfig = {
       href: "/projects/new",
       authRequired: true,
       roles: ["client"],
+    },
+    {
+      title: "Browse Developers", // New Link
+      href: "/developers",
+      authRequired: true,
+      roles: ["client", "admin"], // Accessible to clients and admins
     },
     {
       title: "Profile",
