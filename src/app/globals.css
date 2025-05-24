@@ -48,40 +48,40 @@ body {
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 220 13% 11%; /* Dark cool gray */
+    --foreground: 210 20% 95%; /* Very light gray */
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 220 13% 15%; /* Slightly lighter than background */
+    --card-foreground: 210 20% 95%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 220 13% 18%; /* A bit lighter than card for modals */
+    --popover-foreground: 210 20% 95%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 217 91% 60%; /* Electric/bright blue */
+    --primary-foreground: 210 20% 5%; /* Very dark for text on primary */
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 215 28% 17%; /* Dark desaturated blue/gray for secondary buttons */
+    --secondary-foreground: 210 20% 95%; /* Light text on secondary */
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 220 13% 20%; /* Lighter gray for subtle backgrounds/dividers */
+    --muted-foreground: 215 20% 60%; /* Medium-light gray for muted text */
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 217 91% 65%; /* Slightly lighter variant of primary blue for hovers/accents */
+    --accent-foreground: 210 20% 5%; /* Dark text for accent color */
 
-    --destructive: 0 62.8% 30.6%; /* Adjusted for dark mode, was 0 72.2% 50.6% */
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 75% 55%; /* Clearer red in dark mode */
+    --destructive-foreground: 210 20% 95%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 210 40% 98%; /* Was 217.2 32.6% 17.5% */
+    --border: 220 13% 25%; /* Subtle border, lighter than card */
+    --input: 220 13% 22%; /* Input background, distinct */
+    --ring: 217 80% 65%; /* Softer blue for focus rings, related to primary */
 
     /* Chart colors for dark theme */
-    --chart-1: 210 40% 98%; /* primary */
-    --chart-2: 217.2 32.6% 17.5%; /* secondary */
-    --chart-3: 0 70% 50%; /* destructive (adjusted for dark) */
-    --chart-4: 48 90% 50%; /* Example: a darker yellow for dark theme */
-    --chart-5: 180 60% 40%; /* Example: a darker teal for dark theme */
+    --chart-1: 217 91% 60%; /* Primary Blue */
+    --chart-2: 210 20% 60%; /* Medium Gray */
+    --chart-3: 0 75% 55%;  /* Destructive Red */
+    --chart-4: 48 90% 55%; /* Visible yellow/orange */
+    --chart-5: 160 70% 50%; /* Teal/cyan */
   }
 }
 
@@ -109,3 +109,4 @@ body {
 .animate-heart-blink {
   animation: heart-blink 1.5s infinite ease-in-out;
 }
+
