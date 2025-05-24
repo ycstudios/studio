@@ -1,10 +1,11 @@
 
 "use client";
 
-import React, { useEffect, useState, useTransition } from "react";
+import React, { useEffect, useState } from "react";
 import { ProtectedPage } from "@/components/ProtectedPage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
 import { Briefcase, PlusCircle, Search, Eye, UserCheck, CheckCircle, Clock, Loader2, Info, AlertTriangle } from "lucide-react";
 import Image from "next/image";
@@ -33,7 +34,7 @@ export default function DashboardPage() {
       <div className="container mx-auto p-4 md:p-6 lg:p-8">
         <header className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight">Welcome to your Dashboard, {user?.name || "User"}!</h1>
-          <p className="text-muted-foreground">Here&apos;s an overview of your activities on CodeCrafter (data from Firestore).</p>
+          <p className="text-muted-foreground">Here&apos;s an overview of your activities on CodeCrafter.</p>
         </header>
 
         {user?.role === "client" && <ClientDashboard />}
@@ -62,11 +63,7 @@ function ClientDashboard() {
           console.error("Failed to fetch client projects:", e);
           const errorMsg = e instanceof Error ? e.message : "Could not retrieve your projects.";
           setError(errorMsg);
-          toast({
-            title: "Error Fetching Projects",
-            description: errorMsg,
-            variant: "destructive",
-          });
+          // Toast for action errors, direct display for load errors
         } finally {
           setIsLoading(false);
         }
@@ -74,9 +71,9 @@ function ClientDashboard() {
       fetchProjects();
     } else {
       setIsLoading(false); 
-      setError("User not authenticated to fetch projects.");
+      setError("User not authenticated. Cannot fetch projects.");
     }
-  }, [user?.id, toast]);
+  }, [user?.id]);
 
   if (isLoading) {
     return (
@@ -89,13 +86,11 @@ function ClientDashboard() {
 
   if (error) {
     return (
-      <Card className="text-center py-12 shadow-md border-destructive">
-        <CardHeader>
-          <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" />
-          <CardTitle className="text-destructive">Failed to Load Projects</CardTitle>
-          <CardDescription>{error}</CardDescription>
-        </CardHeader>
-      </Card>
+      <Alert variant="destructive" className="my-6">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Error Loading Projects</AlertTitle>
+        <AlertDescription>{error} Please try refreshing the page or contact support if the issue persists.</AlertDescription>
+      </Alert>
     );
   }
 
@@ -123,7 +118,7 @@ function ClientDashboard() {
                 </CardDescription>
                  {project.createdAt && (
                   <p className="text-xs text-muted-foreground">
-                    Posted {formatDistanceToNow(project.createdAt instanceof Date ? project.createdAt : new Date(), { addSuffix: true })}
+                    Posted {formatDistanceToNow(project.createdAt instanceof Date ? project.createdAt : new Date( (project.createdAt as any).seconds * 1000 ), { addSuffix: true })}
                   </p>
                 )}
               </CardHeader>
@@ -205,7 +200,6 @@ function ProjectStatusBadge({ status }: { status?: Project["status"] }) {
 
 
 function DeveloperDashboard() {
-  const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -221,17 +215,12 @@ function DeveloperDashboard() {
         console.error("Failed to fetch open projects:", e);
         const errorMsg = e instanceof Error ? e.message : "Could not retrieve open projects.";
         setError(errorMsg);
-        toast({
-          title: "Error Fetching Projects",
-          description: errorMsg,
-          variant: "destructive",
-        });
       } finally {
         setIsLoading(false);
       }
     };
     fetchOpenProjects();
-  }, [toast]);
+  }, []);
 
   if (isLoading) {
     return (
@@ -243,14 +232,12 @@ function DeveloperDashboard() {
   }
 
   if (error) {
-    return (
-      <Card className="text-center py-12 shadow-md border-destructive">
-        <CardHeader>
-          <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" />
-          <CardTitle className="text-destructive">Failed to Load Projects</CardTitle>
-          <CardDescription>{error}</CardDescription>
-        </CardHeader>
-      </Card>
+     return (
+      <Alert variant="destructive" className="my-6">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Error Loading Projects</AlertTitle>
+        <AlertDescription>{error} Please try refreshing the page or contact support if the issue persists.</AlertDescription>
+      </Alert>
     );
   }
 
@@ -278,7 +265,7 @@ function DeveloperDashboard() {
               </CardDescription>
                {project.createdAt && (
                   <p className="text-xs text-muted-foreground">
-                    Posted {formatDistanceToNow(project.createdAt instanceof Date ? project.createdAt : new Date(), { addSuffix: true })}
+                     Posted {formatDistanceToNow(project.createdAt instanceof Date ? project.createdAt : new Date( (project.createdAt as any).seconds * 1000 ), { addSuffix: true })}
                   </p>
                 )}
             </CardHeader>

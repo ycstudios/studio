@@ -51,23 +51,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (storedUserString) {
         try {
           const storedUser = JSON.parse(storedUserString) as User;
-          if (storedUser && storedUser.id) { // Added check for storedUser itself
-             const freshUser = await getUserById(storedUser.id); // This fetches from Firestore
+          if (storedUser && storedUser.id) {
+             const freshUser = await getUserById(storedUser.id);
              if (freshUser) {
-                initialUser = freshUser; // Use the fresh data from DB
-                localStorage.setItem("codecrafter_user", JSON.stringify(freshUser)); // Update localStorage with fresh data
+                initialUser = freshUser;
+                localStorage.setItem("codecrafter_user", JSON.stringify(freshUser));
              } else {
-                // User was in localStorage but not in DB (e.g., deleted)
                 localStorage.removeItem("codecrafter_user");
-                // console.warn(`User ${storedUser.id} found in localStorage but not in DB. Cleared from storage.`);
+                toast({
+                  title: "Session Invalid",
+                  description: "Your previous session data could not be verified. Please log in again.",
+                  variant: "default",
+                });
              }
           } else {
-            // Malformed or incomplete user in localStorage
             localStorage.removeItem("codecrafter_user");
           }
         } catch (error) {
           console.error("Failed to parse or refresh stored user:", error);
           localStorage.removeItem("codecrafter_user");
+          toast({
+            title: "Session Error",
+            description: "Could not restore your session. Please log in again.",
+            variant: "destructive",
+          });
         }
       }
       setUser(initialUser);
@@ -76,7 +83,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     loadInitialData();
-  }, [fetchAllUsersFromDb]);
+  }, [fetchAllUsersFromDb, toast]);
 
   const login = (userData: User) => {
     if (!userData || !userData.id) {
@@ -119,16 +126,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (refreshedUser) {
             updateSingleUserInList(refreshedUser);
         } else {
-           if (user && user.id === userId) {
+           if (user && user.id === userId) { // Current user was not found, log them out
               logout();
               toast({ title: "Session Expired", description: "Your user account could not be found. Please log in again.", variant: "destructive" });
            }
         }
     } catch (error) {
         console.error(`Failed to refresh user ${userId}:`, error);
-        // Do not toast here for background refreshes, can be annoying.
-        // Initial load errors are handled in loadInitialData.
+        // For background refreshes, don't toast on every minor network hiccup unless it's critical.
+        // Critical logout is handled if the user is not found.
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, toast]); // updateSingleUserInList and logout are stable
 
   return (

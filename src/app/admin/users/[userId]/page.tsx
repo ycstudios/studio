@@ -8,7 +8,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Briefcase, UserCircle2, FileText, AlertTriangle, Info, Loader2, Flag, ShieldCheck, ShieldX } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ArrowLeft, Briefcase, UserCircle2, FileText, AlertTriangle, Info, Loader2, Flag, ShieldCheck, ShieldX, Link as LinkIcon } from "lucide-react";
 import type { User as UserType } from "@/types";
 import { getUserById, toggleUserFlag, addAdminActivityLog } from "@/lib/firebaseService"; 
 import { useToast } from "@/hooks/use-toast";
@@ -35,25 +36,14 @@ export default function AdminUserDetailPage() {
         setUser(fetchedUser);
       } else {
         setError(`User with ID '${userId}' not found in the database.`);
-        toast({
-          title: "User Not Found",
-          description: `User with ID '${userId}' could not be found.`,
-          variant: "destructive",
-        });
       }
     } catch (e) {
-      console.error("Failed to fetch user:", e);
       const errorMsg = e instanceof Error ? e.message : "Could not retrieve user details."
       setError(errorMsg);
-      toast({
-        title: "Error Fetching User",
-        description: errorMsg,
-        variant: "destructive",
-      });
     } finally {
       setIsLoading(false);
     }
-  }, [userId, toast]);
+  }, [userId]);
 
   useEffect(() => {
     if (userId) {
@@ -75,27 +65,25 @@ export default function AdminUserDetailPage() {
       const action = !(user.isFlagged || false) ? "USER_FLAGGED" : "USER_UNFLAGGED";
       await addAdminActivityLog({
         adminId: adminUser.id,
-        adminName: adminUser.name,
+        adminName: adminUser.name || "Admin",
         action: action,
         targetType: "user",
         targetId: user.id,
-        targetName: user.name,
+        targetName: user.name || "Unnamed User",
         details: { newFlagStatus: !(user.isFlagged || false) }
       });
       
-      // Re-fetch user to get the updated status and update context
       const updatedUser = await getUserById(user.id);
       if (updatedUser) {
-        setUser(updatedUser); // Update local state for this page
-        updateSingleUserInList(updatedUser); // Update AuthContext for other components like admin table
+        setUser(updatedUser); 
+        updateSingleUserInList(updatedUser); 
       }
 
       toast({
         title: "User Flag Status Updated",
-        description: `${user.name}'s flag status has been updated.`,
+        description: `${user.name || "User"}'s flag status has been updated.`,
       });
     } catch (e) {
-      console.error("Error toggling user flag:", e);
       const errorMsg = e instanceof Error ? e.message : "Could not update user flag status.";
       toast({ title: "Error", description: errorMsg, variant: "destructive" });
     } finally {
@@ -117,7 +105,7 @@ export default function AdminUserDetailPage() {
       <ProtectedPage allowedRoles={["admin"]}>
         <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
           <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
-          <p className="text-muted-foreground">Loading user details from database...</p>
+          <p className="text-muted-foreground">Loading user details...</p>
         </div>
       </ProtectedPage>
     );
@@ -126,13 +114,19 @@ export default function AdminUserDetailPage() {
   if (error || !user) { 
     return (
       <ProtectedPage allowedRoles={["admin"]}>
-        <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)] text-center">
-          <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
-          <h1 className="text-2xl font-semibold mb-2">User Not Found or Error</h1>
-          <p className="text-muted-foreground">{error || `The user with ID '${userId}' could not be found.`}</p>
-          <Button onClick={() => router.push('/admin')} className="mt-6">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Go Back to Admin Panel
-          </Button>
+        <div className="container mx-auto p-4 md:p-6 lg:p-8">
+          <Alert variant="destructive" className="max-w-xl mx-auto">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Error Loading User</AlertTitle>
+            <AlertDescription>
+              {error || `The user with ID '${userId}' could not be found or an error occurred while fetching their data.`}
+            </AlertDescription>
+          </Alert>
+          <div className="text-center mt-6">
+            <Button onClick={() => router.push('/admin')} variant="outline">
+              <ArrowLeft className="mr-2 h-4 w-4" /> Go Back to Admin Panel
+            </Button>
+          </div>
         </div>
       </ProtectedPage>
     );
@@ -211,6 +205,31 @@ export default function AdminUserDetailPage() {
                   <p className="italic text-muted-foreground">No skills listed.</p>
                 </div>
               )}
+               {user.role === "developer" && user.portfolioUrls && user.portfolioUrls.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Portfolio URLs</h3>
+                  <ul className="space-y-1">
+                    {user.portfolioUrls.map((url, index) => (
+                        <li key={index} className="text-sm flex items-center">
+                        <LinkIcon className="h-3 w-3 mr-1.5 text-muted-foreground" />
+                        <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">{url}</a>
+                        </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {user.role === "developer" && (!user.portfolioUrls || user.portfolioUrls.length === 0) && (
+                 <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Portfolio URLs</h3>
+                  <p className="italic text-muted-foreground">No portfolio URLs listed.</p>
+                </div>
+              )}
+              {user.role === "developer" && (
+                 <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Experience Level</h3>
+                  <p className="text-base">{user.experienceLevel || <span className="italic text-muted-foreground">Not specified</span>}</p>
+                </div>
+              )}
             </CardContent>
             <CardFooter>
               <Button 
@@ -236,7 +255,7 @@ export default function AdminUserDetailPage() {
             <div className="flex items-center justify-center text-center p-8 border-2 border-dashed rounded-lg">
               <Info className="h-8 w-8 text-muted-foreground mr-3" />
               <p className="text-muted-foreground">
-                {user.role === "client" ? "Client project history, submitted projects, and communication logs will appear here once implemented with Firestore." : "Developer project applications, completed projects, and engagement metrics will appear here once implemented with Firestore."}
+                {user.role === "client" ? "Client project history, submitted projects, and communication logs will appear here once implemented." : "Developer project applications, completed projects, and engagement metrics will appear here once implemented."}
               </p>
             </div>
           </CardContent>

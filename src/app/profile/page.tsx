@@ -5,12 +5,13 @@ import React, { useEffect, useState, useCallback } from "react";
 import { ProtectedPage } from "@/components/ProtectedPage";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Edit3, Save, UserCircle2, Briefcase, Palette, Loader2, AlertTriangle, Link as LinkIcon, Trash2 } from "lucide-react";
@@ -61,7 +62,7 @@ export default function ProfilePage() {
         setName(fetchedUser.name || "");
         setEmail(fetchedUser.email || "");
         setBio(fetchedUser.bio || (fetchedUser.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
-        setSkills(fetchedUser.skills?.join(", ") || (fetchedUser.role === 'developer' ? "" : ""));
+        setSkills(fetchedUser.skills?.join(", ") || "");
         setAvatar(fetchedUser.avatarUrl || `https://placehold.co/150x150.png`);
         setPortfolioUrls(fetchedUser.portfolioUrls?.join(", ") || "");
         setExperienceLevel(fetchedUser.experienceLevel || '');
@@ -75,34 +76,30 @@ export default function ProfilePage() {
           experienceLevel: fetchedUser.experienceLevel,
         });
       } else {
-        setFetchError("Could not load profile data from the database.");
-        toast({ title: "Error", description: "User data not found in database.", variant: "destructive" });
+        setFetchError("Could not load your profile data from the database. It might be missing or an error occurred.");
       }
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : "Failed to load profile data.";
       setFetchError(errorMsg);
-      toast({ title: "Error", description: errorMsg, variant: "destructive" });
     } finally {
       setIsLoadingProfile(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authUser?.id, toast]);
+  }, [authUser?.id]);
 
   useEffect(() => {
     if (authUser?.id && !authLoading) {
       fetchUserData();
     } else if (!authLoading && !authUser) { 
       setIsLoadingProfile(false);
-      setFetchError("User not authenticated.");
+      setFetchError("User not authenticated. Please log in to view your profile.");
     }
   }, [authUser?.id, authLoading, fetchUserData, authUser]);
 
   const handleEditToggle = () => {
     if (isEditing) { 
-      // Revert to initial data if canceling edit
       setName(initialData.name || authUser?.name || "");
       setBio(initialData.bio || authUser?.bio || (authUser?.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
-      setSkills(initialData.skills?.join(", ") || authUser?.skills?.join(", ") || (authUser?.role === 'developer' ? "" : ""));
+      setSkills(initialData.skills?.join(", ") || authUser?.skills?.join(", ") || "");
       setAvatar(initialData.avatarUrl || authUser?.avatarUrl || `https://placehold.co/150x150.png`);
       setPortfolioUrls(initialData.portfolioUrls?.join(", ") || "");
       setExperienceLevel(initialData.experienceLevel || '');
@@ -112,7 +109,7 @@ export default function ProfilePage() {
 
   const handleSaveChanges = async () => {
     if (!authUser?.id) {
-      toast({ title: "Error", description: "User not found.", variant: "destructive" });
+      toast({ title: "Error", description: "User not found. Cannot save changes.", variant: "destructive" });
       return;
     }
     if (!name.trim()) {
@@ -121,10 +118,10 @@ export default function ProfilePage() {
     }
 
     setIsSaving(true);
-    setFetchError(null);
+    setFetchError(null); // Clear previous fetch errors before saving
 
     const skillsArray = skills.split(",").map(s => s.trim()).filter(s => s.length > 0);
-    const portfolioUrlsArray = portfolioUrls.split(",").map(url => url.trim()).filter(url => url.length > 0);
+    const portfolioUrlsArray = portfolioUrls.split(",").map(url => url.trim()).filter(url => url.length > 0 && (url.startsWith('http://') || url.startsWith('https://')));
 
     const updatedData: Partial<Omit<User, 'id' | 'createdAt' | 'email' | 'role' | 'avatarUrl'>> = { 
       name: name.trim(), 
@@ -140,6 +137,7 @@ export default function ProfilePage() {
     try {
       await updateUser(authUser.id, updatedData);
       
+      // Optimistically update context with potentially processed data
       const updatedAuthUser: User = { 
         ...authUser, 
         name: updatedData.name || authUser.name, 
@@ -148,15 +146,13 @@ export default function ProfilePage() {
         portfolioUrls: authUser.role === 'developer' ? portfolioUrlsArray : authUser.portfolioUrls,
         experienceLevel: authUser.role === 'developer' ? experienceLevel : authUser.experienceLevel,
       };
-      updateAuthContextUser(updatedAuthUser);
-      // Update initialData to reflect saved changes
-      setInitialData(prev => ({ ...prev, ...updatedData, skills: skillsArray, portfolioUrls: portfolioUrlsArray })); 
+      updateAuthContextUser(updatedAuthUser); 
+      setInitialData(prev => ({ ...prev, ...updatedData, skills: skillsArray, portfolioUrls: portfolioUrlsArray, experienceLevel }));
       
       setIsEditing(false);
-      toast({ title: "Profile Updated", description: "Your changes have been saved to the database." });
+      toast({ title: "Profile Updated", description: "Your changes have been saved." });
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : "Failed to save profile changes.";
-      setFetchError(errorMsg);
       toast({ title: "Save Error", description: errorMsg, variant: "destructive" });
     } finally {
       setIsSaving(false);
@@ -164,16 +160,11 @@ export default function ProfilePage() {
   };
 
   const handleRequestAccountDeletion = () => {
-    // This is a placeholder. Real deletion involves backend logic and re-authentication.
     toast({
       title: "Account Deletion Requested",
       description: "Your request to delete your account has been noted. An administrator will review and process this request. You will be contacted via email.",
-      duration: 7000, // Longer duration for important messages
+      duration: 7000,
     });
-    // In a real scenario, you might also want to:
-    // 1. Log this request in an admin system.
-    // 2. Potentially log the user out after a delay or confirmation.
-    // For now, we just show a toast.
   };
   
   const getInitials = (nameStr?: string) => {
@@ -199,10 +190,14 @@ export default function ProfilePage() {
   if (fetchError || !authUser) {
      return (
       <ProtectedPage>
-        <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
-          <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
-          <h1 className="text-2xl font-semibold mb-2">Error Loading Profile</h1>
-          <p className="text-muted-foreground text-center">{fetchError || "User data could not be loaded or you are not authenticated."}</p>
+        <div className="container mx-auto p-4 md:p-6 lg:p-8">
+           <Alert variant="destructive" className="max-w-xl mx-auto">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Error Loading Profile</AlertTitle>
+            <AlertDescription>
+              {fetchError || "User data could not be loaded or you are not authenticated."} Please try refreshing or log in again.
+            </AlertDescription>
+          </Alert>
         </div>
       </ProtectedPage>
     );
@@ -215,9 +210,14 @@ export default function ProfilePage() {
         <header className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Your Profile</h1>
-            <p className="text-muted-foreground">Manage your account settings and public profile.</p>
+            <p className="text-muted-foreground">Manage your account settings and public profile information from Firestore.</p>
           </div>
-          <Button onClick={handleEditToggle} variant={isEditing ? "secondary" : "default"} className="w-full sm:w-auto" disabled={isSaving}>
+          <Button 
+            onClick={isEditing && (name.trim() === (initialData.name || authUser?.name || "") && bio.trim() === (initialData.bio || authUser?.bio || "") && skills === (initialData.skills?.join(", ") || authUser?.skills?.join(", ") || "") && portfolioUrls === (initialData.portfolioUrls?.join(", ") || "") && experienceLevel === (initialData.experienceLevel || '')) ? () => setIsEditing(false) : (isEditing ? handleSaveChanges : handleEditToggle)} 
+            variant={isEditing ? "default" : "outline"} 
+            className="w-full sm:w-auto" 
+            disabled={isSaving || (isEditing && !name.trim())}
+          >
             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isEditing ? <Save className="mr-2 h-4 w-4" /> : <Edit3 className="mr-2 h-4 w-4" />)}
             {isSaving ? "Saving..." : (isEditing ? (name.trim() !== (initialData.name || authUser?.name || "") || bio.trim() !== (initialData.bio || authUser?.bio || "") || skills !== (initialData.skills?.join(", ") || authUser?.skills?.join(", ") || "") || portfolioUrls !== (initialData.portfolioUrls?.join(", ") || "") || experienceLevel !== (initialData.experienceLevel || '') ? "Save Changes" : "Cancel Edit") : "Edit Profile")}
           </Button>
@@ -250,7 +250,7 @@ export default function ProfilePage() {
             <CardHeader>
               <CardTitle>Profile Details</CardTitle>
               <CardDescription>
-                {isEditing ? "Update your information below." : "View your current profile information."}
+                {isEditing ? "Update your information below. Changes will be saved to Firestore." : "View your current profile information from Firestore."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -286,7 +286,7 @@ export default function ProfilePage() {
                     ) : (
                        <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-muted/30 min-h-[40px]">
                         {(initialData.skills && initialData.skills.length > 0 ? initialData.skills : ["No skills listed"]).map((skill, index) => (
-                          <span key={index} className={`px-2 py-1 text-xs rounded-md ${skill === "No skills listed" ? "text-muted-foreground italic" : "bg-primary/10 text-primary font-medium"}`}>{skill}</span>
+                          <Badge key={index} variant={skill === "No skills listed" ? "outline" : "secondary"} className={skill === "No skills listed" ? "italic text-muted-foreground" : ""}>{skill}</Badge>
                         ))}
                       </div>
                     )}
@@ -303,15 +303,15 @@ export default function ProfilePage() {
                           <ul className="space-y-1">
                             {initialData.portfolioUrls.map((url, index) => (
                               <li key={index} className="text-sm flex items-center">
-                                <LinkIcon className="h-3 w-3 mr-1.5 text-muted-foreground" />
-                                <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">{url}</a>
+                                <LinkIcon className="h-3 w-3 mr-1.5 text-muted-foreground flex-shrink-0" />
+                                <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate block">{url}</a>
                               </li>
                             ))}
                           </ul>
                         ) : <p className="italic text-muted-foreground">No portfolio URLs listed.</p>}
                       </div>
                     )}
-                     {isEditing && <p className="text-xs text-muted-foreground mt-1">Enter URLs separated by commas.</p>}
+                     {isEditing && <p className="text-xs text-muted-foreground mt-1">Enter valid URLs (http:// or https://) separated by commas.</p>}
                   </div>
 
                   <div>
@@ -385,5 +385,3 @@ export default function ProfilePage() {
     </ProtectedPage>
   );
 }
-
-

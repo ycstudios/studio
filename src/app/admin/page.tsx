@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   User, 
   Briefcase, 
@@ -118,15 +119,11 @@ export default function AdminPage() {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Could not retrieve project list."
       setProjectsFetchError(errorMsg);
-      toast({
-        title: "Error Fetching Projects",
-        description: errorMsg,
-        variant: "destructive",
-      });
+      // Toast is good for action results, but for initial load errors, direct display is better.
     } finally {
       setIsLoadingProjects(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     fetchProjects();
@@ -151,9 +148,9 @@ export default function AdminPage() {
         details: { newFlagStatus: !currentStatus }
       });
       
-      const updatedUser = await getUserById(userIdToFlag);
+      const updatedUser = await getUserById(userIdToFlag); // Re-fetch to get the most up-to-date version
       if (updatedUser) {
-        updateSingleUserInList(updatedUser);
+        updateSingleUserInList(updatedUser); // Update AuthContext
       }
 
       toast({
@@ -168,26 +165,31 @@ export default function AdminPage() {
     }
   };
 
-  const isLoadingInitialData = authLoading || (isLoadingProjects && projects.length === 0);
+  const isLoadingInitialData = authLoading || (isLoadingProjects && projects.length === 0 && allUsers.length === 0);
 
-  if (isLoadingInitialData && allUsers.length === 0) {
+  if (isLoadingInitialData) {
     return (
       <ProtectedPage allowedRoles={["admin"]}>
         <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
           <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
-          <p className="text-muted-foreground">Loading admin data...</p>
+          <p className="text-muted-foreground">Loading admin dashboard...</p>
         </div>
       </ProtectedPage>
     );
   }
   
-  if (projectsFetchError && projects.length === 0 && clients.length === 0 && developers.length === 0 && !authLoading) { 
+  const hasDataLoadingError = projectsFetchError && allUsers.length === 0; // Only show full page error if users also failed (or haven't loaded)
+
+  if (hasDataLoadingError) { 
      return (
       <ProtectedPage allowedRoles={["admin"]}>
         <div className="container mx-auto p-4 md:p-6 lg:p-8 text-center">
           <AlertTriangle className="h-16 w-16 text-destructive mx-auto mb-4" />
           <h1 className="text-2xl font-semibold mb-2">Error Loading Admin Data</h1>
-          <p className="text-muted-foreground">{projectsFetchError || "An error occurred loading essential data."}</p>
+          <p className="text-muted-foreground">
+            Could not load essential data for the admin panel. Please try refreshing the page.
+            {projectsFetchError && <span className="block mt-2 text-sm">Details: {projectsFetchError}</span>}
+          </p>
         </div>
       </ProtectedPage>
     );
@@ -228,12 +230,14 @@ export default function AdminPage() {
             <CardHeader>
               <CardTitle className="text-xl flex items-center">
                 <Briefcase className="mr-2 h-5 w-5 text-primary" />
-                Clients ({clients.length})
+                Clients ({authLoading ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : clients.length})
               </CardTitle>
-              <CardDescription>List of all registered clients.</CardDescription>
+              <CardDescription>List of all registered clients from Firestore.</CardDescription>
             </CardHeader>
             <CardContent>
-              <UserTable users={clients} onToggleFlag={handleToggleFlag} isTogglingFlagId={isTogglingFlag} />
+              {authLoading && clients.length === 0 ? <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> :
+               clients.length === 0 ? <p className="text-muted-foreground text-center py-4">No clients found.</p> :
+              <UserTable users={clients} onToggleFlag={handleToggleFlag} isTogglingFlagId={isTogglingFlag} />}
             </CardContent>
           </Card>
 
@@ -241,12 +245,14 @@ export default function AdminPage() {
             <CardHeader>
               <CardTitle className="text-xl flex items-center">
                 <User className="mr-2 h-5 w-5 text-primary" />
-                Developers ({developers.length})
+                Developers ({authLoading ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : developers.length})
               </CardTitle>
-              <CardDescription>List of all registered developers.</CardDescription>
+              <CardDescription>List of all registered developers from Firestore.</CardDescription>
             </CardHeader>
             <CardContent>
-              <UserTable users={developers} onToggleFlag={handleToggleFlag} isTogglingFlagId={isTogglingFlag} />
+               {authLoading && developers.length === 0 ? <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> :
+                developers.length === 0 ? <p className="text-muted-foreground text-center py-4">No developers found.</p> :
+                <UserTable users={developers} onToggleFlag={handleToggleFlag} isTogglingFlagId={isTogglingFlag} />}
             </CardContent>
           </Card>
         </div>
@@ -256,25 +262,32 @@ export default function AdminPage() {
             <CardHeader>
               <CardTitle className="text-xl flex items-center">
                 <FileText className="mr-2 h-5 w-5 text-primary" />
-                All Projects ({projects.length})
+                All Projects ({isLoadingProjects ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : projects.length})
               </CardTitle>
-              <CardDescription>Overview of all projects on the platform.</CardDescription>
+              <CardDescription>Overview of all projects on the platform from Firestore.</CardDescription>
             </CardHeader>
             <CardContent>
               {isLoadingProjects && projects.length === 0 && <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
-              {projectsFetchError && !isLoadingProjects && projects.length === 0 && <p className="text-destructive mb-4 text-center py-4">Error loading projects: {projectsFetchError}</p>}
-              {!isLoadingProjects && !projectsFetchError && <ProjectTable projects={projects} allUsers={allUsers} />}
+              {!isLoadingProjects && projectsFetchError && 
+                <Alert variant="destructive" className="my-4">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Error Loading Projects</AlertTitle>
+                  <AlertDescription>{projectsFetchError} Please try refreshing.</AlertDescription>
+                </Alert>
+              }
+              {!isLoadingProjects && !projectsFetchError && projects.length === 0 && <p className="text-muted-foreground text-center py-4">No projects found.</p>}
+              {!isLoadingProjects && !projectsFetchError && projects.length > 0 && <ProjectTable projects={projects} allUsers={allUsers} />}
             </CardContent>
           </Card>
         </div>
 
-         {(allUsers.length === 0 && projects.length === 0 && !isLoadingInitialData && !projectsFetchError && !authLoading) && (
+         {(allUsers.length === 0 && projects.length === 0 && !isLoadingInitialData && !projectsFetchError && !authLoading && !isLoadingProjects) && (
           <Card className="mt-8 shadow-md">
             <CardContent className="p-8 text-center">
               <Info className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-xl font-semibold mb-2">No Data Found</h3>
               <p className="text-muted-foreground">
-                The user and project lists are currently empty. Once users sign up and projects are submitted, they will appear here.
+                User and project lists are currently empty. Once users sign up and projects are submitted, they will appear here.
               </p>
             </CardContent>
           </Card>
@@ -291,10 +304,7 @@ interface UserTableProps {
 }
 
 function UserTable({ users, onToggleFlag, isTogglingFlagId }: UserTableProps) {
-  if (users.length === 0) {
-    return <p className="text-muted-foreground text-center py-4">No users in this category found.</p>;
-  }
-
+  // This component assumes users list is already handled for empty/loading states by parent
   return (
     <div className="overflow-x-auto">
       <Table>
@@ -361,13 +371,10 @@ interface ProjectTableProps {
 }
 
 function ProjectTable({ projects, allUsers }: ProjectTableProps) {
-  if (projects.length === 0) {
-    return <p className="text-muted-foreground text-center py-4">No projects found.</p>;
-  }
-
-  const getClientName = (clientId: string) => {
+ // This component assumes projects list is already handled for empty/loading states by parent
+  const getClientName = (clientId: string): string => {
     const client = allUsers.find(user => user.id === clientId && user.role === 'client');
-    return client ? client.name : "Unknown Client";
+    return client ? client.name || "Unnamed Client" : "Unknown Client";
   };
 
   return (
