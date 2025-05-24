@@ -1,4 +1,3 @@
-
 "use client";
 
 import Image from "next/image";
@@ -46,10 +45,10 @@ export const ImageCarousel: FC<ImageCarouselProps> = ({ images, interval = 10000
   const currentImage = images[currentIndex];
 
   return (
-    <div className={`relative w-full aspect-video overflow-hidden rounded-xl shadow-lg ${className}`}>
+    <div className={`relative w-full aspect-square max-w-[500px] overflow-hidden rounded-xl shadow-lg ${className}`}>
       {images.map((image, index) => (
         <div
-          key={image.src + index} // Ensure unique key, especially if src might not be unique initially
+          key={image.src + index}
           className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
             index === currentIndex ? "opacity-100" : "opacity-0 pointer-events-none" 
           }`}
@@ -57,10 +56,11 @@ export const ImageCarousel: FC<ImageCarouselProps> = ({ images, interval = 10000
           <Image
             src={image.src}
             alt={image.alt}
-            fill
-            style={{ objectFit: "cover" }} // Replaces layout="fill" objectFit="cover"
+            width={500}
+            height={500}
+            className="w-full h-full object-cover"
             data-ai-hint={image.dataAiHint}
-            priority={index === 0} // Prioritize loading the first image
+            priority={index === 0}
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           />
         </div>
