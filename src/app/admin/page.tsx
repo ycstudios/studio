@@ -27,7 +27,7 @@ import {
   History,
   ArrowRight,
   Settings,
-  Users // Added Users icon import
+  Users as UsersIcon // Renamed to avoid conflict with User type
 } from "lucide-react";
 import type { User as UserType, Project } from "@/types";
 import Link from "next/link";
@@ -84,7 +84,7 @@ const featureIcons = [
   <ClipboardCheck key="clipboard" className="h-8 w-8 text-accent flex-shrink-0" />,
   <Landmark key="landmark" className="h-8 w-8 text-primary flex-shrink-0" />,
   <Bell key="bell" className="h-8 w-8 text-accent flex-shrink-0" />,
-  <Users key="users-icon" className="h-8 w-8 text-primary flex-shrink-0" />, // Users is already imported for tables, using new key
+  <UsersIcon key="users-icon-feature" className="h-8 w-8 text-primary flex-shrink-0" />,
   <History key="history" className="h-8 w-8 text-accent flex-shrink-0" />,
 ];
 
@@ -192,7 +192,7 @@ export default function AdminPage() {
                 <Briefcase className="mr-2 h-5 w-5 text-primary" />
                 Clients ({clients.length})
               </CardTitle>
-              <CardDescription>List of all registered clients.</CardDescription>
+              <CardDescription>List of all registered clients from Firestore.</CardDescription>
             </CardHeader>
             <CardContent>
               <UserTable users={clients} />
@@ -205,7 +205,7 @@ export default function AdminPage() {
                 <User className="mr-2 h-5 w-5 text-primary" />
                 Developers ({developers.length})
               </CardTitle>
-              <CardDescription>List of all registered developers.</CardDescription>
+              <CardDescription>List of all registered developers from Firestore.</CardDescription>
             </CardHeader>
             <CardContent>
               <UserTable users={developers} />
@@ -220,11 +220,12 @@ export default function AdminPage() {
                 <FileText className="mr-2 h-5 w-5 text-primary" />
                 All Projects ({projects.length})
               </CardTitle>
-              <CardDescription>Overview of all projects submitted on the platform.</CardDescription>
+              <CardDescription>Overview of all projects submitted on the platform (from Firestore).</CardDescription>
             </CardHeader>
             <CardContent>
-              {fetchError && projects.length === 0 && <p className="text-destructive mb-4">Error loading projects: {fetchError}</p>}
-              <ProjectTable projects={projects} allUsers={allUsers} />
+              {isLoadingProjects && <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
+              {fetchError && !isLoadingProjects && projects.length === 0 && <p className="text-destructive mb-4 text-center py-4">Error loading projects: {fetchError}</p>}
+              {!isLoadingProjects && !fetchError && <ProjectTable projects={projects} allUsers={allUsers} />}
             </CardContent>
           </Card>
         </div>
@@ -391,3 +392,5 @@ function ProjectStatusBadge({ status }: { status?: Project["status"] }) {
   );
 }
 
+
+    
