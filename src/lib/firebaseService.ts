@@ -48,6 +48,21 @@ const getInitialsForDefaultAvatar = (nameStr?: string) => {
 // Define a more specific type for writing user data to avoid issues with serverTimestamp
 interface UserWriteData extends Omit<User, 'id' | 'createdAt'> {
   createdAt: FieldValue; // Specifically FieldValue for serverTimestamp
+  // Ensure optional fields that might be omitted are truly optional here
+  bio?: string;
+  avatarUrl?: string;
+  referralCode?: string;
+  referredByCode?: string;
+  currentPlan?: string;
+  planPrice?: string;
+  isFlagged?: boolean;
+  skills?: string[];
+  portfolioUrls?: string[];
+  experienceLevel?: User["experienceLevel"];
+  hourlyRate?: number | FieldValue; // FieldValue for deleteField
+  resumeFileUrl?: string | FieldValue;
+  resumeFileName?: string | FieldValue;
+  pastProjects?: string | FieldValue;
 }
 
 
@@ -60,7 +75,7 @@ export async function addUser(
   const generatedReferralCode = `CODECRAFT_${userId.substring(0, 8).toUpperCase()}`;
   const defaultAvatar = `https://placehold.co/100x100.png?text=${getInitialsForDefaultAvatar(userData.name)}`;
 
-  const userDocumentData: Partial<UserWriteData> = { // Use Partial for flexibility before role-specific additions
+  const userDocumentData: Partial<UserWriteData> = {
     name: userData.name,
     email: userData.email.toLowerCase(),
     role: userData.role,
@@ -85,18 +100,20 @@ export async function addUser(
     userDocumentData.resumeFileUrl = userData.resumeFileUrl || undefined;
     userDocumentData.resumeFileName = userData.resumeFileName || undefined;
     userDocumentData.pastProjects = userData.pastProjects || undefined;
-    userDocumentData.hourlyRate = userData.hourlyRate || undefined; // Add hourly rate
+    userDocumentData.hourlyRate = userData.hourlyRate ?? undefined;
   }
 
-  // Remove undefined fields explicitly before setting
-  Object.keys(userDocumentData).forEach(key => {
-    if (userDocumentData[key as keyof typeof userDocumentData] === undefined) {
-      delete userDocumentData[key as keyof typeof userDocumentData];
+  // Remove undefined fields explicitly before setting to avoid Firestore error
+  Object.keys(userDocumentData).forEach(keyStr => {
+    const key = keyStr as keyof typeof userDocumentData;
+    if (userDocumentData[key] === undefined) {
+      delete userDocumentData[key];
     }
   });
 
+
   try {
-    await setDoc(doc(db, USERS_COLLECTION, userId), userDocumentData as UserWriteData); // Cast to ensure type compatibility
+    await setDoc(doc(db, USERS_COLLECTION, userId), userDocumentData as UserWriteData);
 
     const welcomeEmailHtml = await getWelcomeEmailTemplate(userDocumentData.name!, userDocumentData.role!);
     await sendEmail(userDocumentData.email!, "Welcome to CodeCrafter!", welcomeEmailHtml);
@@ -128,7 +145,7 @@ export async function getAllUsers(): Promise<User[]> {
         name: data.name || "Unnamed User",
         email: data.email || "No email",
         role: data.role || "client",
-        createdAt: safeCreateDate(data.createdAt),
+        createdAt: safeCreateDate(data.createdAt) || new Date(), // Fallback, though createdAt should exist
         bio: data.bio || (data.role === 'developer' ? "Skilled developer." : "Client on CodeCrafter."),
         avatarUrl: data.avatarUrl || defaultAvatar,
         referralCode: data.referralCode || undefined,
@@ -177,7 +194,7 @@ export async function getUserById(userId: string): Promise<User | null> {
         name: data.name || "Unnamed User",
         email: data.email || "No email",
         role: data.role || "client",
-        createdAt: safeCreateDate(data.createdAt),
+        createdAt: safeCreateDate(data.createdAt) || new Date(), // Fallback
         bio: data.bio || (data.role === 'developer' ? "Skilled developer." : "Client on CodeCrafter."),
         avatarUrl: data.avatarUrl || defaultAvatar,
         referralCode: data.referralCode || undefined,
@@ -232,9 +249,9 @@ export async function getUserByEmail(email: string): Promise<User | null> {
       const user: User = {
         id: userDocSnap.id,
         name: data.name || "Unnamed User",
-        email: data.email,
+        email: data.email, // Already lowercased from query
         role: data.role || "client",
-        createdAt: safeCreateDate(data.createdAt),
+        createdAt: safeCreateDate(data.createdAt) || new Date(), // Fallback
         bio: data.bio || (data.role === 'developer' ? "Skilled developer." : "Client on CodeCrafter."),
         avatarUrl: data.avatarUrl || defaultAvatar,
         referralCode: data.referralCode || undefined,
@@ -284,7 +301,7 @@ export async function updateUser(userId: string, data: Partial<Omit<User, 'id' |
     if (updateData.hasOwnProperty('bio')) {
       updateData.bio = updateData.bio === null || updateData.bio === "" ? deleteField() : updateData.bio;
     }
-    if (updateData.hasOwnProperty('avatarUrl') && (updateData.avatarUrl === "" || updateData.avatarUrl === `https://placehold.co/100x100.png?text=${getInitialsForDefaultAvatar(currentUserData.name)}`)) {
+    if (updateData.hasOwnProperty('avatarUrl') && (updateData.avatarUrl === "" || updateData.avatarUrl?.startsWith('https://placehold.co'))) {
         updateData.avatarUrl = deleteField();
     }
 
@@ -292,44 +309,53 @@ export async function updateUser(userId: string, data: Partial<Omit<User, 'id' |
     if (effectiveRole === 'developer') {
       if (updateData.hasOwnProperty('skills')) {
         updateData.skills = Array.isArray(updateData.skills) ? updateData.skills : [];
-      } else if (data.skills === undefined) { // Explicitly undefined means keep existing or default to empty if not there
-        updateData.skills = currentUserData.skills || [];
+      } else if (data.skills === undefined && currentUserData.skills) {
+        updateData.skills = currentUserData.skills;
+      } else if (data.skills === undefined && !currentUserData.skills) {
+        updateData.skills = [];
       }
+
 
       if (updateData.hasOwnProperty('portfolioUrls')) {
          updateData.portfolioUrls = Array.isArray(updateData.portfolioUrls) ? updateData.portfolioUrls : [];
-      } else if (data.portfolioUrls === undefined) {
-        updateData.portfolioUrls = currentUserData.portfolioUrls || [];
+      } else if (data.portfolioUrls === undefined && currentUserData.portfolioUrls) {
+        updateData.portfolioUrls = currentUserData.portfolioUrls;
+      } else if (data.portfolioUrls === undefined && !currentUserData.portfolioUrls) {
+        updateData.portfolioUrls = [];
       }
+
 
       if (updateData.hasOwnProperty('experienceLevel')) {
         updateData.experienceLevel = typeof updateData.experienceLevel === 'string' ? updateData.experienceLevel : '';
-      } else if (data.experienceLevel === undefined) {
-        updateData.experienceLevel = currentUserData.experienceLevel || '';
+      } else if (data.experienceLevel === undefined && currentUserData.experienceLevel) {
+        updateData.experienceLevel = currentUserData.experienceLevel;
+      } else if (data.experienceLevel === undefined && !currentUserData.experienceLevel) {
+         updateData.experienceLevel = '';
       }
 
+
       if (updateData.hasOwnProperty('resumeFileUrl')) {
-        updateData.resumeFileUrl = updateData.resumeFileUrl?.trim() || deleteField();
+        updateData.resumeFileUrl = updateData.resumeFileUrl?.trim() ? updateData.resumeFileUrl.trim() : deleteField();
       } else if (data.resumeFileUrl === undefined && currentUserData.resumeFileUrl) {
-         updateData.resumeFileUrl = currentUserData.resumeFileUrl; // Retain if not explicitly changed
+         updateData.resumeFileUrl = currentUserData.resumeFileUrl;
       }
 
 
       if (updateData.hasOwnProperty('resumeFileName')) {
-        updateData.resumeFileName = updateData.resumeFileName?.trim() || deleteField();
+        updateData.resumeFileName = updateData.resumeFileName?.trim() ? updateData.resumeFileName.trim() : deleteField();
       } else if (data.resumeFileName === undefined && currentUserData.resumeFileName) {
         updateData.resumeFileName = currentUserData.resumeFileName;
       }
 
 
       if (updateData.hasOwnProperty('pastProjects')) {
-        updateData.pastProjects = updateData.pastProjects?.trim() || deleteField();
+        updateData.pastProjects = updateData.pastProjects?.trim() ? updateData.pastProjects.trim() : deleteField();
       } else if (data.pastProjects === undefined && currentUserData.pastProjects) {
         updateData.pastProjects = currentUserData.pastProjects;
       }
 
       if (updateData.hasOwnProperty('hourlyRate')) {
-        updateData.hourlyRate = typeof updateData.hourlyRate === 'number' && updateData.hourlyRate >= 0 ? updateData.hourlyRate : deleteField();
+        updateData.hourlyRate = (typeof updateData.hourlyRate === 'number' && updateData.hourlyRate >= 0) ? updateData.hourlyRate : deleteField();
       } else if (data.hourlyRate === undefined && currentUserData.hourlyRate !== undefined) {
         updateData.hourlyRate = currentUserData.hourlyRate;
       }
@@ -345,8 +371,8 @@ export async function updateUser(userId: string, data: Partial<Omit<User, 'id' |
     }
 
     Object.keys(updateData).forEach(key => {
-        if (updateData[key] === undefined) {
-            delete updateData[key];
+        if (updateData[key] === undefined) { // Ensure no 'undefined' values are sent
+            updateData[key] = deleteField();
         }
     });
 
@@ -382,7 +408,7 @@ export async function addProject(
       ...projectData,
       clientId,
       status: "Open" as Project["status"],
-      createdAt: serverTimestamp() as Timestamp,
+      createdAt: serverTimestamp(), // Firestore will convert this to Timestamp
     };
     const projectDocRef = await addDoc(collection(db, PROJECTS_COLLECTION), projectWithMetadata);
 
@@ -395,6 +421,7 @@ export async function addProject(
         await sendEmail(clientEmail, `Your Project "${fetchedProject.name}" is Live!`, projectEmailHtml);
       } catch (emailError) {
         console.error("Failed to send project confirmation email:", emailError);
+        // Non-critical error, so don't re-throw and fail the whole operation
       }
     }
     return fetchedProject;
@@ -411,6 +438,7 @@ export async function addProject(
 export async function getProjectsByClientId(clientId: string): Promise<Project[]> {
   if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   if (!clientId) {
+    console.warn("getProjectsByClientId called with no clientId");
     return [];
   }
   try {
@@ -423,17 +451,22 @@ export async function getProjectsByClientId(clientId: string): Promise<Project[]
     const projects: Project[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
+      const createdAtDate = safeCreateDate(data.createdAt);
+      if (!data.name || !data.clientId || !createdAtDate) {
+        console.warn(`Skipping project ${docSnap.id} due to missing essential fields (name, clientId, or createdAt).`);
+        return;
+      }
       projects.push({
         id: docSnap.id,
-        name: data.name || "Unnamed Project",
+        name: data.name,
         description: data.description || "",
         requiredSkills: Array.isArray(data.requiredSkills) ? data.requiredSkills : [],
         availability: data.availability || "Not specified",
         timeZone: data.timeZone || "Not specified",
-        status: data.status || "Unknown",
+        status: ["Open", "In Progress", "Completed", "Cancelled", "Unknown"].includes(data.status) ? data.status : "Unknown",
         clientId: data.clientId,
-        createdAt: safeCreateDate(data.createdAt) || new Date(),
-      } as Project);
+        createdAt: createdAtDate,
+      });
     });
     return projects;
   } catch (error) {
@@ -449,6 +482,7 @@ export async function getProjectsByClientId(clientId: string): Promise<Project[]
 export async function getProjectById(projectId: string): Promise<Project | null> {
   if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   if (!projectId) {
+    console.warn("getProjectById called with no projectId");
     return null;
   }
   try {
@@ -457,18 +491,40 @@ export async function getProjectById(projectId: string): Promise<Project | null>
 
     if (projectDocSnap.exists()) {
       const data = projectDocSnap.data();
+
+      // Validate required fields
+      if (!data.name || typeof data.name !== 'string') {
+        console.warn(`Project ${projectId} missing or invalid 'name'. Corrupted data.`);
+        return null;
+      }
+      if (!data.clientId || typeof data.clientId !== 'string') {
+        console.warn(`Project ${projectId} missing or invalid 'clientId'. Corrupted data.`);
+        return null;
+      }
+      const createdAtDate = safeCreateDate(data.createdAt);
+      if (!createdAtDate) {
+          console.warn(`Project ${projectId} missing or invalid 'createdAt'. Corrupted data.`);
+          return null;
+      }
+      const statusValue = data.status || "Unknown";
+       if (!["Open", "In Progress", "Completed", "Cancelled", "Unknown"].includes(statusValue)) {
+          console.warn(`Project ${projectId} has invalid 'status': ${statusValue}. Returning as Unknown.`);
+      }
+
+
       return {
         id: projectDocSnap.id,
-        name: data.name || "Unnamed Project",
+        name: data.name,
         description: data.description || "",
         requiredSkills: Array.isArray(data.requiredSkills) ? data.requiredSkills : [],
         availability: data.availability || "Not specified",
         timeZone: data.timeZone || "Not specified",
-        status: data.status || "Unknown",
+        status: ["Open", "In Progress", "Completed", "Cancelled", "Unknown"].includes(statusValue) ? statusValue : "Unknown",
         clientId: data.clientId,
-        createdAt: safeCreateDate(data.createdAt) || new Date(),
-      } as Project;
+        createdAt: createdAtDate,
+      };
     } else {
+      console.warn(`Project with ID '${projectId}' not found in Firestore.`);
       return null;
     }
   } catch (error) {
@@ -489,17 +545,22 @@ export async function getAllProjects(): Promise<Project[]> {
     const projects: Project[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
+      const createdAtDate = safeCreateDate(data.createdAt);
+       if (!data.name || !data.clientId || !createdAtDate) {
+        console.warn(`Skipping project ${docSnap.id} in getAllProjects due to missing essential fields (name, clientId, or createdAt).`);
+        return;
+      }
       projects.push({
         id: docSnap.id,
-        name: data.name || "Unnamed Project",
+        name: data.name,
         description: data.description || "",
         requiredSkills: Array.isArray(data.requiredSkills) ? data.requiredSkills : [],
         availability: data.availability || "Not specified",
         timeZone: data.timeZone || "Not specified",
-        status: data.status || "Unknown",
+        status: ["Open", "In Progress", "Completed", "Cancelled", "Unknown"].includes(data.status) ? data.status : "Unknown",
         clientId: data.clientId,
-        createdAt: safeCreateDate(data.createdAt) || new Date(),
-      } as Project);
+        createdAt: createdAtDate,
+      });
     });
     return projects;
   } catch (error) {
@@ -515,6 +576,7 @@ export async function getAllProjects(): Promise<Project[]> {
 export async function getReferredClients(currentUserReferralCode: string): Promise<User[]> {
   if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   if (!currentUserReferralCode) {
+    console.warn("getReferredClients called with no currentUserReferralCode");
     return [];
   }
   try {
@@ -533,8 +595,8 @@ export async function getReferredClients(currentUserReferralCode: string): Promi
         id: docSnap.id,
         name: data.name || "Unnamed User",
         email: data.email || "No email",
-        role: data.role,
-        createdAt: safeCreateDate(data.createdAt),
+        role: data.role, // Should be 'client' due to query
+        createdAt: safeCreateDate(data.createdAt) || new Date(),
         bio: data.bio || "Client referred to CodeCrafter.",
         avatarUrl: data.avatarUrl || defaultAvatar,
         referralCode: data.referralCode || undefined,
@@ -543,13 +605,14 @@ export async function getReferredClients(currentUserReferralCode: string): Promi
         planPrice: data.planPrice || "$0/month",
         isFlagged: data.isFlagged === true,
         accountStatus: data.accountStatus || 'active',
-        skills: data.role === 'developer' ? (Array.isArray(data.skills) ? data.skills : []) : undefined,
-        portfolioUrls: data.role === 'developer' ? (Array.isArray(data.portfolioUrls) ? data.portfolioUrls : []) : undefined,
-        experienceLevel: data.role === 'developer' ? (data.experienceLevel || '') as User["experienceLevel"] : undefined,
-        resumeFileUrl: data.role === 'developer' ? (data.resumeFileUrl || undefined) : undefined,
-        resumeFileName: data.role === 'developer' ? (data.resumeFileName || undefined) : undefined,
-        pastProjects: data.role === 'developer' ? (data.pastProjects || undefined) : undefined,
-        hourlyRate: data.role === 'developer' ? (typeof data.hourlyRate === 'number' ? data.hourlyRate : undefined) : undefined,
+        // Developer fields should be undefined due to role filter, but good to be explicit
+        skills: undefined,
+        portfolioUrls: undefined,
+        experienceLevel: undefined,
+        resumeFileUrl: undefined,
+        resumeFileName: undefined,
+        pastProjects: undefined,
+        hourlyRate: undefined,
       });
     });
     return referredClientsData;
@@ -590,13 +653,14 @@ export async function addAdminActivityLog(logData: Omit<AdminActivityLog, 'id' |
 
   const logEntry: Omit<AdminActivityLog, 'id'> = {
     ...logData,
-    timestamp: serverTimestamp() as Timestamp,
+    timestamp: serverTimestamp() as Timestamp, // Firestore will convert this
   };
 
   try {
     await addDoc(collection(db, ADMIN_ACTIVITY_LOGS_COLLECTION), logEntry);
   } catch (error) {
     console.error("Error adding admin activity log:", error);
+    // Optionally re-throw if this is critical, but often admin logs are best-effort
   }
 }
 
@@ -618,6 +682,7 @@ export async function updateUserAccountStatus(userId: string, newStatus: Account
       const rejectedEmailHtml = await getDeveloperRejectedEmailTemplate(userName);
       await sendEmail(userEmail, "Update on Your CodeCrafter Developer Application", rejectedEmailHtml);
     }
+    // Add more email notifications for other status changes (e.g., suspended) if needed.
   } catch (error) {
     console.error(`Error updating account status for user ${userId} to ${newStatus}:`, error);
     if (error instanceof Error) {

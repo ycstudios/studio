@@ -186,7 +186,7 @@ export default function ProjectMatchmakingPage() {
     );
   }
 
-  if (!project) { 
+  if (!project) { // If no error but project is still null after loading
      return (
       <ProtectedPage>
         <div className="container mx-auto p-4 md:p-6 lg:p-8 text-center">
@@ -351,7 +351,7 @@ function ProjectStatusBadge({ status }: { status?: ProjectType["status"] }) {
     bgColor = "bg-red-500/20 text-red-700 dark:bg-red-300/20 dark:text-red-300";
     dotColor = "bg-red-500 dark:bg-red-400";
     icon = <Info className="mr-1.5 h-3 w-3" />;
-  } else { 
+  } else { // Unknown or any other status
      bgColor = "bg-gray-500/20 text-gray-700 dark:bg-gray-300/20 dark:text-gray-300";
      dotColor = "bg-gray-500 dark:bg-gray-400";
      currentStatus = "Unknown"; 
