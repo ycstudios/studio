@@ -11,81 +11,81 @@ body {
 
 @layer base {
   :root {
-    /* Light Theme - Clean, Professional, Trustworthy */
-    --background: 0 0% 100%; /* White */
-    --foreground: 224 71.4% 4.1%; /* Dark Blue-Gray for text */
+    /* Dark Theme: Deep Navy, Electric Blue, Cyber Orange - Default */
+    --background: 220 47% 8%; /* Deep Navy #0A0F1C */
+    --foreground: 0 0% 100%; /* Bold White #FFFFFF */
 
-    --card: 0 0% 100%; /* White cards for clean separation */
-    --card-foreground: 224 71.4% 4.1%; /* Dark text for cards */
+    --card: 220 40% 12%; /* Slightly Lighter Navy for cards */
+    --card-foreground: 0 0% 100%; /* White text on cards */
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 224 71.4% 4.1%;
+    --popover: 220 40% 14%; /* Similar to card, can be slightly different */
+    --popover-foreground: 0 0% 100%;
 
-    --primary: 217 91.2% 59.8%; /* A strong, trustworthy, vibrant blue */
-    --primary-foreground: 0 0% 100%; /* White text on primary */
+    --primary: 199 100% 50%; /* Electric Blue #00B2FF */
+    --primary-foreground: 0 0% 0%; /* Black text for contrast on Electric Blue */
 
-    --secondary: 220 14.3% 95.9%; /* Lighter gray for secondary elements */
-    --secondary-foreground: 220 9.1% 43.1%; /* Darker gray text on secondary */
+    --secondary: 215 28% 17%; /* Dark, desaturated blue-gray */
+    --secondary-foreground: 0 0% 90%; /* Light gray for text on secondary */
 
-    --muted: 220 14.3% 95.9%; 
-    --muted-foreground: 220 8.9% 46.1%; /* Softer muted text */
+    --muted: 215 28% 15%; /* Slightly darker muted */
+    --muted-foreground: 0 0% 75%; /* Softer muted text */
 
-    --accent: 220 14.3% 95.9%; 
-    --accent-foreground: 220 9.1% 43.1%;
+    --accent: 39 100% 50%; /* Cyber Orange #FFA500 */
+    --accent-foreground: 0 0% 0%; /* Black text for contrast on Cyber Orange */
 
-    --destructive: 0 84.2% 60.2%; /* A clear, strong red for destructive actions */
+    --destructive: 0 70% 50%; /* A clear, strong red */
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 91%; /* Soft, light gray border */
-    --input: 220 13% 91%; /* Input background */
-    --ring: 217 91.2% 59.8%; /* Focus ring using primary blue */
+    --border: 215 20% 25%; /* Visible dark border */
+    --input: 215 20% 22%; /* Input background, slightly lighter than border */
+    --ring: 199 100% 50%; /* Focus ring using Electric Blue */
 
     --radius: 0.5rem;
 
-    /* Chart colors for light theme */
-    --chart-1: 217 91.2% 59.8%; /* primary */
-    --chart-2: 160 70% 40%; /* A contrasting teal/green */
-    --chart-3: 25 95% 55%;  /* A warm accent like orange/amber */
-    --chart-4: 280 70% 60%; /* A contrasting purple */
-    --chart-5: 210 40% 70%; /* A lighter shade of secondary */
+    /* Chart colors for dark theme */
+    --chart-1: 199 100% 50%; /* Electric Blue */
+    --chart-2: 39 100% 50%;  /* Cyber Orange */
+    --chart-3: 180 70% 45%;  /* Contrasting Teal/Cyan */
+    --chart-4: 280 70% 65%;  /* Light Purple/Magenta */
+    --chart-5: 210 20% 70%;  /* Lighter Gray */
   }
 
-  .dark {
-    /* Dark Theme - Techy, Premium, Electric Blue Accents */
-    --background: 222 84% 4.9%; /* Deep, very dark cool blue */
-    --foreground: 210 20% 98%; /* Light, soft gray for text */
+  .light {
+    /* Light Theme: Clean White, Azure Blue, Soft Orange */
+    --background: 0 0% 100%; /* White */
+    --foreground: 0 0% 13%; /* Dark Gray for text */
 
-    --card: 222 84% 4.9%; /* Same as background or slightly lighter */
-    --card-foreground: 210 20% 98%; /* Text on cards */
+    --card: 0 0% 94%; /* Light Gray panels/cards */
+    --card-foreground: 0 0% 13%; /* Dark text for cards */
 
-    --popover: 222 84% 4.9%; 
-    --popover-foreground: 210 20% 98%;
+    --popover: 0 0% 100%; /* White popovers */
+    --popover-foreground: 0 0% 13%;
 
-    --primary: 205 100% 55%; /* Vibrant, electric/sky blue */
-    --primary-foreground: 222 47.4% 1.2%; /* Very dark (almost black) text for contrast */
+    --primary: 204 100% 40%; /* Azure Blue #007ACC */
+    --primary-foreground: 0 0% 100%; /* White text on Azure Blue */
 
-    --secondary: 215 27.9% 16.9%; /* Darker, desaturated blue-gray */
-    --secondary-foreground: 210 20% 98%; 
+    --secondary: 0 0% 96%; /* Very Light Gray for secondary elements */
+    --secondary-foreground: 0 0% 25%; /* Darker gray text on secondary */
 
-    --muted: 215 27.9% 16.9%; 
-    --muted-foreground: 217.2 32.6% 70.0%; /* Lighter muted text */
+    --muted: 0 0% 96%; 
+    --muted-foreground: 0 0% 45%; /* Medium gray muted text */
 
-    --accent: 215 27.9% 16.9%; 
-    --accent-foreground: 210 20% 98%;
+    --accent: 35 100% 65%; /* Soft Orange #FFB84D */
+    --accent-foreground: 0 0% 13%; /* Dark text for contrast on Soft Orange */
 
-    --destructive: 0 62.8% 50.6%; /* A clear, vibrant red in dark mode */
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 84.2% 60.2%; /* A clear, strong red */
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 215 27.9% 16.9%; /* Subtle border */
-    --input: 215 27.9% 16.9%; /* Input background */
-    --ring: 205 90% 60%; /* Brighter blue for focus rings */
+    --border: 0 0% 87%; /* Soft, light gray border */
+    --input: 0 0% 87%; /* Input background */
+    --ring: 204 100% 40%; /* Focus ring using Azure Blue */
 
-    /* Chart colors for dark theme */
-    --chart-1: 205 100% 55%; /* Primary Electric Blue */
-    --chart-2: 150 80% 55%;  /* Bright Teal/Green */
-    --chart-3: 30 100% 60%;  /* Bright Orange/Yellow */
-    --chart-4: 270 80% 70%;  /* Bright Purple/Magenta */
-    --chart-5: 210 30% 50%;  /* Muted Blue/Gray */
+    /* Chart colors for light theme */
+    --chart-1: 204 100% 40%; /* Azure Blue */
+    --chart-2: 35 100% 65%;  /* Soft Orange */
+    --chart-3: 140 60% 45%;  /* Contrasting Green */
+    --chart-4: 260 70% 60%;  /* Contrasting Violet */
+    --chart-5: 0 0% 50%;     /* Medium Gray */
   }
 }
 
@@ -99,7 +99,7 @@ body {
 }
 
 /* Custom animation for heart blinking */
-@keyframes heart-blink-kf { /* Renamed keyframe to avoid conflict */
+@keyframes heart-blink-kf { 
   0%, 100% {
     opacity: 1;
     transform: scale(1);
@@ -116,16 +116,17 @@ body {
 
 /* Custom animation for typing cursor */
 @keyframes typing-blink-kf {
-  0%, 100% { border-right-color: currentColor; } /* Use text color or a specific var() like var(--primary) */
+  0%, 100% { border-right-color: currentColor; } 
   50% { border-right-color: transparent; }
 }
 
 .typing-cursor {
   display: inline-block;
-  width: 0px; /* Cursor is formed by the border */
-  height: 1em; /* Adjust based on the font size of the text it's next to */
-  border-right: 2px solid currentColor; /* The actual cursor line */
+  width: 0px; 
+  height: 1em; 
+  border-right: 2px solid currentColor; 
   animation: typing-blink-kf 0.75s steps(1) infinite;
-  vertical-align: text-bottom; /* Aligns cursor with text baseline */
-  margin-left: 1px; /* Small space between text and cursor */
+  vertical-align: text-bottom; 
+  margin-left: 1px; 
 }
+

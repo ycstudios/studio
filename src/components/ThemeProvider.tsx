@@ -1,3 +1,4 @@
+
 // src/components/ThemeProvider.tsx
 "use client";
 
@@ -6,5 +7,6 @@ import type { ThemeProviderProps } from "next-themes/dist/types";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
-  return <NextThemesProvider {...props} defaultTheme="system" attribute="class" enableSystem disableTransitionOnChange>{children}</NextThemesProvider>;
+  return <NextThemesProvider {...props} defaultTheme="dark" attribute="class" enableSystem disableTransitionOnChange>{children}</NextThemesProvider>;
 }
+
