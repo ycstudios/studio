@@ -1,5 +1,6 @@
+
 // src/lib/firebaseService.ts
-import { collection, doc, setDoc, getDocs, getDoc, query, orderBy, Timestamp, where, addDoc, updateDoc, serverTimestamp, deleteField } from "firebase/firestore";
+import { collection, doc, setDoc, getDocs, getDoc, query, orderBy, Timestamp, where, addDoc, updateDoc, serverTimestamp, deleteField, type FieldValue } from "firebase/firestore";
 import { db } from "./firebase"; // Your Firebase app instance
 import type { User, Project, AdminActivityLog, AccountStatus } from "@/types";
 import { 
@@ -14,6 +15,27 @@ const USERS_COLLECTION = "users";
 const PROJECTS_COLLECTION = "projects";
 const ADMIN_ACTIVITY_LOGS_COLLECTION = "adminActivityLogs";
 
+interface UserWriteData {
+  name: string;
+  email: string;
+  role: User['role'];
+  id: string;
+  createdAt: FieldValue; // For serverTimestamp
+  bio: string;
+  avatarUrl: string;
+  referralCode: string;
+  currentPlan: string;
+  planPrice: string;
+  isFlagged: boolean;
+  accountStatus: AccountStatus;
+  referredByCode?: string;
+  skills?: string[];
+  portfolioUrls?: string[];
+  experienceLevel?: User['experienceLevel'];
+  resumeFileUrl?: string;
+  resumeFileName?: string;
+}
+
 /**
  * Adds a new user to the Firestore 'users' collection.
  * Includes a createdAt timestamp, generates a referral code, and sets a default plan.
@@ -24,32 +46,48 @@ export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referra
   const userId = userData.id || doc(collection(db, USERS_COLLECTION)).id;
   const generatedReferralCode = `CODECRAFT_${userId.substring(0, 6).toUpperCase()}`;
   
-  const userToSave: User = {
+  // Start with fields common to all users
+  const userDocumentData: UserWriteData = {
     name: userData.name,
     email: userData.email,
     role: userData.role,
     id: userId,
-    createdAt: serverTimestamp() as Timestamp, 
+    createdAt: serverTimestamp(), 
     bio: `New ${userData.role} on CodeCrafter.`,
-    skills: userData.role === 'developer' ? [] : undefined,
     avatarUrl: `https://placehold.co/100x100.png?text=${userData.name?.[0]?.toUpperCase() || 'U'}`,
     referralCode: generatedReferralCode,
-    referredByCode: userData.referredByCode || undefined,
     currentPlan: "Free Tier",
     planPrice: "$0/month",
-    portfolioUrls: userData.role === 'developer' ? [] : undefined,
-    experienceLevel: userData.role === 'developer' ? '' : undefined,
     isFlagged: false,
     accountStatus: userData.role === 'developer' ? "pending_approval" : "active",
-    resumeFileUrl: userData.role === 'developer' ? userData.resumeFileUrl : undefined,
-    resumeFileName: userData.role === 'developer' ? userData.resumeFileName : undefined,
   };
 
+  // Conditionally add 'referredByCode' if it exists
+  if (userData.referredByCode) {
+    userDocumentData.referredByCode = userData.referredByCode;
+  }
+
+  // Add developer-specific fields only if the role is 'developer'
+  if (userData.role === 'developer') {
+    userDocumentData.skills = [];
+    userDocumentData.portfolioUrls = [];
+    userDocumentData.experienceLevel = ''; // Default to empty string, which is fine for Firestore
+    if (userData.resumeFileUrl) {
+      userDocumentData.resumeFileUrl = userData.resumeFileUrl;
+    }
+    if (userData.resumeFileName) {
+      userDocumentData.resumeFileName = userData.resumeFileName;
+    }
+  }
+  // Fields like 'skills', 'portfolioUrls', 'experienceLevel', 'resumeFileUrl', 'resumeFileName'
+  // will simply not exist on the document if the role is not 'developer' and they aren't added here.
+  // This avoids writing `undefined` to Firestore.
+
   try {
-    await setDoc(doc(db, USERS_COLLECTION, userId), userToSave);
+    await setDoc(doc(db, USERS_COLLECTION, userId), userDocumentData);
     
-    const welcomeEmailHtml = await getWelcomeEmailTemplate(userToSave.name, userToSave.role);
-    await sendEmail(userToSave.email, "Welcome to CodeCrafter!", welcomeEmailHtml);
+    const welcomeEmailHtml = await getWelcomeEmailTemplate(userDocumentData.name, userDocumentData.role);
+    await sendEmail(userDocumentData.email, "Welcome to CodeCrafter!", welcomeEmailHtml);
 
     const fetchedUser = await getUserById(userId);
     if (!fetchedUser) throw new Error(`User ${userId} was supposedly added but could not be retrieved immediately.`);
@@ -76,8 +114,17 @@ export async function getAllUsers(): Promise<User[]> {
       const data = docSnap.data();
       users.push({ 
         id: docSnap.id, 
-        ...data,
+        name: data.name || "Unnamed User",
+        email: data.email || "No email",
+        role: data.role || "client", // Default role if missing, adjust as needed
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date()),
+        bio: data.bio || "",
+        avatarUrl: data.avatarUrl || `https://placehold.co/100x100.png?text=${(data.name?.[0] || 'U').toUpperCase()}`,
+        referralCode: data.referralCode || undefined,
+        referredByCode: data.referredByCode || undefined,
+        currentPlan: data.currentPlan || "Free Tier",
+        planPrice: data.planPrice || "$0/month",
+        skills: Array.isArray(data.skills) ? data.skills : (data.role === 'developer' ? [] : undefined),
         portfolioUrls: Array.isArray(data.portfolioUrls) ? data.portfolioUrls : (data.role === 'developer' ? [] : undefined),
         experienceLevel: typeof data.experienceLevel === 'string' ? data.experienceLevel as User['experienceLevel'] : (data.role === 'developer' ? '' : undefined),
         isFlagged: data.isFlagged === true,
@@ -113,8 +160,17 @@ export async function getUserById(userId: string): Promise<User | null> {
       const data = userDocSnap.data();
       return { 
         id: userDocSnap.id, 
-        ...data,
+        name: data.name || "Unnamed User",
+        email: data.email || "No email",
+        role: data.role || "client",
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : new Date()),
+        bio: data.bio || "",
+        avatarUrl: data.avatarUrl || `https://placehold.co/100x100.png?text=${(data.name?.[0] || 'U').toUpperCase()}`,
+        referralCode: data.referralCode || undefined,
+        referredByCode: data.referredByCode || undefined,
+        currentPlan: data.currentPlan || "Free Tier",
+        planPrice: data.planPrice || "$0/month",
+        skills: Array.isArray(data.skills) ? data.skills : (data.role === 'developer' ? [] : undefined),
         portfolioUrls: Array.isArray(data.portfolioUrls) ? data.portfolioUrls : (data.role === 'developer' ? [] : undefined),
         experienceLevel: typeof data.experienceLevel === 'string' ? data.experienceLevel as User['experienceLevel'] : (data.role === 'developer' ? '' : undefined),
         isFlagged: data.isFlagged === true,
@@ -145,25 +201,34 @@ export async function updateUser(userId: string, data: Partial<Omit<User, 'id' |
   try {
     const userDocRef = doc(db, USERS_COLLECTION, userId);
     
-    const updateData: any = { ...data };
+    const updateData: any = { ...data }; // Start with incoming data
     
-    // If role is part of the update and it's not developer, clear developer-specific fields
     const currentUserData = await getUserById(userId); // Fetch current role if not in update data
-    const currentRole = data.role || currentUserData?.role;
+    const effectiveRole = data.role || currentUserData?.role;
 
-    if (currentRole && currentRole !== 'developer') {
+    if (effectiveRole && effectiveRole !== 'developer') {
+      // If role is changing to non-developer, or is non-developer and other fields might be wrongly present
       updateData.skills = deleteField();
       updateData.portfolioUrls = deleteField();
       updateData.experienceLevel = deleteField();
       updateData.resumeFileUrl = deleteField();
       updateData.resumeFileName = deleteField();
-    } else if (currentRole === 'developer') {
-      // Ensure developer fields are arrays/strings if not being explicitly set to undefined/null
-      if (data.skills === undefined && !updateData.skills) updateData.skills = currentUserData?.skills || [];
-      if (data.portfolioUrls === undefined && !updateData.portfolioUrls) updateData.portfolioUrls = currentUserData?.portfolioUrls || [];
-      if (data.experienceLevel === undefined && !updateData.experienceLevel) updateData.experienceLevel = currentUserData?.experienceLevel || '';
+    } else if (effectiveRole === 'developer') {
+      // Ensure developer fields are initialized if they are being set from undefined or are part of an update
+      // where the role might also be changing to 'developer'.
+      if (data.skills === undefined && currentUserData?.role !== 'developer') updateData.skills = [];
+      if (data.portfolioUrls === undefined && currentUserData?.role !== 'developer') updateData.portfolioUrls = [];
+      if (data.experienceLevel === undefined && currentUserData?.role !== 'developer') updateData.experienceLevel = '';
+      // resumeFileUrl and resumeFileName are typically set explicitly, so no default init needed here unless logic requires
     }
     
+    // Remove any top-level undefined properties from updateData before sending to Firestore
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined && key !== 'role') { // 'role' should not be deleted if it's undefined in partial update
+        delete updateData[key];
+      }
+    });
+
     await updateDoc(userDocRef, updateData);
   } catch (error) {
     console.error(`Error updating user ${userId} in Firestore: `, error);
@@ -221,7 +286,7 @@ export async function addProject(
 export async function getProjectsByClientId(clientId: string): Promise<Project[]> {
   if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   if (!clientId) {
-    console.warn("getProjectsByClientId called with no clientId");
+    // console.warn("getProjectsByClientId called with no clientId");
     return [];
   }
   try {
@@ -256,7 +321,7 @@ export async function getProjectsByClientId(clientId: string): Promise<Project[]
 export async function getProjectById(projectId: string): Promise<Project | null> {
   if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   if (!projectId) {
-    console.warn("getProjectById called with no projectId");
+    // console.warn("getProjectById called with no projectId");
     return null;
   }
   try {
@@ -315,7 +380,7 @@ export async function getAllProjects(): Promise<Project[]> {
 export async function getReferredClients(currentUserReferralCode: string): Promise<User[]> {
   if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   if (!currentUserReferralCode) {
-    console.warn("getReferredClients called with no currentUserReferralCode");
+    // console.warn("getReferredClients called with no currentUserReferralCode");
     return [];
   }
   try {
