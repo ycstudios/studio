@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState, useTransition } from "react";
+import React, { useEffect, useState, useTransition, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation"; 
 import { ProtectedPage } from "@/components/ProtectedPage";
 import { DeveloperCard } from "@/components/DeveloperCard";
@@ -34,40 +34,9 @@ export default function ProjectMatchmakingPage() {
   const [applied, setApplied] = useState(false); 
 
 
-  useEffect(() => {
-    if (projectId) {
-      const fetchProjectData = async () => {
-        setIsLoadingProject(true);
-        setError(null);
-        setAiError(null);
-        try {
-          const fetchedProject = await getProjectById(projectId);
-          if (fetchedProject) {
-            setProject(fetchedProject);
-            if (user?.role === 'client' && user.id === fetchedProject.clientId && fetchedProject.status === "Open") {
-              handleRunMatchmaking(fetchedProject, false); // false to not show initial toast
-            }
-          } else {
-            setError(`Project with ID '${projectId}' not found.`);
-          }
-        } catch (e) {
-          const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred.";
-          setError(`Failed to load project: ${errorMessage}`);
-        } finally {
-          setIsLoadingProject(false);
-        }
-      };
-      fetchProjectData();
-    } else {
-        setError("No project ID provided in URL.");
-        setIsLoadingProject(false);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, user?.role, user?.id]); 
-
-  const handleRunMatchmaking = async (currentProject: ProjectType | null = project, showToast: boolean = true) => {
+  const handleRunMatchmaking = useCallback(async (currentProject: ProjectType | null = project, showToast: boolean = true) => {
     if (!currentProject) {
-      toast({ title: "Error", description: "Project details not available for matchmaking.", variant: "destructive" });
+      if(showToast) toast({ title: "Error", description: "Project details not available for matchmaking.", variant: "destructive" });
       return;
     }
 
@@ -100,7 +69,7 @@ export default function ProjectMatchmakingPage() {
             });
         }
       } catch (e) {
-        const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred.";
+        const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred during AI matchmaking.";
         setAiError(`AI Matchmaking failed: ${errorMessage}`); 
         if (showToast) {
             toast({
@@ -113,7 +82,38 @@ export default function ProjectMatchmakingPage() {
         setIsMatching(false);
       }
     });
-  };
+  }, [project, toast, startTransition]);
+
+  useEffect(() => {
+    if (projectId) {
+      const fetchProjectData = async () => {
+        setIsLoadingProject(true);
+        setError(null);
+        setAiError(null);
+        try {
+          const fetchedProject = await getProjectById(projectId);
+          if (fetchedProject) {
+            setProject(fetchedProject);
+            if (user?.role === 'client' && user.id === fetchedProject.clientId && fetchedProject.status === "Open") {
+              // Initial AI match run for client owner of an open project
+              handleRunMatchmaking(fetchedProject, false); // false to not show initial toast
+            }
+          } else {
+            setError(`Project with ID '${projectId}' not found.`);
+          }
+        } catch (e) {
+          const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred.";
+          setError(`Failed to load project: ${errorMessage}`);
+        } finally {
+          setIsLoadingProject(false);
+        }
+      };
+      fetchProjectData();
+    } else {
+        setError("No project ID provided in URL.");
+        setIsLoadingProject(false);
+    }
+  }, [projectId, user?.role, user?.id, handleRunMatchmaking]); 
 
   const handleApplyForProject = () => {
     setApplied(true);
@@ -143,7 +143,7 @@ export default function ProjectMatchmakingPage() {
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Error Loading Project</AlertTitle>
             <AlertDescription>
-              {error || `We couldn't find the details for this project.`}
+              {error || `We couldn't find the details for this project.`} Please try again or contact support.
             </AlertDescription>
           </Alert>
            <Button onClick={() => router.back()} variant="outline" className="mt-6 block mx-auto">
@@ -230,7 +230,7 @@ export default function ProjectMatchmakingPage() {
           </CardContent>
         </Card>
 
-        {(isMatching || isTransitionPending) && (
+        {(isMatching || isTransitionPending) && !aiError && ( // Show loading card only if no AI error
              <Card className="shadow-lg">
                 <CardHeader>
                     <CardTitle className="text-xl flex items-center gap-2">
@@ -244,7 +244,7 @@ export default function ProjectMatchmakingPage() {
             </Card>
         )}
 
-        {aiError && !isMatching && !isLoadingProject && ( 
+        {aiError && !isMatching && ( 
              <Alert variant="destructive" className="my-6">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>AI Matchmaking Error</AlertTitle>
@@ -252,7 +252,7 @@ export default function ProjectMatchmakingPage() {
             </Alert>
         )}
         
-        {matches && !isMatching && !isTransitionPending && (
+        {matches && !isMatching && !isTransitionPending && !aiError && (
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="text-2xl">AI Developer Suggestions</CardTitle>
@@ -274,7 +274,7 @@ export default function ProjectMatchmakingPage() {
                       description={devProfileText} 
                       skills={project.requiredSkills || []} 
                       dataAiHint="developer profile abstract"
-                      matchQuality="Good Fit" // This is a placeholder
+                      matchQuality="Good Fit" 
                     />
                   ))}
                 </div>
@@ -295,25 +295,29 @@ export default function ProjectMatchmakingPage() {
 
 function ProjectStatusBadge({ status }: { status?: ProjectType["status"] }) {
   let bgColor = "bg-muted text-muted-foreground";
-  let dotColor = "bg-gray-500";
+  let dotColor = "bg-gray-500 dark:bg-gray-400";
   let icon = <Clock className="mr-1.5 h-3 w-3" />;
   let currentStatus = status || "Unknown";
 
   if (currentStatus === "In Progress") {
-    bgColor = "bg-blue-500/20 text-blue-700 dark:text-blue-300";
-    dotColor = "bg-blue-500";
+    bgColor = "bg-blue-500/20 text-blue-700 dark:bg-blue-300/20 dark:text-blue-300";
+    dotColor = "bg-blue-500 dark:bg-blue-400";
   } else if (currentStatus === "Open") {
-    bgColor = "bg-green-500/20 text-green-700 dark:text-green-300";
-    dotColor = "bg-green-500";
+    bgColor = "bg-green-500/20 text-green-700 dark:bg-green-300/20 dark:text-green-300";
+    dotColor = "bg-green-500 dark:bg-green-400";
     icon = <Eye className="mr-1.5 h-3 w-3" />;
   } else if (currentStatus === "Completed") {
-    bgColor = "bg-purple-500/20 text-purple-700 dark:text-purple-300";
-    dotColor = "bg-purple-500";
+    bgColor = "bg-purple-500/20 text-purple-700 dark:bg-purple-300/20 dark:text-purple-300";
+    dotColor = "bg-purple-500 dark:bg-purple-400";
     icon = <CheckCircle className="mr-1.5 h-3 w-3" />;
   } else if (currentStatus === "Cancelled") {
-    bgColor = "bg-red-500/20 text-red-700 dark:text-red-300";
-    dotColor = "bg-red-500";
+    bgColor = "bg-red-500/20 text-red-700 dark:bg-red-300/20 dark:text-red-300";
+    dotColor = "bg-red-500 dark:bg-red-400";
     icon = <Info className="mr-1.5 h-3 w-3" />;
+  } else { 
+     bgColor = "bg-gray-500/20 text-gray-700 dark:bg-gray-300/20 dark:text-gray-300";
+     dotColor = "bg-gray-500 dark:bg-gray-400";
+     currentStatus = "Unknown";
   }
 
   return (

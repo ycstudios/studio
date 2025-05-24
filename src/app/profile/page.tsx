@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge"; // Added Badge import
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Edit3, Save, UserCircle2, Briefcase, Loader2, AlertTriangle, Link as LinkIcon, Trash2, DollarSign } from "lucide-react";
@@ -34,7 +34,7 @@ import { deleteField } from "firebase/firestore";
 const experienceLevels: User["experienceLevel"][] = ['', 'Entry', 'Junior', 'Mid-level', 'Senior', 'Lead', 'Principal'];
 
 export default function ProfilePage() {
-  const { user: authUser, login: updateAuthContextUser, isLoading: authLoading } = useAuth();
+  const { user: authUser, login: updateAuthContextUser, isLoading: authLoading, refreshUser } = useAuth();
   const { toast } = useToast();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -42,20 +42,21 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  // Form fields states
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(""); // Display only
   const [bio, setBio] = useState("");
-  const [skills, setSkills] = useState("");
+  const [skills, setSkills] = useState(""); // Comma-separated string for input
   const [currentAvatarUrl, setCurrentAvatarUrl] = useState("");
   const [newAvatarUrlInput, setNewAvatarUrlInput] = useState("");
-  const [portfolioUrls, setPortfolioUrls] = useState("");
+  const [portfolioUrls, setPortfolioUrls] = useState(""); // Comma-separated string for input
   const [experienceLevel, setExperienceLevel] = useState<User["experienceLevel"]>('');
-  const [hourlyRate, setHourlyRate] = useState<string>("");
+  const [hourlyRate, setHourlyRate] = useState<string>(""); // String for input, parsed to number
   const [resumeFileUrl, setResumeFileUrl] = useState("");
   const [resumeFileName, setResumeFileName] = useState("");
   const [pastProjects, setPastProjects] = useState("");
 
-
+  // Store initial fetched data to compare for changes and revert on cancel
   const [initialData, setInitialData] = useState<Partial<User>>({});
 
   const getInitials = useCallback((nameStr?: string) => {
@@ -66,11 +67,27 @@ export default function ProfilePage() {
     }
     return nameStr.substring(0, 2).toUpperCase();
   }, []);
-
+  
   const defaultAvatarPlaceholder = useCallback((nameForInitials?: string) => {
     return `https://placehold.co/100x100.png?text=${getInitials(nameForInitials)}`;
   }, [getInitials]);
 
+
+  const populateFormFields = useCallback((userData: User | Partial<User>) => {
+    setName(userData.name || "");
+    setEmail(userData.email || ""); // Should come from authUser, not editable
+    setBio(userData.bio || (userData.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
+    setSkills(userData.skills?.join(", ") || "");
+    const avatarToDisplay = userData.avatarUrl || defaultAvatarPlaceholder(userData.name);
+    setCurrentAvatarUrl(avatarToDisplay);
+    setNewAvatarUrlInput(userData.avatarUrl && userData.avatarUrl !== defaultAvatarPlaceholder(userData.name) ? userData.avatarUrl : "");
+    setPortfolioUrls(userData.portfolioUrls?.join(", ") || "");
+    setExperienceLevel(userData.experienceLevel || '');
+    setHourlyRate(userData.hourlyRate?.toString() || "");
+    setResumeFileUrl(userData.resumeFileUrl || "");
+    setResumeFileName(userData.resumeFileName || "");
+    setPastProjects(userData.pastProjects || "");
+  }, [defaultAvatarPlaceholder]);
 
   const fetchUserData = useCallback(async () => {
     if (!authUser?.id) return;
@@ -79,33 +96,8 @@ export default function ProfilePage() {
     try {
       const fetchedUser = await getUserById(authUser.id);
       if (fetchedUser) {
-        setName(fetchedUser.name || "");
-        setEmail(fetchedUser.email || "");
-        setBio(fetchedUser.bio || (fetchedUser.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
-        setSkills(fetchedUser.skills?.join(", ") || "");
-        const avatarToDisplay = fetchedUser.avatarUrl || defaultAvatarPlaceholder(fetchedUser.name);
-        setCurrentAvatarUrl(avatarToDisplay);
-        setNewAvatarUrlInput(fetchedUser.avatarUrl || ""); 
-        setPortfolioUrls(fetchedUser.portfolioUrls?.join(", ") || "");
-        setExperienceLevel(fetchedUser.experienceLevel || '');
-        setHourlyRate(fetchedUser.hourlyRate?.toString() || "");
-        setResumeFileUrl(fetchedUser.resumeFileUrl || "");
-        setResumeFileName(fetchedUser.resumeFileName || "");
-        setPastProjects(fetchedUser.pastProjects || "");
-
-        setInitialData({
-          name: fetchedUser.name,
-          email: fetchedUser.email,
-          bio: fetchedUser.bio,
-          skills: fetchedUser.skills,
-          avatarUrl: fetchedUser.avatarUrl,
-          portfolioUrls: fetchedUser.portfolioUrls,
-          experienceLevel: fetchedUser.experienceLevel,
-          hourlyRate: fetchedUser.hourlyRate,
-          resumeFileUrl: fetchedUser.resumeFileUrl,
-          resumeFileName: fetchedUser.resumeFileName,
-          pastProjects: fetchedUser.pastProjects,
-        });
+        setInitialData(fetchedUser); // Store fetched data as initial state
+        populateFormFields(fetchedUser); // Populate form with fetched data
       } else {
         setFetchError("Could not load your profile data. It might be missing or an error occurred.");
       }
@@ -115,7 +107,7 @@ export default function ProfilePage() {
     } finally {
       setIsLoadingProfile(false);
     }
-  }, [authUser?.id, authUser?.role, defaultAvatarPlaceholder]);
+  }, [authUser?.id, populateFormFields]);
 
   useEffect(() => {
     if (authUser?.id && !authLoading) {
@@ -129,20 +121,9 @@ export default function ProfilePage() {
   const handleEditToggle = () => {
     if (isEditing) {
       // Revert to initial data on cancel
-      setName(initialData.name || "");
-      setBio(initialData.bio || (authUser?.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
-      setSkills(initialData.skills?.join(", ") || "");
-      const initialAvatarToDisplay = initialData.avatarUrl || defaultAvatarPlaceholder(initialData.name);
-      setCurrentAvatarUrl(initialAvatarToDisplay);
-      setNewAvatarUrlInput(initialData.avatarUrl || "");
-      setPortfolioUrls(initialData.portfolioUrls?.join(", ") || "");
-      setExperienceLevel(initialData.experienceLevel || '');
-      setHourlyRate(initialData.hourlyRate?.toString() || "");
-      setResumeFileUrl(initialData.resumeFileUrl || "");
-      setResumeFileName(initialData.resumeFileName || "");
-      setPastProjects(initialData.pastProjects || "");
+      populateFormFields(initialData);
     } else {
-      // When entering edit mode, set the newAvatarUrlInput to current, or empty if it's the default
+      // When entering edit mode, set the newAvatarUrlInput to current initial, or empty if it's the default
       setNewAvatarUrlInput(initialData.avatarUrl && initialData.avatarUrl !== defaultAvatarPlaceholder(initialData.name) ? initialData.avatarUrl : "");
     }
     setIsEditing(!isEditing);
@@ -159,18 +140,17 @@ export default function ProfilePage() {
     }
 
     setIsSaving(true);
-    setFetchError(null);
+    setFetchError(null); // Clear previous errors
 
     let finalAvatarUrl = newAvatarUrlInput.trim();
     if (finalAvatarUrl && !finalAvatarUrl.startsWith('http://') && !finalAvatarUrl.startsWith('https://')) {
-      toast({ title: "Invalid Avatar URL", description: "Please enter a valid URL (http:// or https://) or leave it empty to use the default.", variant: "destructive" });
+      toast({ title: "Invalid Avatar URL", description: "Please enter a valid URL (http:// or https://) or leave it empty for default.", variant: "destructive" });
       setIsSaving(false);
       return;
     }
     if (!finalAvatarUrl) { 
       finalAvatarUrl = defaultAvatarPlaceholder(name.trim());
     }
-
 
     const skillsArray = authUser.role === 'developer' ? skills.split(",").map(s => s.trim()).filter(s => s.length > 0) : undefined;
     const portfolioUrlsArray = authUser.role === 'developer' ? portfolioUrls.split(",").map(url => url.trim()).filter(url => url.length > 0 && (url.startsWith('http://') || url.startsWith('https://'))) : undefined;
@@ -189,64 +169,68 @@ export default function ProfilePage() {
         return;
     }
 
-
     const trimmedBio = bio.trim();
+    const trimmedResumeFileName = resumeFileName.trim();
+    const trimmedPastProjects = pastProjects.trim();
 
     const updatedData: Partial<Omit<User, 'id' | 'createdAt' | 'email' | 'role'>> = {
       name: name.trim(),
-      bio: trimmedBio ? trimmedBio : deleteField() as any,
       avatarUrl: finalAvatarUrl,
+      bio: trimmedBio ? trimmedBio : deleteField() as any,
     };
 
     if (authUser.role === 'developer') {
       updatedData.skills = skillsArray;
       updatedData.portfolioUrls = portfolioUrlsArray;
-      updatedData.experienceLevel = experienceLevel || ''; // Ensure empty string if not set
-      updatedData.hourlyRate = hourlyRateNum;
-      updatedData.resumeFileUrl = trimmedResumeUrl || deleteField() as any;
-      updatedData.resumeFileName = resumeFileName.trim() || deleteField() as any;
-      updatedData.pastProjects = pastProjects.trim() || deleteField() as any;
+      updatedData.experienceLevel = experienceLevel || ''; 
+      updatedData.hourlyRate = hourlyRateNum === undefined ? deleteField() as any : hourlyRateNum;
+      updatedData.resumeFileUrl = trimmedResumeUrl ? trimmedResumeUrl : deleteField() as any;
+      updatedData.resumeFileName = trimmedResumeFileName ? trimmedResumeFileName : deleteField() as any;
+      updatedData.pastProjects = trimmedPastProjects ? trimmedPastProjects : deleteField() as any;
+    } else { // For non-developers, ensure these fields are removed if they somehow exist
+      updatedData.skills = deleteField() as any;
+      updatedData.portfolioUrls = deleteField() as any;
+      updatedData.experienceLevel = deleteField() as any;
+      updatedData.hourlyRate = deleteField() as any;
+      updatedData.resumeFileUrl = deleteField() as any;
+      updatedData.resumeFileName = deleteField() as any;
+      updatedData.pastProjects = deleteField() as any;
     }
 
     try {
       await updateUser(authUser.id, updatedData);
 
-      const updatedAuthUser: User = {
-        ...authUser,
-        name: updatedData.name || authUser.name,
-        bio: trimmedBio || undefined, 
-        avatarUrl: updatedData.avatarUrl || authUser.avatarUrl,
-        skills: authUser.role === 'developer' ? skillsArray : authUser.skills,
-        portfolioUrls: authUser.role === 'developer' ? portfolioUrlsArray : authUser.portfolioUrls,
-        experienceLevel: authUser.role === 'developer' ? (experienceLevel || '') : authUser.experienceLevel,
-        hourlyRate: authUser.role === 'developer' ? hourlyRateNum : authUser.hourlyRate,
-        resumeFileUrl: authUser.role === 'developer' ? (trimmedResumeUrl || undefined) : authUser.resumeFileUrl,
-        resumeFileName: authUser.role === 'developer' ? (resumeFileName.trim() || undefined) : authUser.resumeFileName,
-        pastProjects: authUser.role === 'developer' ? (pastProjects.trim() || undefined) : authUser.pastProjects,
-      };
-      updateAuthContextUser(updatedAuthUser);
-
-      // Update initialData to reflect the saved state
-      setInitialData(prev => ({
-        ...prev,
-        name: updatedData.name,
-        bio: trimmedBio || undefined,
-        skills: skillsArray,
-        portfolioUrls: portfolioUrlsArray,
-        experienceLevel: experienceLevel || '',
-        avatarUrl: finalAvatarUrl,
-        hourlyRate: hourlyRateNum,
-        resumeFileUrl: trimmedResumeUrl || undefined,
-        resumeFileName: resumeFileName.trim() || undefined,
-        pastProjects: pastProjects.trim() || undefined,
-      }));
+      // Update AuthContext user and initialData state for this page
+      const refreshedUserData = await getUserById(authUser.id);
+      if (refreshedUserData) {
+        updateAuthContextUser(refreshedUserData);
+        setInitialData(refreshedUserData);
+        populateFormFields(refreshedUserData);
+      } else {
+        // Fallback if user couldn't be re-fetched, update with what we have
+         const updatedAuthUserContextData: User = {
+            ...authUser,
+            name: updatedData.name || authUser.name,
+            bio: trimmedBio || undefined, 
+            avatarUrl: finalAvatarUrl || authUser.avatarUrl,
+            skills: authUser.role === 'developer' ? skillsArray : authUser.skills,
+            portfolioUrls: authUser.role === 'developer' ? portfolioUrlsArray : authUser.portfolioUrls,
+            experienceLevel: authUser.role === 'developer' ? (experienceLevel || '') : authUser.experienceLevel,
+            hourlyRate: authUser.role === 'developer' ? hourlyRateNum : authUser.hourlyRate,
+            resumeFileUrl: authUser.role === 'developer' ? (trimmedResumeUrl || undefined) : authUser.resumeFileUrl,
+            resumeFileName: authUser.role === 'developer' ? (trimmedResumeFileName || undefined) : authUser.resumeFileName,
+            pastProjects: authUser.role === 'developer' ? (trimmedPastProjects || undefined) : authUser.pastProjects,
+        };
+        updateAuthContextUser(updatedAuthUserContextData);
+        setInitialData(updatedAuthUserContextData);
+        populateFormFields(updatedAuthUserContextData);
+      }
       
-      setCurrentAvatarUrl(finalAvatarUrl); // Ensure displayed avatar updates
-
       setIsEditing(false);
       toast({ title: "Profile Updated", description: "Your changes have been saved." });
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : "Failed to save profile changes.";
+      setFetchError(errorMsg); // Display error more prominently
       toast({ title: "Save Error", description: errorMsg, variant: "destructive" });
     } finally {
       setIsSaving(false);
@@ -272,7 +256,7 @@ export default function ProfilePage() {
     );
   }
 
-  if (fetchError || !authUser) {
+  if (fetchError && !isEditing) { // Show fetch error only if not in edit mode (to avoid overriding save errors)
      return (
       <ProtectedPage>
         <div className="container mx-auto p-4 md:p-6 lg:p-8">
@@ -287,7 +271,18 @@ export default function ProfilePage() {
       </ProtectedPage>
     );
   }
+  
+  if (!authUser) {
+     return (
+      <ProtectedPage> {/* This will handle redirect to login if authUser is truly null after loading */}
+        <div className="container mx-auto p-4 md:p-6 lg:p-8 text-center">
+            <p className="text-muted-foreground">User not authenticated.</p>
+        </div>
+      </ProtectedPage>
+    );
+  }
 
+  // Determine if there are actual changes to save
   const hasChanges = isEditing && (
     name.trim() !== (initialData.name || "") ||
     (newAvatarUrlInput.trim() || defaultAvatarPlaceholder(name.trim())) !== (initialData.avatarUrl || defaultAvatarPlaceholder(initialData.name)) ||
@@ -302,6 +297,7 @@ export default function ProfilePage() {
       pastProjects !== (initialData.pastProjects || "")
     ))
   );
+
 
   return (
     <ProtectedPage>
@@ -322,6 +318,16 @@ export default function ProfilePage() {
           </Button>
         </header>
 
+        {fetchError && isEditing && ( // Display save errors when in edit mode
+             <Alert variant="destructive" className="mb-6">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Save Error</AlertTitle>
+                <AlertDescription>
+                {fetchError} Please check your input and try again.
+                </AlertDescription>
+            </Alert>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <Card className="md:col-span-1 shadow-lg">
             <CardHeader className="items-center text-center">
@@ -334,15 +340,15 @@ export default function ProfilePage() {
                 {authUser.role === "client" ? <Briefcase className="h-4 w-4" /> : <UserCircle2 className="h-4 w-4" />}
                 {authUser.role}
               </CardDescription>
-               {authUser.role === "developer" && (initialData.hourlyRate !== undefined && initialData.hourlyRate > 0) && (
+               {authUser.role === "developer" && ((isEditing ? parseFloat(hourlyRate) : initialData.hourlyRate) ?? -1) >= 0 && (
                 <p className="text-sm text-primary font-semibold mt-1 flex items-center justify-center gap-1">
                   <DollarSign className="h-4 w-4" />
-                  ${initialData.hourlyRate}/hr
+                  ${(isEditing ? hourlyRate : initialData.hourlyRate?.toString()) || '0'}/hr
                 </p>
               )}
             </CardHeader>
             <CardContent className="text-center">
-              <p className="text-sm text-muted-foreground">{initialData.email}</p>
+              <p className="text-sm text-muted-foreground">{email}</p>
             </CardContent>
           </Card>
 
@@ -365,7 +371,7 @@ export default function ProfilePage() {
 
               <div>
                 <Label htmlFor="email">Email Address</Label>
-                 <p className="text-lg p-2 border rounded-md bg-muted/30 text-muted-foreground min-h-[40px]">{initialData.email} (Not editable)</p>
+                 <p className="text-lg p-2 border rounded-md bg-muted/30 text-muted-foreground min-h-[40px]">{email} (Not editable)</p>
               </div>
 
               {isEditing && (
@@ -378,7 +384,7 @@ export default function ProfilePage() {
                     onChange={(e) => setNewAvatarUrlInput(e.target.value)}
                     disabled={isSaving}
                   />
-                   <p className="text-xs text-muted-foreground mt-1">Enter a full URL to an image, or leave blank to use the default placeholder.</p>
+                   <p className="text-xs text-muted-foreground mt-1">Enter a full URL to an image, or leave blank for a default placeholder.</p>
                 </div>
               )}
 
@@ -496,7 +502,7 @@ export default function ProfilePage() {
               {isEditing && (
                 <Button
                   onClick={handleSaveChanges}
-                  className="w-full md:w-auto"
+                  className="w-full md:w-auto mt-4"
                   disabled={isSaving || !name.trim() || !hasChanges}
                 >
                   {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}

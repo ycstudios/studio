@@ -30,6 +30,11 @@ export default function AdminUserDetailPage() {
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const fetchUser = useCallback(async () => {
+    if (!userId) {
+        setIsLoading(false);
+        setError("User ID is missing from the URL.");
+        return;
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -48,13 +53,8 @@ export default function AdminUserDetailPage() {
   }, [userId]);
 
   useEffect(() => {
-    if (userId) {
-      fetchUser();
-    } else {
-      setIsLoading(false);
-      setError("No user ID provided.");
-    }
-  }, [userId, fetchUser]);
+    fetchUser();
+  }, [fetchUser]);
 
   const handleToggleFlag = async () => {
     if (!adminUser || !user) {
@@ -75,10 +75,10 @@ export default function AdminUserDetailPage() {
         details: { newFlagStatus: !(user.isFlagged || false) }
       });
 
-      const updatedUser = await getUserById(user.id);
+      const updatedUser = await getUserById(user.id); // Re-fetch to get latest
       if (updatedUser) {
-        setUser(updatedUser);
-        updateSingleUserInList(updatedUser);
+        setUser(updatedUser); // Update local state for this page
+        updateSingleUserInList(updatedUser); // Update global list in AuthContext
       }
 
       toast({
@@ -111,10 +111,10 @@ export default function AdminUserDetailPage() {
         targetName: user.name || "Unnamed User",
         details: { newAccountStatus: newStatus }
       });
-      const updatedUser = await getUserById(user.id);
+      const updatedUser = await getUserById(user.id); // Re-fetch to get latest
       if (updatedUser) {
-        setUser(updatedUser);
-        updateSingleUserInList(updatedUser);
+        setUser(updatedUser); // Update local state
+        updateSingleUserInList(updatedUser); // Update global list
       }
       toast({
         title: "Account Status Updated",
@@ -169,7 +169,7 @@ export default function AdminUserDetailPage() {
     );
   }
 
-  const capitalizedStatus = user.accountStatus.charAt(0).toUpperCase() + user.accountStatus.slice(1).replace(/_/g, ' ');
+  const capitalizedStatus = user.accountStatus ? (user.accountStatus.charAt(0).toUpperCase() + user.accountStatus.slice(1).replace(/_/g, ' ')) : "Unknown";
 
   return (
     <ProtectedPage allowedRoles={["admin"]}>
@@ -338,6 +338,7 @@ export default function AdminUserDetailPage() {
                 variant={user.isFlagged ? "default" : "destructive"}
                 onClick={handleToggleFlag}
                 disabled={isTogglingFlag || isUpdatingStatus}
+                aria-label={user.isFlagged ? `Unflag ${user.name}` : `Flag ${user.name}`}
               >
                 {isTogglingFlag ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Flag className="mr-2 h-4 w-4" />}
                 {isTogglingFlag ? (user.isFlagged ? "Unflagging..." : "Flagging...") : (user.isFlagged ? "Unflag User" : "Flag User")}
@@ -349,6 +350,7 @@ export default function AdminUserDetailPage() {
                     className="border-green-500 text-green-600 hover:bg-green-500/10"
                     onClick={() => handleUpdateAccountStatus('active')}
                     disabled={isUpdatingStatus || isTogglingFlag}
+                    aria-label={`Approve developer ${user.name}`}
                   >
                     {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckSquare className="mr-2 h-4 w-4" />}
                     Approve Developer
@@ -358,6 +360,7 @@ export default function AdminUserDetailPage() {
                     className="border-destructive text-destructive hover:bg-destructive/10"
                     onClick={() => handleUpdateAccountStatus('rejected')}
                     disabled={isUpdatingStatus || isTogglingFlag}
+                    aria-label={`Reject developer ${user.name}`}
                   >
                     {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : <XSquare className="mr-2 h-4 w-4" />}
                     Reject Developer
@@ -368,7 +371,6 @@ export default function AdminUserDetailPage() {
           </Card>
         </div>
 
-        {/* Placeholder for more detailed activity/history specific to this user */}
         <Card className="mt-8 shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -393,26 +395,31 @@ export default function AdminUserDetailPage() {
   );
 }
 
-function AccountStatusBadge({ status, className }: { status?: UserType["accountStatus"]; className?: string }) {
+interface AccountStatusBadgeProps {
+    status?: UserType["accountStatus"];
+    className?: string;
+}
+
+function AccountStatusBadge({ status, className }: AccountStatusBadgeProps) {
   let bgColor = "bg-muted text-muted-foreground";
   let icon = <Clock className="h-4 w-4" />;
   let currentStatus = status || "unknown";
   let capitalizedStatus = currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1).replace(/_/g, ' ');
 
   if (currentStatus === "active") {
-    bgColor = "bg-green-500/20 text-green-700 dark:text-green-300";
+    bgColor = "bg-green-500/20 text-green-700 dark:bg-green-300/20 dark:text-green-300";
     icon = <CheckSquare className="h-4 w-4" />;
   } else if (currentStatus === "pending_approval") {
-    bgColor = "bg-yellow-500/20 text-yellow-700 dark:text-yellow-300";
+    bgColor = "bg-yellow-500/20 text-yellow-700 dark:bg-yellow-300/20 dark:text-yellow-300";
     icon = <Clock className="h-4 w-4" />;
   } else if (currentStatus === "rejected") {
-    bgColor = "bg-red-500/20 text-red-700 dark:text-red-300";
+    bgColor = "bg-red-500/20 text-red-700 dark:bg-red-300/20 dark:text-red-300";
     icon = <XSquare className="h-4 w-4" />;
   } else if (currentStatus === "suspended") {
-    bgColor = "bg-orange-500/20 text-orange-700 dark:text-orange-300";
+    bgColor = "bg-orange-500/20 text-orange-700 dark:bg-orange-300/20 dark:text-orange-300";
     icon = <ShieldAlert className="h-4 w-4" />;
   } else {
-     bgColor = "bg-gray-500/20 text-gray-700 dark:text-gray-300";
+     bgColor = "bg-gray-500/20 text-gray-700 dark:bg-gray-300/20 dark:text-gray-300";
      icon = <Info className="h-4 w-4" />;
      capitalizedStatus = "Unknown";
   }

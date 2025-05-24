@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Copy, Gift, Share2, Users, Info, Loader2, AlertTriangle } from "lucide-react";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
-import React, { useEffect, useState } from "react"; 
+import React, { useEffect, useState, useCallback } from "react"; 
 import { getReferredClients } from "@/lib/firebaseService";
 import type { User as UserType } from "@/types";
 import { format } from 'date-fns';
@@ -24,43 +24,40 @@ export default function ReferralsPage() {
   const [isLoadingReferred, setIsLoadingReferred] = useState(false);
   const [fetchReferredError, setFetchReferredError] = useState<string | null>(null);
 
+  const fetchClients = useCallback(async (code: string) => {
+    setIsLoadingReferred(true);
+    setFetchReferredError(null);
+    try {
+      const clients = await getReferredClients(code);
+      setReferredClients(clients);
+    } catch (e) {
+      console.error("Failed to fetch referred clients:", e);
+      const errorMsg = e instanceof Error ? e.message : "Could not retrieve referred clients list.";
+      setFetchReferredError(errorMsg);
+    } finally {
+      setIsLoadingReferred(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (user?.referralCode) {
       setReferralCode(user.referralCode);
       if (typeof window !== 'undefined') {
         setReferralLink(`${window.location.origin}/signup?ref=${user.referralCode}`);
       }
-
-      // Fetch referred clients
-      const fetchClients = async () => {
-        setIsLoadingReferred(true);
-        setFetchReferredError(null);
-        try {
-          const clients = await getReferredClients(user.referralCode!);
-          setReferredClients(clients);
-        } catch (e) {
-          console.error("Failed to fetch referred clients:", e);
-          const errorMsg = e instanceof Error ? e.message : "Could not retrieve referred clients list.";
-          setFetchReferredError(errorMsg);
-          toast({
-            title: "Error Fetching Referred Clients",
-            description: errorMsg,
-            variant: "destructive",
-          });
-        } finally {
-          setIsLoadingReferred(false);
-        }
-      };
-      fetchClients();
-
+      fetchClients(user.referralCode);
     } else if (user && !user.referralCode && !authLoading) {
        setReferralCode("Not yet available");
        setReferralLink("Not yet available");
+    } else if (!authLoading) {
+      // Handle case where user is loaded but no referral code (e.g., older user)
+      setReferralCode("N/A");
+      setReferralLink("N/A");
     }
-  }, [user, authLoading, toast]);
+  }, [user, authLoading, fetchClients]);
 
   const copyToClipboard = (text: string) => {
-    if (text === "Not yet available" || !text || text === "Loading...") {
+    if (text === "Not yet available" || !text || text === "Loading..." || text === "N/A") {
       toast({ title: "Info", description: "Referral code/link is not available to copy yet.", variant: "default" });
       return;
     }
@@ -68,7 +65,6 @@ export default function ReferralsPage() {
       toast({ title: "Copied!", description: `${text} copied to clipboard.` });
     }).catch(err => {
       toast({ title: "Failed to copy", description: "Could not copy text.", variant: "destructive" });
-      console.error('Failed to copy text: ', err);
     });
   };
 
@@ -107,11 +103,11 @@ export default function ReferralsPage() {
               <p className="text-muted-foreground">Share this unique link with your network. When someone signs up as a client using your link, you get rewarded.</p>
               <div className="flex items-center space-x-2 p-3 border rounded-lg bg-muted">
                 <input type="text" value={referralLink || "Loading..."} readOnly className="flex-grow bg-transparent outline-none text-sm break-all" />
-                <Button variant="ghost" size="icon" onClick={() => copyToClipboard(referralLink)} className="flex-shrink-0" disabled={!referralLink || referralLink === "Loading..." || referralLink === "Not yet available"}>
+                <Button variant="ghost" size="icon" onClick={() => copyToClipboard(referralLink)} className="flex-shrink-0" disabled={!referralLink || referralLink === "Loading..." || referralLink === "Not yet available" || referralLink === "N/A"}>
                   <Copy className="h-4 w-4" />
                 </Button>
               </div>
-              <Button className="w-full" onClick={() => copyToClipboard(referralLink)} disabled={!referralLink || referralLink === "Loading..." || referralLink === "Not yet available"}>
+              <Button className="w-full" onClick={() => copyToClipboard(referralLink)} disabled={!referralLink || referralLink === "Loading..." || referralLink === "Not yet available" || referralLink === "N/A"}>
                 <Copy className="mr-2 h-4 w-4" /> Copy Link
               </Button>
             </CardContent>
@@ -130,11 +126,11 @@ export default function ReferralsPage() {
               <p className="text-muted-foreground">Alternatively, they can enter your referral code during signup. You'll earn for new clients.</p>
                <div className="flex items-center space-x-2 p-3 border rounded-lg bg-muted">
                 <input type="text" value={referralCode || "Loading..."} readOnly className="flex-grow bg-transparent outline-none text-sm font-semibold" />
-                <Button variant="ghost" size="icon" onClick={() => copyToClipboard(referralCode)} className="flex-shrink-0" disabled={!referralCode || referralCode === "Loading..." || referralCode === "Not yet available"}>
+                <Button variant="ghost" size="icon" onClick={() => copyToClipboard(referralCode)} className="flex-shrink-0" disabled={!referralCode || referralCode === "Loading..." || referralCode === "Not yet available" || referralCode === "N/A"}>
                   <Copy className="h-4 w-4" />
                 </Button>
               </div>
-              <Button variant="outline" className="w-full" onClick={() => copyToClipboard(referralCode)} disabled={!referralCode || referralCode === "Loading..." || referralCode === "Not yet available"}>
+              <Button variant="outline" className="w-full" onClick={() => copyToClipboard(referralCode)} disabled={!referralCode || referralCode === "Loading..." || referralCode === "Not yet available" || referralCode === "N/A"}>
                 <Copy className="mr-2 h-4 w-4" /> Copy Code
               </Button>
             </CardContent>
@@ -183,10 +179,11 @@ export default function ReferralsPage() {
                   <p className="text-muted-foreground">Loading your referred clients...</p>
                 </div>
               ) : fetchReferredError ? (
-                <div className="flex items-center justify-center text-center p-8 border-2 border-dashed border-destructive rounded-lg">
-                    <AlertTriangle className="h-8 w-8 text-destructive mr-3" />
-                    <p className="text-destructive-foreground">Error: {fetchReferredError}</p>
-                </div>
+                 <Alert variant="destructive" className="my-4">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Error Loading Referred Clients</AlertTitle>
+                    <AlertDescription>{fetchReferredError} Please try again later.</AlertDescription>
+                  </Alert>
               ) : referredClients.length === 0 ? (
                 <div className="flex items-center justify-center text-center p-8 border-2 border-dashed rounded-lg">
                     <Info className="h-8 w-8 text-muted-foreground mr-3" />
@@ -210,7 +207,7 @@ export default function ReferralsPage() {
                           <TableCell className="font-medium">{client.name}</TableCell>
                           <TableCell>{client.email}</TableCell>
                           <TableCell>
-                            {client.createdAt ? format(new Date(client.createdAt as any), 'PPP') : 'N/A'}
+                            {client.createdAt ? format(client.createdAt instanceof Date ? client.createdAt : new Date((client.createdAt as any).seconds * 1000), 'PPP') : 'N/A'}
                           </TableCell>
                         </TableRow>
                       ))}

@@ -150,9 +150,9 @@ export default function AdminPage() {
         details: { newFlagStatus: !currentStatus }
       });
       
-      const updatedUser = await getUserById(userIdToFlag);
+      const updatedUser = await getUserById(userIdToFlag); // Re-fetch to get the latest version
       if (updatedUser) {
-        updateSingleUserInList(updatedUser);
+        updateSingleUserInList(updatedUser); // Update AuthContext
       }
 
       toast({
@@ -185,9 +185,9 @@ export default function AdminPage() {
         targetName: userName,
         details: { newAccountStatus: newStatus }
       });
-      const updatedUser = await getUserById(userIdToUpdate);
+      const updatedUser = await getUserById(userIdToUpdate); // Re-fetch to get the latest version
       if (updatedUser) {
-        updateSingleUserInList(updatedUser);
+        updateSingleUserInList(updatedUser); // Update AuthContext
       }
       toast({
         title: "Account Status Updated",
@@ -377,7 +377,7 @@ function UserTable({ users, onToggleFlag, onUpdateStatus, isTogglingFlagId, isUp
                 {user.createdAt ? format(user.createdAt instanceof Date ? user.createdAt : new Date((user.createdAt as any).seconds * 1000), "PP") : 'N/A'}
               </TableCell>
               {user.role === 'developer' && (
-                <TableCell className="min-w-[150px]">
+                <TableCell className="min-w-[150px] max-w-[300px] truncate">
                   {user.skills && user.skills.length > 0 
                     ? user.skills.join(", ") 
                     : <span className="text-muted-foreground italic">No skills</span>}
@@ -392,6 +392,7 @@ function UserTable({ users, onToggleFlag, onUpdateStatus, isTogglingFlagId, isUp
                       className="border-green-500 text-green-600 hover:bg-green-500/10"
                       onClick={() => onUpdateStatus(user.id, 'active', user.email, user.name)}
                       disabled={isUpdatingStatusId === user.id}
+                      aria-label={`Approve developer ${user.name}`}
                     >
                       {isUpdatingStatusId === user.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckSquare className="mr-2 h-4 w-4" />}
                       Approve
@@ -402,6 +403,7 @@ function UserTable({ users, onToggleFlag, onUpdateStatus, isTogglingFlagId, isUp
                        className="border-destructive text-destructive hover:bg-destructive/10"
                       onClick={() => onUpdateStatus(user.id, 'rejected', user.email, user.name)}
                       disabled={isUpdatingStatusId === user.id}
+                      aria-label={`Reject developer ${user.name}`}
                     >
                        {isUpdatingStatusId === user.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <XSquare className="mr-2 h-4 w-4" />}
                       Reject
@@ -414,6 +416,7 @@ function UserTable({ users, onToggleFlag, onUpdateStatus, isTogglingFlagId, isUp
                   onClick={() => onToggleFlag(user.id, user.isFlagged || false, user.name || 'Unknown User')}
                   disabled={isTogglingFlagId === user.id}
                   className={user.isFlagged ? "border-destructive text-destructive hover:bg-destructive/10" : ""}
+                  aria-label={user.isFlagged ? `Unflag user ${user.name}` : `Flag user ${user.name}`}
                 >
                   {isTogglingFlagId === user.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Flag className="mr-2 h-4 w-4" />}
                   {user.isFlagged ? "Unflag" : "Flag"}
@@ -489,7 +492,7 @@ function ProjectTable({ projects, allUsers }: ProjectTableProps) {
 
 function ProjectStatusBadge({ status }: { status?: Project["status"] }) {
   let bgColor = "bg-muted text-muted-foreground";
-  let dotColor = "bg-gray-500";
+  let dotColor = "bg-gray-500 dark:bg-gray-400";
   let icon = <Clock className="mr-1.5 h-3 w-3" />;
   let currentStatus = status || "Unknown";
 
@@ -508,9 +511,10 @@ function ProjectStatusBadge({ status }: { status?: Project["status"] }) {
     bgColor = "bg-red-500/20 text-red-700 dark:bg-red-300/20 dark:text-red-300";
     dotColor = "bg-red-500 dark:bg-red-400";
     icon = <Info className="mr-1.5 h-3 w-3" />;
-  } else if (currentStatus === "Unknown") {
+  } else { // Unknown
      bgColor = "bg-gray-500/20 text-gray-700 dark:bg-gray-300/20 dark:text-gray-300";
      dotColor = "bg-gray-500 dark:bg-gray-400";
+     currentStatus = "Unknown";
   }
 
 
@@ -544,7 +548,7 @@ function AccountStatusBadge({ status }: { status?: UserType["accountStatus"] }) 
   } else if (currentStatus === "suspended") {
     bgColor = "bg-orange-500/20 text-orange-700 dark:bg-orange-300/20 dark:text-orange-300";
     icon = <ShieldAlert className="mr-1.5 h-3 w-3" />;
-  } else { // Unknown
+  } else { 
      bgColor = "bg-gray-500/20 text-gray-700 dark:bg-gray-300/20 dark:text-gray-300";
      icon = <Info className="mr-1.5 h-3 w-3" />;
      capitalizedStatus = "Unknown";
@@ -557,4 +561,3 @@ function AccountStatusBadge({ status }: { status?: UserType["accountStatus"] }) 
     </Badge>
   );
 }
-

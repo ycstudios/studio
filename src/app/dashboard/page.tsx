@@ -1,13 +1,13 @@
 
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { ProtectedPage } from "@/components/ProtectedPage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
-import { Briefcase, PlusCircle, Search, Eye, UserCheck, CheckCircle, Clock, Loader2, Info, AlertTriangle, FileText } from "lucide-react"; // Added FileText
+import { Briefcase, PlusCircle, Search, Eye, UserCheck, CheckCircle, Clock, Loader2, Info, AlertTriangle, FileText } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import type { Project } from "@/types";
@@ -46,33 +46,34 @@ export default function DashboardPage() {
 
 function ClientDashboard() {
   const { user } = useAuth();
-  const { toast } = useToast();
+  const { toast } = useToast(); // Keep for potential future use
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (user?.id) {
-      const fetchProjects = async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-          const clientProjects = await getProjectsByClientId(user.id);
-          setProjects(clientProjects);
-        } catch (e) {
-          console.error("Failed to fetch client projects:", e);
-          const errorMsg = e instanceof Error ? e.message : "Could not retrieve your projects.";
-          setError(errorMsg);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      fetchProjects();
-    } else {
-      setIsLoading(false); 
+  const fetchClientProjects = useCallback(async () => {
+    if (!user?.id) {
+      setIsLoading(false);
       setError("User not authenticated. Cannot fetch projects.");
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      const clientProjects = await getProjectsByClientId(user.id);
+      setProjects(clientProjects);
+    } catch (e) {
+      console.error("Failed to fetch client projects:", e);
+      const errorMsg = e instanceof Error ? e.message : "Could not retrieve your projects.";
+      setError(errorMsg);
+    } finally {
+      setIsLoading(false);
     }
   }, [user?.id]);
+
+  useEffect(() => {
+    fetchClientProjects();
+  }, [fetchClientProjects]);
 
   if (isLoading) {
     return (
@@ -159,7 +160,7 @@ function ClientDashboard() {
 
 function ProjectStatusBadge({ status }: { status?: Project["status"] }) {
   let bgColor = "bg-muted text-muted-foreground";
-  let dotColor = "bg-gray-500 dark:bg-gray-400"; // Explicit dark mode color for dot
+  let dotColor = "bg-gray-500 dark:bg-gray-400"; 
   let icon = <Clock className="mr-1.5 h-3 w-3" />;
   let currentStatus = status || "Unknown";
 
@@ -178,8 +179,10 @@ function ProjectStatusBadge({ status }: { status?: Project["status"] }) {
     bgColor = "bg-red-500/20 text-red-700 dark:bg-red-300/20 dark:text-red-300";
     dotColor = "bg-red-500 dark:bg-red-400";
     icon = <Info className="mr-1.5 h-3 w-3" />;
-  } else { // Unknown
+  } else { 
      bgColor = "bg-gray-500/20 text-gray-700 dark:bg-gray-300/20 dark:text-gray-300";
+     dotColor = "bg-gray-500 dark:bg-gray-400";
+     currentStatus = "Unknown"; // Ensure display text is "Unknown"
   }
 
 
@@ -200,23 +203,24 @@ function DeveloperDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchOpenProjects = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const allProjects = await getAllProjects();
-        setProjects(allProjects.filter(p => p.status === "Open"));
-      } catch (e) {
-        console.error("Failed to fetch open projects:", e);
-        const errorMsg = e instanceof Error ? e.message : "Could not retrieve open projects.";
-        setError(errorMsg);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchOpenProjects();
+  const fetchOpenProjects = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const allProjects = await getAllProjects();
+      setProjects(allProjects.filter(p => p.status === "Open"));
+    } catch (e) {
+      console.error("Failed to fetch open projects:", e);
+      const errorMsg = e instanceof Error ? e.message : "Could not retrieve open projects.";
+      setError(errorMsg);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchOpenProjects();
+  }, [fetchOpenProjects]);
 
   if (isLoading) {
     return (
@@ -307,5 +311,3 @@ function DeveloperDashboard() {
     </section>
   );
 }
-
-    
