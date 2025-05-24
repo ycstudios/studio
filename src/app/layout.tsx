@@ -1,13 +1,13 @@
 
 import type {Metadata} from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
-import Script from 'next/script'; 
+import Script from 'next/script';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { Header } from "@/components/layout/Header";
-import { Footer } from "@/components/layout/Footer"; 
+import { Footer } from "@/components/layout/Footer";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { ThemeProvider } from "@/components/ThemeProvider"; 
+import { ThemeProvider } from "@/components/ThemeProvider";
 import { siteConfig } from '@/config/site';
 
 const geistSans = Geist({
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   },
   description: siteConfig.description,
   icons: {
-    icon: "/favicon.ico", 
+    icon: "/favicon.ico",
   },
 };
 
@@ -41,26 +41,24 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased min-h-screen bg-background flex flex-col`}>
         <ThemeProvider
           attribute="class"
-          defaultTheme="dark" 
+          defaultTheme="dark"
           enableSystem
           disableTransitionOnChange
         >
           <AuthProvider>
             <Header />
-            <main className="flex-1 flex flex-col">{children}</main> 
+            <main className="flex-1 flex flex-col">{children}</main>
             <Toaster />
-            <Footer /> 
+            <Footer />
           </AuthProvider>
         </ThemeProvider>
 
-        {/* 
-          Tawk.to Live Chat Widget Script 
+        {/*
+          Tawk.to Live Chat Widget Script
           =========================================================================
-          IMPORTANT: FOR PRODUCTION, YOU MUST REPLACE 
-                     'YOUR_PROPERTY_ID' and 'YOUR_WIDGET_ID' 
-                     in the s1.src URL below with your actual IDs 
-                     obtained from your Tawk.to dashboard.
-                     Example: s1.src='https://embed.tawk.to/1234567890abcdef/1gh2ij3kl';
+          Ensure the src URL below contains your correct Property ID and Widget ID
+          obtained from your Tawk.to dashboard.
+          Example: s1.src='https://embed.tawk.to/YOUR_PROPERTY_ID/YOUR_WIDGET_ID';
           =========================================================================
         */}
         <Script id="tawk-to-script" strategy="afterInteractive">
@@ -69,8 +67,7 @@ export default function RootLayout({
             (function(){
             var s1=document.createElement("script"),s0=document.getElementsByTagName("script")[0];
             s1.async=true;
-            // IMPORTANT: Replace YOUR_PROPERTY_ID and YOUR_WIDGET_ID with your actual IDs
-            s1.src='https://embed.tawk.to/YOUR_PROPERTY_ID/YOUR_WIDGET_ID'; 
+            s1.src='https://embed.tawk.to/6831c5119dbb8e1916ee687d/1is16jjg3';
             s1.charset='UTF-8';
             s1.setAttribute('crossorigin','*');
             s0.parentNode.insertBefore(s1,s0);
