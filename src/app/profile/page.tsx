@@ -1,3 +1,4 @@
+
 "use client";
 
 import { ProtectedPage } from "@/components/ProtectedPage";
@@ -53,13 +54,13 @@ export default function ProfilePage() {
 
   return (
     <ProtectedPage>
-      <div className="container mx-auto p-4 md:p-8">
-        <header className="mb-8 flex justify-between items-center">
+      <div className="container mx-auto p-4 md:p-6 lg:p-8">
+        <header className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Your Profile</h1>
             <p className="text-muted-foreground">Manage your account settings and public profile.</p>
           </div>
-          <Button onClick={handleEditToggle} variant={isEditing ? "secondary" : "default"}>
+          <Button onClick={handleEditToggle} variant={isEditing ? "secondary" : "default"} className="w-full sm:w-auto">
             {isEditing ? <Save className="mr-2 h-4 w-4" /> : <Edit3 className="mr-2 h-4 w-4" />}
             {isEditing ? "Save Changes" : "Edit Profile"}
           </Button>

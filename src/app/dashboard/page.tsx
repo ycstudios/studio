@@ -1,3 +1,4 @@
+
 "use client";
 
 import { ProtectedPage } from "@/components/ProtectedPage";
@@ -26,7 +27,7 @@ export default function DashboardPage() {
 
   return (
     <ProtectedPage>
-      <div className="container mx-auto p-4 md:p-8">
+      <div className="container mx-auto p-4 md:p-6 lg:p-8">
         <header className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight">Welcome to your Dashboard, {user?.name}!</h1>
           <p className="text-muted-foreground">Here&apos;s an overview of your activities on DevConnect.</p>
@@ -42,9 +43,9 @@ export default function DashboardPage() {
 function ClientDashboard() {
   return (
     <section>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h2 className="text-2xl font-semibold">Your Projects</h2>
-        <Button asChild>
+        <Button asChild className="w-full sm:w-auto">
           <Link href="/projects/new">
             <PlusCircle className="mr-2 h-4 w-4" /> Submit New Project
           </Link>
@@ -68,7 +69,7 @@ function ClientDashboard() {
                     width={600}
                     height={300}
                     data-ai-hint={project.dataAiHint}
-                    className="rounded-md object-cover aspect-video"
+                    className="rounded-md object-cover aspect-video w-full h-auto"
                   />
               </CardContent>
               <CardFooter>
@@ -115,7 +116,7 @@ function ProjectStatusBadge({ status }: { status: string }) {
     dotColor = "bg-purple-500";
   }
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bgColor}`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${bgColor} whitespace-nowrap`}>
       <svg className={`-ml-0.5 mr-1.5 h-2 w-2 ${dotColor}`} fill="currentColor" viewBox="0 0 8 8">
         <circle cx="4" cy="4" r="3" />
       </svg>
@@ -144,7 +145,7 @@ function DeveloperDashboard() {
                   width={600}
                   height={300}
                   data-ai-hint={project.dataAiHint}
-                  className="rounded-md object-cover aspect-video mb-4"
+                  className="rounded-md object-cover aspect-video mb-4 w-full h-auto"
                 />
               <p className="text-sm font-medium mb-1">Required Skills:</p>
               <div className="flex flex-wrap gap-2">

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { ProtectedPage } from "@/components/ProtectedPage";
@@ -23,7 +24,7 @@ export default function ReferralsPage() {
 
   return (
     <ProtectedPage>
-      <div className="container mx-auto p-4 md:p-8">
+      <div className="container mx-auto p-4 md:p-6 lg:p-8">
         <header className="mb-8 text-center">
           <Gift className="mx-auto h-16 w-16 text-primary mb-4" />
           <h1 className="text-4xl font-bold tracking-tight">Refer & Earn</h1>
@@ -43,8 +44,8 @@ export default function ReferralsPage() {
             <CardContent className="space-y-4">
               <p className="text-muted-foreground">Share this unique link with your network. When someone signs up using your link, you get rewarded.</p>
               <div className="flex items-center space-x-2 p-3 border rounded-lg bg-muted">
-                <input type="text" value={referralLink} readOnly className="flex-grow bg-transparent outline-none text-sm" />
-                <Button variant="ghost" size="icon" onClick={() => copyToClipboard(referralLink)}>
+                <input type="text" value={referralLink} readOnly className="flex-grow bg-transparent outline-none text-sm break-all" />
+                <Button variant="ghost" size="icon" onClick={() => copyToClipboard(referralLink)} className="flex-shrink-0">
                   <Copy className="h-4 w-4" />
                 </Button>
               </div>
@@ -67,7 +68,7 @@ export default function ReferralsPage() {
               <p className="text-muted-foreground">Alternatively, they can enter your referral code during signup.</p>
                <div className="flex items-center space-x-2 p-3 border rounded-lg bg-muted">
                 <input type="text" value={referralCode} readOnly className="flex-grow bg-transparent outline-none text-sm font-semibold" />
-                <Button variant="ghost" size="icon" onClick={() => copyToClipboard(referralCode)}>
+                <Button variant="ghost" size="icon" onClick={() => copyToClipboard(referralCode)} className="flex-shrink-0">
                   <Copy className="h-4 w-4" />
                 </Button>
               </div>
@@ -108,7 +109,7 @@ export default function ReferralsPage() {
         </Card>
         
         <div className="mt-12 text-center">
-            <Image src="https://placehold.co/800x300.png" alt="Referral Banner" data-ai-hint="people network" width={800} height={300} className="rounded-lg mx-auto shadow-md" />
+            <Image src="https://placehold.co/800x300.png" alt="Referral Banner" data-ai-hint="people network" width={800} height={300} className="rounded-lg mx-auto shadow-md w-full h-auto max-w-[800px]" />
         </div>
       </div>
     </ProtectedPage>

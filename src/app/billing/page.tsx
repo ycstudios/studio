@@ -25,7 +25,7 @@ const invoices = [
 export default function BillingPage() {
   return (
     <ProtectedPage>
-      <div className="container mx-auto p-4 md:p-8">
+      <div className="container mx-auto p-4 md:p-6 lg:p-8">
         <header className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight flex items-center"><DollarSign className="mr-3 h-8 w-8 text-primary" />Billing & Payments</h1>
           <p className="text-muted-foreground">Manage your payment methods, subscriptions, and view your invoice history.</p>

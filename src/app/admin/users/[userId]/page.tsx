@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Briefcase, UserCircle2, FileText, AlertTriangle, Info, Loader2 } from "lucide-react";
 import type { User as UserType } from "@/types";
-import { getUserById } from "@/lib/firebaseService"; // Import Firestore service
+import { getUserById } from "@/lib/firebaseService"; 
 import { useToast } from "@/hooks/use-toast";
 
 export default function AdminUserDetailPage() {
@@ -19,7 +19,7 @@ export default function AdminUserDetailPage() {
   const userId = params.userId as string;
   const { toast } = useToast();
 
-  const [user, setUser] = useState<UserType | null | undefined>(undefined); // undefined: loading, null: not found
+  const [user, setUser] = useState<UserType | null | undefined>(undefined); 
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -36,7 +36,7 @@ export default function AdminUserDetailPage() {
             description: "Could not retrieve user details from the database.",
             variant: "destructive",
           });
-          setUser(null); // Set to null on error
+          setUser(null); 
         } finally {
           setIsLoading(false);
         }
@@ -44,7 +44,7 @@ export default function AdminUserDetailPage() {
       fetchUser();
     } else {
       setIsLoading(false);
-      setUser(null); // No userId, so no user
+      setUser(null); 
     }
   }, [userId, toast]);
 
@@ -56,10 +56,10 @@ export default function AdminUserDetailPage() {
     return name.substring(0, 2).toUpperCase();
   };
 
-  if (isLoading || user === undefined) { // user === undefined means initial loading state
+  if (isLoading || user === undefined) { 
     return (
       <ProtectedPage allowedRoles={["admin"]}>
-        <div className="container mx-auto p-4 md:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
+        <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
           <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
           <p className="text-muted-foreground">Loading user details from database...</p>
         </div>
@@ -67,10 +67,10 @@ export default function AdminUserDetailPage() {
     );
   }
 
-  if (!user) { // user === null means user not found or error fetching
+  if (!user) { 
     return (
       <ProtectedPage allowedRoles={["admin"]}>
-        <div className="container mx-auto p-4 md:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
+        <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
           <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
           <h1 className="text-2xl font-semibold mb-2">User Not Found</h1>
           <p className="text-muted-foreground">The user with ID '{userId}' could not be found in the database.</p>
@@ -84,14 +84,14 @@ export default function AdminUserDetailPage() {
 
   return (
     <ProtectedPage allowedRoles={["admin"]}>
-      <div className="container mx-auto p-4 md:p-8">
+      <div className="container mx-auto p-4 md:p-6 lg:p-8">
         <Button onClick={() => router.push('/admin')} variant="outline" className="mb-6">
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Admin Panel
         </Button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* User Profile Card */}
-          <Card className="lg:col-span-1 shadow-lg">
+          <Card className="md:col-span-1 shadow-lg">
             <CardHeader className="items-center text-center">
               <Avatar className="h-24 w-24 mb-4 ring-2 ring-primary ring-offset-2">
                 <AvatarImage src={user.avatarUrl || `https://placehold.co/150x150.png`} alt={user.name} data-ai-hint="profile avatar" />
@@ -109,7 +109,7 @@ export default function AdminUserDetailPage() {
           </Card>
 
           {/* User Details */}
-          <Card className="lg:col-span-2 shadow-lg">
+          <Card className="md:col-span-2 shadow-lg">
             <CardHeader>
               <CardTitle>User Details</CardTitle>
               <CardDescription>Viewing profile information for {user.name} from Firestore.</CardDescription>

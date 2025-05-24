@@ -27,7 +27,7 @@ export default function AdminPage() {
   if (authLoading) {
     return (
       <ProtectedPage allowedRoles={["admin"]}>
-        <div className="container mx-auto p-4 md:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
+        <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
           <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
           <p className="text-muted-foreground">Loading users from database...</p>
         </div>
@@ -37,7 +37,7 @@ export default function AdminPage() {
 
   return (
     <ProtectedPage allowedRoles={["admin"]}>
-      <div className="container mx-auto p-4 md:p-8">
+      <div className="container mx-auto p-4 md:p-6 lg:p-8">
         <header className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight flex items-center">
             <ShieldAlert className="mr-3 h-8 w-8 text-primary" />

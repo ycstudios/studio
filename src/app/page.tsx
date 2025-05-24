@@ -39,7 +39,7 @@ export default function HomePage() {
               height="500"
               alt="Team collaborating on a project"
               data-ai-hint="modern office collaboration"
-              className="mx-auto aspect-video overflow-hidden rounded-xl object-cover shadow-2xl transform hover:scale-105 transition-transform duration-300"
+              className="mx-auto aspect-video overflow-hidden rounded-xl object-cover shadow-2xl transform hover:scale-105 transition-transform duration-300 w-full h-auto"
             />
           </div>
         </div>
@@ -100,7 +100,7 @@ export default function HomePage() {
               height="450"
               alt="Client reviewing developer profiles"
               data-ai-hint="client meeting business"
-              className="mx-auto rounded-xl object-cover shadow-lg"
+              className="mx-auto rounded-xl object-cover shadow-lg w-full h-auto"
             />
           </div>
         </div>
@@ -116,7 +116,7 @@ export default function HomePage() {
               height="450"
               alt="Developer working on a laptop"
               data-ai-hint="developer coding programming"
-              className="mx-auto rounded-xl object-cover shadow-lg lg:order-last"
+              className="mx-auto rounded-xl object-cover shadow-lg lg:order-last w-full h-auto"
             />
             <div>
               <div className="inline-block rounded-lg bg-accent/10 px-4 py-1.5 text-sm font-semibold text-accent mb-4">For Developers</div>
@@ -211,7 +211,7 @@ export default function HomePage() {
               Join DevConnect today. Whether you're a client with an idea or a developer ready for your next challenge, we're here to make the connection.
             </p>
           </div>
-          <div className="mx-auto w-full max-w-sm space-y-3 sm:flex sm:space-y-0 sm:space-x-4 sm:justify-center">
+          <div className="mx-auto w-full max-w-sm space-y-3 sm:flex sm:flex-row sm:space-y-0 sm:space-x-4 sm:justify-center">
              <Button size="lg" asChild className="w-full sm:w-auto shadow-lg hover:shadow-primary/40 transition-shadow">
                 <Link href="/signup">Sign Up - It's Free!</Link>
               </Button>
@@ -275,4 +275,3 @@ function TestimonialCard({ quote, name, avatarHint }: TestimonialCardProps) {
     </Card>
   );
 }
-

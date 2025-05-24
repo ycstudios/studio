@@ -1,3 +1,4 @@
+
 "use client";
 
 import { ProtectedPage } from "@/components/ProtectedPage";
@@ -71,7 +72,7 @@ export default function ProjectMatchmakingPage() {
   if (isLoading) {
     return (
       <ProtectedPage allowedRoles={["client"]}>
-        <div className="container mx-auto p-4 md:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
+        <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
           <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
           <p className="text-muted-foreground text-lg">Loading project details and matches...</p>
         </div>
@@ -82,7 +83,7 @@ export default function ProjectMatchmakingPage() {
   if (!project) {
     return (
       <ProtectedPage allowedRoles={["client"]}>
-        <div className="container mx-auto p-4 md:p-8 text-center">
+        <div className="container mx-auto p-4 md:p-6 lg:p-8 text-center">
           <Info className="h-16 w-16 text-destructive mx-auto mb-4" />
           <h1 className="text-2xl font-semibold mb-2">Project Not Found</h1>
           <p className="text-muted-foreground">We couldn&apos;t find the details for this project. It might have been removed or the ID is incorrect.</p>
@@ -93,7 +94,7 @@ export default function ProjectMatchmakingPage() {
 
   return (
     <ProtectedPage allowedRoles={["client"]}>
-      <div className="container mx-auto p-4 md:p-8 space-y-8">
+      <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="text-3xl">{project.name}</CardTitle>
