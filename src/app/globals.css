@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -89,4 +90,20 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Custom animation for heart blinking */
+@keyframes heart-blink {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
+.animate-heart-blink {
+  animation: heart-blink 1.5s infinite ease-in-out;
 }

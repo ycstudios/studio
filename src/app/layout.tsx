@@ -5,6 +5,7 @@ import Script from 'next/script'; // Import the Script component
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { Header } from "@/components/layout/Header";
+import { Footer } from "@/components/layout/Footer"; // Import Footer
 import { AuthProvider } from "@/contexts/AuthContext";
 import { siteConfig } from '@/config/site';
 
@@ -39,8 +40,9 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased min-h-screen bg-background flex flex-col`}>
         <AuthProvider>
           <Header />
-          <main className="flex-1">{children}</main>
+          <main className="flex-1 flex flex-col">{children}</main> {/* Ensure main content can take available space */}
           <Toaster />
+          <Footer /> {/* Add Footer here */}
         </AuthProvider>
 
         {/* Tawk.to Script - Replace YOUR_PROPERTY_ID and YOUR_WIDGET_ID */}
