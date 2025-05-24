@@ -28,6 +28,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { deleteField } from "firebase/firestore";
 
 const experienceLevels: User["experienceLevel"][] = ['', 'Entry', 'Junior', 'Mid-level', 'Senior', 'Lead', 'Principal'];
 
@@ -48,7 +49,7 @@ export default function ProfilePage() {
   const [newAvatarUrlInput, setNewAvatarUrlInput] = useState("");
   const [portfolioUrls, setPortfolioUrls] = useState("");
   const [experienceLevel, setExperienceLevel] = useState<User["experienceLevel"]>('');
-  const [hourlyRate, setHourlyRate] = useState<string>(""); // Stored as string for input, converted to number on save
+  const [hourlyRate, setHourlyRate] = useState<string>("");
 
   const [initialData, setInitialData] = useState<Partial<User>>({});
 
@@ -79,7 +80,7 @@ export default function ProfilePage() {
         setSkills(fetchedUser.skills?.join(", ") || "");
         const avatarToDisplay = fetchedUser.avatarUrl || defaultAvatarPlaceholder(fetchedUser.name);
         setCurrentAvatarUrl(avatarToDisplay);
-        setNewAvatarUrlInput(fetchedUser.avatarUrl || "");
+        setNewAvatarUrlInput(fetchedUser.avatarUrl || ""); // Initialize input with current URL or empty
         setPortfolioUrls(fetchedUser.portfolioUrls?.join(", ") || "");
         setExperienceLevel(fetchedUser.experienceLevel || '');
         setHourlyRate(fetchedUser.hourlyRate?.toString() || "");
@@ -116,7 +117,6 @@ export default function ProfilePage() {
 
   const handleEditToggle = () => {
     if (isEditing) {
-      // Revert form fields to initialData
       setName(initialData.name || "");
       setBio(initialData.bio || (authUser?.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
       setSkills(initialData.skills?.join(", ") || "");
@@ -127,7 +127,8 @@ export default function ProfilePage() {
       setExperienceLevel(initialData.experienceLevel || '');
       setHourlyRate(initialData.hourlyRate?.toString() || "");
     } else {
-      setNewAvatarUrlInput(initialData.avatarUrl || "");
+      // When entering edit mode, set the newAvatarUrlInput to current, or empty if it's the default
+      setNewAvatarUrlInput(initialData.avatarUrl && initialData.avatarUrl !== defaultAvatarPlaceholder(initialData.name) ? initialData.avatarUrl : "");
     }
     setIsEditing(!isEditing);
   };
@@ -151,9 +152,10 @@ export default function ProfilePage() {
       setIsSaving(false);
       return;
     }
-    if (!finalAvatarUrl) {
+    if (!finalAvatarUrl) { // If input is empty, use default placeholder
       finalAvatarUrl = defaultAvatarPlaceholder(name.trim());
     }
+
 
     const skillsArray = skills.split(",").map(s => s.trim()).filter(s => s.length > 0);
     const portfolioUrlsArray = portfolioUrls.split(",").map(url => url.trim()).filter(url => url.length > 0 && (url.startsWith('http://') || url.startsWith('https://')));
@@ -164,10 +166,11 @@ export default function ProfilePage() {
         return;
     }
 
+    const trimmedBio = bio.trim();
 
     const updatedData: Partial<Omit<User, 'id' | 'createdAt' | 'email' | 'role'>> = {
       name: name.trim(),
-      bio: bio.trim() || null,
+      bio: trimmedBio ? trimmedBio : deleteField() as any, // Use deleteField() if bio is empty
       avatarUrl: finalAvatarUrl,
     };
 
@@ -175,7 +178,7 @@ export default function ProfilePage() {
       updatedData.skills = skillsArray;
       updatedData.portfolioUrls = portfolioUrlsArray;
       updatedData.experienceLevel = experienceLevel;
-      updatedData.hourlyRate = hourlyRateNum; // Can be undefined if cleared
+      updatedData.hourlyRate = hourlyRateNum;
     }
 
     try {
@@ -184,7 +187,7 @@ export default function ProfilePage() {
       const updatedAuthUser: User = {
         ...authUser,
         name: updatedData.name || authUser.name,
-        bio: updatedData.bio === null ? undefined : (updatedData.bio || authUser.bio),
+        bio: trimmedBio || undefined, // Reflect undefined if bio was cleared
         avatarUrl: updatedData.avatarUrl || authUser.avatarUrl,
         skills: authUser.role === 'developer' ? skillsArray : authUser.skills,
         portfolioUrls: authUser.role === 'developer' ? portfolioUrlsArray : authUser.portfolioUrls,
@@ -196,8 +199,8 @@ export default function ProfilePage() {
       setCurrentAvatarUrl(finalAvatarUrl);
       setInitialData(prev => ({
         ...prev,
-        ...updatedData,
-        bio: updatedData.bio === null ? undefined : updatedData.bio,
+        name: updatedData.name,
+        bio: trimmedBio || undefined,
         skills: skillsArray,
         portfolioUrls: portfolioUrlsArray,
         experienceLevel,
@@ -293,14 +296,14 @@ export default function ProfilePage() {
                 {authUser.role === "client" ? <Briefcase className="h-4 w-4" /> : <UserCircle2 className="h-4 w-4" />}
                 {authUser.role}
               </CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <p className="text-sm text-muted-foreground">{initialData.email}</p>
-              {authUser.role === "developer" && initialData.hourlyRate !== undefined && (
+               {authUser.role === "developer" && (initialData.hourlyRate !== undefined && initialData.hourlyRate > 0) && (
                 <p className="text-sm text-primary font-semibold mt-1">
                   ${initialData.hourlyRate}/hr
                 </p>
               )}
+            </CardHeader>
+            <CardContent className="text-center">
+              <p className="text-sm text-muted-foreground">{initialData.email}</p>
             </CardContent>
           </Card>
 
@@ -470,3 +473,4 @@ export default function ProfilePage() {
     </ProtectedPage>
   );
 }
+
