@@ -20,9 +20,10 @@ export interface User {
   currentPlan?: string;
   planPrice?: string;
   isFlagged?: boolean;
-  accountStatus: AccountStatus; // Added
-  resumeFileUrl?: string; // Added for developer context
-  resumeFileName?: string; // Added for developer context
+  accountStatus: AccountStatus;
+  resumeFileUrl?: string; 
+  resumeFileName?: string; 
+  pastProjects?: string; // New: For developer's description of past projects
 }
 
 export interface Project {
@@ -67,4 +68,3 @@ export interface AdminActivityLog {
   timestamp: Timestamp;
   details?: Record<string, any>; // Any additional relevant information (e.g., old_status, new_status)
 }
-

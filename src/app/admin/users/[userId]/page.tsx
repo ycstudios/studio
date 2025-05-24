@@ -9,11 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ArrowLeft, Briefcase, UserCircle2, FileText, AlertTriangle, Info, Loader2, Flag, ShieldCheck, ShieldX, Link as LinkIcon, CheckSquare, XSquare, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Briefcase, UserCircle2, FileText, AlertTriangle, Info, Loader2, Flag, ShieldCheck, ShieldX, Link as LinkIcon, CheckSquare, XSquare, ShieldAlert, Clock } from "lucide-react";
 import type { User as UserType, AccountStatus } from "@/types";
 import { getUserById, toggleUserFlag, addAdminActivityLog, updateUserAccountStatus } from "@/lib/firebaseService"; 
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { format } from "date-fns";
 
 export default function AdminUserDetailPage() {
   const params = useParams();
@@ -181,7 +182,7 @@ export default function AdminUserDetailPage() {
           <Card className="md:col-span-1 shadow-lg">
             <CardHeader className="items-center text-center">
               <Avatar className="h-24 w-24 mb-4 ring-2 ring-primary ring-offset-2">
-                <AvatarImage src={user.avatarUrl || `https://placehold.co/150x150.png`} alt={user.name || 'User'} data-ai-hint="profile avatar" />
+                <AvatarImage src={user.avatarUrl || `https://placehold.co/100x100.png`} alt={user.name || 'User'} data-ai-hint="profile avatar" />
                 <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
               </Avatar>
               <CardTitle className="text-2xl">{user.name || "Unnamed User"}</CardTitle>
@@ -198,11 +199,9 @@ export default function AdminUserDetailPage() {
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-sm text-muted-foreground">{user.email}</p>
-               {user.resumeFileUrl && user.role === 'developer' && (
-                <Button variant="link" asChild className="mt-2 text-xs">
-                  <a href={user.resumeFileUrl} target="_blank" rel="noopener noreferrer">View Resume</a>
-                </Button>
-              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                Joined: {user.createdAt ? format(user.createdAt instanceof Date ? user.createdAt : new Date((user.createdAt as any).seconds * 1000), 'PPP') : 'N/A'}
+              </p>
             </CardContent>
           </Card>
 
@@ -240,54 +239,80 @@ export default function AdminUserDetailPage() {
                   <p className="text-base text-foreground bg-muted/30 p-3 rounded-md whitespace-pre-wrap">{user.bio}</p>
                 </div>
               )}
-              {user.role === "developer" && user.skills && user.skills.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Skills</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {user.skills.map((skill, index) => (
-                      <Badge key={index} variant="secondary">{skill}</Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-               {user.role === "developer" && (!user.skills || user.skills.length === 0) && (
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Skills</h3>
-                  <p className="italic text-muted-foreground">No skills listed.</p>
-                </div>
-              )}
-               {user.role === "developer" && user.portfolioUrls && user.portfolioUrls.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Portfolio URLs</h3>
-                  <ul className="space-y-1">
-                    {user.portfolioUrls.map((url, index) => (
-                        <li key={index} className="text-sm flex items-center">
-                        <LinkIcon className="h-3 w-3 mr-1.5 text-muted-foreground" />
-                        <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">{url}</a>
-                        </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {user.role === "developer" && (!user.portfolioUrls || user.portfolioUrls.length === 0) && (
-                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Portfolio URLs</h3>
-                  <p className="italic text-muted-foreground">No portfolio URLs listed.</p>
-                </div>
-              )}
               {user.role === "developer" && (
-                 <>
+                <>
+                  {user.skills && user.skills.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground mb-1">Skills</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {user.skills.map((skill, index) => (
+                          <Badge key={index} variant="secondary">{skill}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(!user.skills || user.skills.length === 0) && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground mb-1">Skills</h3>
+                      <p className="italic text-muted-foreground">No skills listed.</p>
+                    </div>
+                  )}
+                  
+                  {user.experienceLevel && (
                     <div>
                         <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Experience Level</h3>
-                        <p className="text-base">{user.experienceLevel || <span className="italic text-muted-foreground">Not specified</span>}</p>
+                        <p className="text-base">{user.experienceLevel}</p>
                     </div>
+                  )}
+                  {(!user.experienceLevel) && (
+                     <div>
+                        <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Experience Level</h3>
+                        <p className="italic text-muted-foreground">Not specified.</p>
+                    </div>
+                  )}
+
+                  {user.portfolioUrls && user.portfolioUrls.length > 0 && (
                     <div>
-                        <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Resume</h3>
-                        {user.resumeFileUrl ? (
-                             <a href={user.resumeFileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-base">{user.resumeFileName || "View Resume"}</a>
-                        ) : <p className="italic text-muted-foreground">No resume uploaded.</p>}
+                      <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Portfolio URLs</h3>
+                      <ul className="space-y-1">
+                        {user.portfolioUrls.map((url, index) => (
+                            <li key={index} className="text-sm flex items-center">
+                            <LinkIcon className="h-3 w-3 mr-1.5 text-muted-foreground" />
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">{url}</a>
+                            </li>
+                        ))}
+                      </ul>
                     </div>
-                 </>
+                  )}
+                  {(!user.portfolioUrls || user.portfolioUrls.length === 0) && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Portfolio URLs</h3>
+                      <p className="italic text-muted-foreground">No portfolio URLs listed.</p>
+                    </div>
+                  )}
+
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Resume</h3>
+                    {user.resumeFileUrl ? (
+                         <a href={user.resumeFileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-base flex items-center gap-1">
+                           <FileText className="h-4 w-4" /> {user.resumeFileName || "View Resume"}
+                         </a>
+                    ) : <p className="italic text-muted-foreground">No resume URL provided.</p>}
+                  </div>
+
+                  {user.pastProjects && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Past Project Highlights</h3>
+                      <p className="text-base text-foreground bg-muted/30 p-3 rounded-md whitespace-pre-wrap">{user.pastProjects}</p>
+                    </div>
+                  )}
+                   {(!user.pastProjects) && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Past Project Highlights</h3>
+                      <p className="italic text-muted-foreground">No past projects described.</p>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
             <CardFooter className="flex-wrap gap-2">
@@ -325,6 +350,7 @@ export default function AdminUserDetailPage() {
           </Card>
         </div>
 
+        {/* Placeholder for more detailed activity/history specific to this user */}
         <Card className="mt-8 shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -336,7 +362,7 @@ export default function AdminUserDetailPage() {
             <div className="flex items-center justify-center text-center p-8 border-2 border-dashed rounded-lg">
               <Info className="h-8 w-8 text-muted-foreground mr-3" />
               <p className="text-muted-foreground">
-                {user.role === "client" ? "Client project history, submitted projects, and communication logs will appear here once implemented." : "Developer project applications, completed projects, and engagement metrics will appear here once implemented."}
+                {user.role === "client" ? "Client project history, submitted projects, and communication logs will appear here." : "Developer project applications, completed projects, and engagement metrics will appear here."}
               </p>
             </div>
           </CardContent>
@@ -356,19 +382,19 @@ function AccountStatusBadge({ status, className }: { status?: UserType["accountS
   let capitalizedStatus = currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1).replace(/_/g, ' ');
 
   if (currentStatus === "active") {
-    bgColor = "bg-green-500/20 text-green-700 dark:bg-green-300/20 dark:text-green-300";
-    icon = <CheckCircle className="h-4 w-4" />;
+    bgColor = "bg-green-500/20 text-green-700 dark:text-green-300";
+    icon = <CheckSquare className="h-4 w-4" />;
   } else if (currentStatus === "pending_approval") {
-    bgColor = "bg-yellow-500/20 text-yellow-700 dark:bg-yellow-300/20 dark:text-yellow-300";
+    bgColor = "bg-yellow-500/20 text-yellow-700 dark:text-yellow-300";
     icon = <Clock className="h-4 w-4" />;
   } else if (currentStatus === "rejected") {
-    bgColor = "bg-red-500/20 text-red-700 dark:bg-red-300/20 dark:text-red-300";
+    bgColor = "bg-red-500/20 text-red-700 dark:text-red-300";
     icon = <XSquare className="h-4 w-4" />;
   } else if (currentStatus === "suspended") {
-    bgColor = "bg-orange-500/20 text-orange-700 dark:bg-orange-300/20 dark:text-orange-300";
+    bgColor = "bg-orange-500/20 text-orange-700 dark:text-orange-300";
     icon = <ShieldAlert className="h-4 w-4" />;
   } else { 
-     bgColor = "bg-gray-500/20 text-gray-700 dark:bg-gray-300/20 dark:text-gray-300";
+     bgColor = "bg-gray-500/20 text-gray-700 dark:text-gray-300";
      icon = <Info className="h-4 w-4" />;
      capitalizedStatus = "Unknown";
   }
@@ -382,10 +408,9 @@ function AccountStatusBadge({ status, className }: { status?: UserType["accountS
 }
 
 function AccountStatusIcon({ status, className }: { status?: UserType["accountStatus"]; className?: string }) {
-  if (status === "active") return <CheckCircle className={`text-green-600 ${className}`} />;
+  if (status === "active") return <CheckSquare className={`text-green-600 ${className}`} />;
   if (status === "pending_approval") return <Clock className={`text-yellow-600 ${className}`} />;
   if (status === "rejected") return <XSquare className={`text-destructive ${className}`} />;
   if (status === "suspended") return <ShieldAlert className={`text-orange-600 ${className}`} />;
   return <Info className={`text-muted-foreground ${className}`} />;
 }
-

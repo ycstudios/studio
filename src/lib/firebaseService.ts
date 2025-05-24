@@ -15,44 +15,21 @@ const USERS_COLLECTION = "users";
 const PROJECTS_COLLECTION = "projects";
 const ADMIN_ACTIVITY_LOGS_COLLECTION = "adminActivityLogs";
 
-interface UserWriteData extends Partial<Omit<User, 'id' | 'createdAt' | 'accountStatus'>> {
-  id: string;
-  name: string;
-  email: string;
-  role: User['role'];
-  createdAt: FieldValue;
-  accountStatus: AccountStatus;
-  referralCode: string;
-  currentPlan: string;
-  planPrice: string;
-  isFlagged: boolean;
-  bio?: string | FieldValue; // Allow FieldValue for deletion
-  avatarUrl?: string;
-  referredByCode?: string;
-  skills?: string[] | FieldValue;
-  portfolioUrls?: string[] | FieldValue;
-  experienceLevel?: User["experienceLevel"] | FieldValue;
-  resumeFileUrl?: string | FieldValue;
-  resumeFileName?: string | FieldValue;
-}
-
-
 // Helper to ensure date is constructed correctly from various Firestore timestamp formats
 function safeCreateDate(timestamp: any): Date | undefined {
     if (!timestamp) return undefined;
     if (timestamp instanceof Timestamp) {
         return timestamp.toDate();
     }
-    // Handle cases where timestamp might be a string, number, or a plain object from Firestore
     if (typeof timestamp === 'string' || typeof timestamp === 'number') {
         const date = new Date(timestamp);
-        if (!isNaN(date.getTime())) return date; // Check if the date is valid
+        if (!isNaN(date.getTime())) return date;
     }
-    // Handle Firestore's plain object representation of a Timestamp if not cast properly
     if (timestamp && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
         const date = new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate();
          if (!isNaN(date.getTime())) return date;
     }
+    console.warn("safeCreateDate encountered an unknown timestamp format:", timestamp);
     return undefined;
 }
 
@@ -66,19 +43,21 @@ const getInitialsForDefaultAvatar = (nameStr?: string) => {
 };
 
 
-export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice' | 'isFlagged' | 'accountStatus' | 'avatarUrl' | 'bio' | 'skills' | 'portfolioUrls' | 'experienceLevel' | 'resumeFileUrl' | 'resumeFileName'> & { id?: string, referredByCode?: string, resumeFileUrl?: string, resumeFileName?: string }): Promise<User> {
+export async function addUser(
+  userData: Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice' | 'isFlagged' | 'accountStatus' | 'avatarUrl' | 'bio'> & { id?: string, referredByCode?: string }
+): Promise<User> {
   if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
 
   const userId = userData.id || doc(collection(db, USERS_COLLECTION)).id;
   const generatedReferralCode = `CODECRAFT_${userId.substring(0, 8).toUpperCase()}`;
   const defaultAvatar = `https://placehold.co/100x100.png?text=${getInitialsForDefaultAvatar(userData.name)}`;
 
-  const userDocumentData: Partial<UserWriteData> = {
+  const userDocumentData: Partial<User> = { // Use Partial<User> for flexibility
+    id: userId, // Ensure ID is part of the data to be set
     name: userData.name,
     email: userData.email.toLowerCase(),
     role: userData.role,
-    id: userId,
-    createdAt: serverTimestamp(),
+    createdAt: serverTimestamp() as Timestamp, // serverTimestamp for Firestore
     bio: `New ${userData.role} on CodeCrafter.`,
     avatarUrl: defaultAvatar,
     referralCode: generatedReferralCode,
@@ -93,15 +72,16 @@ export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referra
   }
 
   if (userData.role === 'developer') {
-    userDocumentData.skills = [];
-    userDocumentData.portfolioUrls = [];
-    userDocumentData.experienceLevel = '';
-    userDocumentData.resumeFileUrl = userData.resumeFileUrl || undefined; // Store if provided
-    userDocumentData.resumeFileName = userData.resumeFileName || undefined; // Store if provided
+    userDocumentData.skills = userData.skills || [];
+    userDocumentData.portfolioUrls = userData.portfolioUrls || [];
+    userDocumentData.experienceLevel = userData.experienceLevel || '';
+    userDocumentData.resumeFileUrl = userData.resumeFileUrl || undefined;
+    userDocumentData.resumeFileName = userData.resumeFileName || undefined;
+    userDocumentData.pastProjects = userData.pastProjects || undefined;
   }
 
   try {
-    await setDoc(doc(db, USERS_COLLECTION, userId), userDocumentData as UserWriteData);
+    await setDoc(doc(db, USERS_COLLECTION, userId), userDocumentData);
 
     const welcomeEmailHtml = await getWelcomeEmailTemplate(userDocumentData.name!, userDocumentData.role!);
     await sendEmail(userDocumentData.email!, "Welcome to CodeCrafter!", welcomeEmailHtml);
@@ -122,20 +102,19 @@ export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referra
 export async function getAllUsers(): Promise<User[]> {
   if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   try {
-    const usersQuery = query(collection(db, USERS_COLLECTION), orderBy("createdAt", "desc")); // Order by name can be slow for many users, consider createdAt
+    const usersQuery = query(collection(db, USERS_COLLECTION), orderBy("createdAt", "desc"));
     const querySnapshot = await getDocs(usersQuery);
     const users: User[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
-      const userNameForAvatar = data.name || "U";
-      const defaultAvatar = `https://placehold.co/100x100.png?text=${getInitialsForDefaultAvatar(userNameForAvatar)}`;
+      const defaultAvatar = `https://placehold.co/100x100.png?text=${getInitialsForDefaultAvatar(data.name)}`;
       const user: User = {
         id: docSnap.id,
         name: data.name || "Unnamed User",
         email: data.email || "No email",
         role: data.role || "client",
         createdAt: safeCreateDate(data.createdAt),
-        bio: data.bio || (data.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."),
+        bio: data.bio || (data.role === 'developer' ? "Skilled developer." : "Client on CodeCrafter."),
         avatarUrl: data.avatarUrl || defaultAvatar,
         referralCode: data.referralCode || undefined,
         referredByCode: data.referredByCode || undefined,
@@ -143,11 +122,13 @@ export async function getAllUsers(): Promise<User[]> {
         planPrice: data.planPrice || "$0/month",
         isFlagged: data.isFlagged === true,
         accountStatus: data.accountStatus || (data.role === 'developer' ? 'pending_approval' : 'active'),
+        // Developer specific fields
         skills: data.role === 'developer' ? (Array.isArray(data.skills) ? data.skills : []) : undefined,
         portfolioUrls: data.role === 'developer' ? (Array.isArray(data.portfolioUrls) ? data.portfolioUrls : []) : undefined,
         experienceLevel: data.role === 'developer' ? (data.experienceLevel || '') as User["experienceLevel"] : undefined,
         resumeFileUrl: data.role === 'developer' ? (data.resumeFileUrl || undefined) : undefined,
         resumeFileName: data.role === 'developer' ? (data.resumeFileName || undefined) : undefined,
+        pastProjects: data.role === 'developer' ? (data.pastProjects || undefined) : undefined,
       };
       users.push(user);
     });
@@ -174,15 +155,14 @@ export async function getUserById(userId: string): Promise<User | null> {
 
     if (userDocSnap.exists()) {
       const data = userDocSnap.data();
-      const userNameForAvatar = data.name || "U";
-      const defaultAvatar = `https://placehold.co/100x100.png?text=${getInitialsForDefaultAvatar(userNameForAvatar)}`;
+      const defaultAvatar = `https://placehold.co/100x100.png?text=${getInitialsForDefaultAvatar(data.name)}`;
       const user: User = {
         id: userDocSnap.id,
         name: data.name || "Unnamed User",
         email: data.email || "No email",
         role: data.role || "client",
         createdAt: safeCreateDate(data.createdAt),
-        bio: data.bio || (data.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."),
+        bio: data.bio || (data.role === 'developer' ? "Skilled developer." : "Client on CodeCrafter."),
         avatarUrl: data.avatarUrl || defaultAvatar,
         referralCode: data.referralCode || undefined,
         referredByCode: data.referredByCode || undefined,
@@ -195,6 +175,7 @@ export async function getUserById(userId: string): Promise<User | null> {
         experienceLevel: data.role === 'developer' ? (data.experienceLevel || '') as User["experienceLevel"] : undefined,
         resumeFileUrl: data.role === 'developer' ? (data.resumeFileUrl || undefined) : undefined,
         resumeFileName: data.role === 'developer' ? (data.resumeFileName || undefined) : undefined,
+        pastProjects: data.role === 'developer' ? (data.pastProjects || undefined) : undefined,
       };
       return user;
     } else {
@@ -230,15 +211,14 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     if (!querySnapshot.empty) {
       const userDocSnap = querySnapshot.docs[0];
       const data = userDocSnap.data();
-      const userNameForAvatar = data.name || "U";
-      const defaultAvatar = `https://placehold.co/100x100.png?text=${getInitialsForDefaultAvatar(userNameForAvatar)}`;
+      const defaultAvatar = `https://placehold.co/100x100.png?text=${getInitialsForDefaultAvatar(data.name)}`;
       const user: User = {
         id: userDocSnap.id,
         name: data.name || "Unnamed User",
         email: data.email, 
         role: data.role || "client",
         createdAt: safeCreateDate(data.createdAt),
-        bio: data.bio || (data.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."),
+        bio: data.bio || (data.role === 'developer' ? "Skilled developer." : "Client on CodeCrafter."),
         avatarUrl: data.avatarUrl || defaultAvatar,
         referralCode: data.referralCode || undefined,
         referredByCode: data.referredByCode || undefined,
@@ -251,6 +231,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
         experienceLevel: data.role === 'developer' ? (data.experienceLevel || '') as User["experienceLevel"] : undefined,
         resumeFileUrl: data.role === 'developer' ? (data.resumeFileUrl || undefined) : undefined,
         resumeFileName: data.role === 'developer' ? (data.resumeFileName || undefined) : undefined,
+        pastProjects: data.role === 'developer' ? (data.pastProjects || undefined) : undefined,
       };
       return user;
     } else {
@@ -273,23 +254,20 @@ export async function updateUser(userId: string, data: Partial<Omit<User, 'id' |
   }
   try {
     const userDocRef = doc(db, USERS_COLLECTION, userId);
-    
-    // Create a mutable copy of the data to be updated
     const updateData: { [key: string]: any } = { ...data };
 
-    // Fetch current user data to determine role for field deletion logic
     const currentUserData = await getUserById(userId);
     if (!currentUserData) {
         throw new Error(`User ${userId} not found, cannot update.`);
     }
     const effectiveRole = currentUserData.role;
 
-    // Handle potential null values for deletion, or ensure types for specific fields
+    // Handle specific fields based on role and potential deletion
     if (updateData.hasOwnProperty('bio')) {
       updateData.bio = updateData.bio === null || updateData.bio === "" ? deleteField() : updateData.bio;
     }
-    if (updateData.hasOwnProperty('avatarUrl') && updateData.avatarUrl === "") {
-      updateData.avatarUrl = deleteField(); // If user clears avatar, delete field to use default
+    if (updateData.hasOwnProperty('avatarUrl') && (updateData.avatarUrl === "" || updateData.avatarUrl === `https://placehold.co/100x100.png?text=${getInitialsForDefaultAvatar(currentUserData.name)}`)) {
+        updateData.avatarUrl = deleteField();
     }
 
 
@@ -304,20 +282,23 @@ export async function updateUser(userId: string, data: Partial<Omit<User, 'id' |
         updateData.experienceLevel = typeof updateData.experienceLevel === 'string' ? updateData.experienceLevel : '';
       }
       if (updateData.hasOwnProperty('resumeFileUrl')) {
-        updateData.resumeFileUrl = updateData.resumeFileUrl || deleteField();
+        updateData.resumeFileUrl = updateData.resumeFileUrl?.trim() || deleteField();
       }
       if (updateData.hasOwnProperty('resumeFileName')) {
-        updateData.resumeFileName = updateData.resumeFileName || deleteField();
+        updateData.resumeFileName = updateData.resumeFileName?.trim() || deleteField();
       }
-    } else { // Not a developer, ensure developer-specific fields are removed if present in `data`
+      if (updateData.hasOwnProperty('pastProjects')) {
+        updateData.pastProjects = updateData.pastProjects?.trim() || deleteField();
+      }
+    } else { 
       if (data.hasOwnProperty('skills')) updateData.skills = deleteField();
       if (data.hasOwnProperty('portfolioUrls')) updateData.portfolioUrls = deleteField();
       if (data.hasOwnProperty('experienceLevel')) updateData.experienceLevel = deleteField();
       if (data.hasOwnProperty('resumeFileUrl')) updateData.resumeFileUrl = deleteField();
       if (data.hasOwnProperty('resumeFileName')) updateData.resumeFileName = deleteField();
+      if (data.hasOwnProperty('pastProjects')) updateData.pastProjects = deleteField();
     }
     
-    // Remove any top-level keys that are explicitly undefined
     Object.keys(updateData).forEach(key => {
         if (updateData[key] === undefined) {
             delete updateData[key]; 
@@ -356,7 +337,7 @@ export async function addProject(
       ...projectData,
       clientId,
       status: "Open" as Project["status"],
-      createdAt: serverTimestamp(),
+      createdAt: serverTimestamp() as Timestamp,
     };
     const projectDocRef = await addDoc(collection(db, PROJECTS_COLLECTION), projectWithMetadata);
 
@@ -369,7 +350,6 @@ export async function addProject(
         await sendEmail(clientEmail, `Your Project "${fetchedProject.name}" is Live!`, projectEmailHtml);
       } catch (emailError) {
         console.error("Failed to send project confirmation email:", emailError);
-        // Non-critical error, so we don't re-throw, but log it.
       }
     }
     return fetchedProject;
@@ -496,15 +476,14 @@ export async function getReferredClients(currentUserReferralCode: string): Promi
     const referredClientsQuery = query(
       collection(db, USERS_COLLECTION),
       where("referredByCode", "==", currentUserReferralCode),
-      where("role", "==", "client"), // Ensure we only fetch clients
+      where("role", "==", "client"), 
       orderBy("createdAt", "desc")
     );
     const querySnapshot = await getDocs(referredClientsQuery);
     const referredClientsData: User[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
-      const userNameForAvatar = data.name || "U";
-      const defaultAvatar = `https://placehold.co/100x100.png?text=${getInitialsForDefaultAvatar(userNameForAvatar)}`;
+      const defaultAvatar = `https://placehold.co/100x100.png?text=${getInitialsForDefaultAvatar(data.name)}`;
       referredClientsData.push({
         id: docSnap.id,
         name: data.name || "Unnamed User",
@@ -518,13 +497,13 @@ export async function getReferredClients(currentUserReferralCode: string): Promi
         currentPlan: data.currentPlan || "Free Tier",
         planPrice: data.planPrice || "$0/month",
         isFlagged: data.isFlagged === true,
-        accountStatus: data.accountStatus || 'active', // Default referred clients to active for simplicity here
-        // Developer specific fields are undefined for clients
-        skills: undefined, 
-        portfolioUrls: undefined,
-        experienceLevel: undefined,
-        resumeFileUrl: undefined,
-        resumeFileName: undefined,
+        accountStatus: data.accountStatus || 'active',
+        skills: data.role === 'developer' ? (Array.isArray(data.skills) ? data.skills : []) : undefined,
+        portfolioUrls: data.role === 'developer' ? (Array.isArray(data.portfolioUrls) ? data.portfolioUrls : []) : undefined,
+        experienceLevel: data.role === 'developer' ? (data.experienceLevel || '') as User["experienceLevel"] : undefined,
+        resumeFileUrl: data.role === 'developer' ? (data.resumeFileUrl || undefined) : undefined,
+        resumeFileName: data.role === 'developer' ? (data.resumeFileName || undefined) : undefined,
+        pastProjects: data.role === 'developer' ? (data.pastProjects || undefined) : undefined,
       });
     });
     return referredClientsData;
@@ -560,19 +539,18 @@ export async function toggleUserFlag(userId: string, currentFlagStatus: boolean)
 export async function addAdminActivityLog(logData: Omit<AdminActivityLog, 'id' | 'timestamp'>): Promise<void> {
   if (!db) {
     console.warn("Admin Activity Log: Firestore is not initialized. Log will not be saved.");
-    return; // Don't throw, as this is a non-critical background task
+    return; 
   }
 
   const logEntry: Omit<AdminActivityLog, 'id'> = {
     ...logData,
-    timestamp: serverTimestamp() as Timestamp, // Cast is okay here as Firestore handles it
+    timestamp: serverTimestamp() as Timestamp, 
   };
 
   try {
     await addDoc(collection(db, ADMIN_ACTIVITY_LOGS_COLLECTION), logEntry);
   } catch (error) {
     console.error("Error adding admin activity log:", error);
-    // Don't re-throw, as this is a background logging task.
   }
 }
 
@@ -587,7 +565,6 @@ export async function updateUserAccountStatus(userId: string, newStatus: Account
       accountStatus: newStatus,
     });
 
-    // Send notification emails
     if (newStatus === "active") {
       const approvedEmailHtml = await getDeveloperApprovedEmailTemplate(userName);
       await sendEmail(userEmail, "Your CodeCrafter Developer Account is Approved!", approvedEmailHtml);
@@ -595,7 +572,6 @@ export async function updateUserAccountStatus(userId: string, newStatus: Account
       const rejectedEmailHtml = await getDeveloperRejectedEmailTemplate(userName);
       await sendEmail(userEmail, "Update on Your CodeCrafter Developer Application", rejectedEmailHtml);
     }
-    // Could add emails for 'suspended' if needed
   } catch (error) {
     console.error(`Error updating account status for user ${userId} to ${newStatus}:`, error);
     if (error instanceof Error) {
@@ -604,4 +580,3 @@ export async function updateUserAccountStatus(userId: string, newStatus: Account
     throw new Error(`Could not update account status for user ${userId} due to an unknown error.`);
   }
 }
-

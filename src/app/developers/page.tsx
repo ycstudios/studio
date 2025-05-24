@@ -16,7 +16,7 @@ export default function DevelopersListPage() {
     setIsLoading(authLoading);
     if (!authLoading && allUsers) {
       const fetchedDevelopers = allUsers
-        .filter(u => u.role === 'developer')
+        .filter(u => u.role === 'developer' && u.accountStatus === 'active') // Only show active developers
         .sort((a, b) => (a.name || "").localeCompare(b.name || "")); 
       setDevelopers(fetchedDevelopers);
     }
@@ -36,10 +36,10 @@ export default function DevelopersListPage() {
       <header className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight flex items-center">
           <Users className="mr-3 h-8 w-8 text-primary" />
-          Browse Developers
+          Browse Active Developers
         </h1>
         <p className="text-muted-foreground">
-          Discover skilled developers available on the CodeCrafter platform. (Sorted alphabetically by name)
+          Discover skilled and approved developers available on the CodeCrafter platform. (Sorted alphabetically)
         </p>
       </header>
 
@@ -55,6 +55,9 @@ export default function DevelopersListPage() {
               avatarUrl={dev.avatarUrl}
               experienceLevel={dev.experienceLevel || ''}
               portfolioUrls={dev.portfolioUrls || []}
+              resumeFileUrl={dev.resumeFileUrl}
+              resumeFileName={dev.resumeFileName}
+              // pastProjects={dev.pastProjects} // Not displayed on card for brevity
               dataAiHint="developer profile" 
             />
           ))}
@@ -62,13 +65,12 @@ export default function DevelopersListPage() {
       ) : (
         <div className="text-center py-12">
           <Search className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
-          <h2 className="text-2xl font-semibold mb-2">No Developers Found</h2>
+          <h2 className="text-2xl font-semibold mb-2">No Active Developers Found</h2>
           <p className="text-muted-foreground">
-            There are currently no developers listed, or new developers are still being added. Please check back later.
+            There are currently no active developers listed. Please check back later or new developers are pending approval.
           </p>
         </div>
       )}
     </div>
   );
 }
-

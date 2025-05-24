@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, Briefcase, Link as LinkIcon, Star } from "lucide-react"; 
+import { Eye, Briefcase, Link as LinkIcon, Star, FileText } from "lucide-react"; 
 import type { User } from "@/types";
 import Link from "next/link";
 
@@ -16,8 +16,11 @@ interface DeveloperCardProps {
   dataAiHint?: string;
   experienceLevel?: User["experienceLevel"];
   portfolioUrls?: string[];
-  developerId?: string; // For linking to a full profile if needed
-  matchQuality?: "Strong Fit" | "Moderate Fit" | "Good Fit"; // For AI matchmaking results
+  resumeFileUrl?: string;
+  resumeFileName?: string;
+  pastProjects?: string;
+  developerId?: string; 
+  matchQuality?: "Strong Fit" | "Moderate Fit" | "Good Fit"; 
 }
 
 export function DeveloperCard({ 
@@ -28,6 +31,9 @@ export function DeveloperCard({
   dataAiHint, 
   experienceLevel, 
   portfolioUrls,
+  resumeFileUrl,
+  resumeFileName,
+  // pastProjects, // Not displayed directly on card for brevity
   developerId,
   matchQuality 
 }: DeveloperCardProps) {
@@ -69,10 +75,10 @@ export function DeveloperCard({
           <div>
             <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Skills</h4>
             <div className="flex flex-wrap gap-1">
-              {skills.slice(0, 5).map((skill, index) => ( // Show max 5 skills
+              {skills.slice(0, 3).map((skill, index) => ( 
                 <Badge key={index} variant="secondary" className="text-xs">{skill}</Badge>
               ))}
-              {skills.length > 5 && <Badge variant="outline" className="text-xs">+{skills.length - 5} more</Badge>}
+              {skills.length > 3 && <Badge variant="outline" className="text-xs">+{skills.length - 3} more</Badge>}
             </div>
           </div>
         )}
@@ -91,11 +97,26 @@ export function DeveloperCard({
             </a>
           </div>
         )}
+        {resumeFileUrl && (
+           <div>
+            <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-1 mt-2">Resume</h4>
+            <a 
+              href={resumeFileUrl} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-sm text-primary hover:underline flex items-center gap-1 truncate"
+            >
+              <FileText className="h-3.5 w-3.5 flex-shrink-0" /> 
+              <span className="truncate">{resumeFileName || "View Resume"}</span>
+            </a>
+          </div>
+        )}
       </CardContent>
       <CardFooter className="gap-2">
         {developerId ? (
             <Button variant="default" className="flex-1" asChild>
-                <Link href={`/admin/users/${developerId}`}> {/* Or a public developer profile page if it exists */}
+                 {/* Link to admin user detail page for now, could be public developer profile later */}
+                <Link href={`/admin/users/${developerId}`}> 
                     <Eye className="mr-2 h-4 w-4" /> View Profile
                 </Link>
             </Button>
@@ -108,4 +129,3 @@ export function DeveloperCard({
     </Card>
   );
 }
-
