@@ -108,7 +108,7 @@ export default function HomePage() {
                 <Link href="/projects/new">Post Your Project <ArrowRight className="ml-2 h-5 w-5" /></Link>
               </Button>
             </div>
-            <ImageCarousel images={clientCarouselImages} className="mx-auto w-full h-auto" />
+            <ImageCarousel images={clientCarouselImages} className="mx-auto w-full h-auto" interval={5000} />
           </div>
         </div>
       </section>
@@ -117,7 +117,7 @@ export default function HomePage() {
       <section className="w-full py-16 md:py-24 lg:py-32 bg-muted/30">
         <div className="container px-4 md:px-6">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
-             <ImageCarousel images={developerCarouselImages} className="mx-auto w-full h-auto lg:order-last" />
+             <ImageCarousel images={developerCarouselImages} className="mx-auto w-full h-auto lg:order-last" interval={5000} />
             <div>
               <div className="inline-block rounded-lg bg-accent/10 px-4 py-1.5 text-sm font-semibold text-accent mb-4">For Developers</div>
               <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl mb-6">Land Exciting Projects That Match Your Skills</h2>
