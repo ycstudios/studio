@@ -26,7 +26,8 @@ import {
   Bell,
   History,
   ArrowRight,
-  Settings
+  Settings,
+  Users // Added Users icon import
 } from "lucide-react";
 import type { User as UserType, Project } from "@/types";
 import Link from "next/link";
@@ -389,5 +390,4 @@ function ProjectStatusBadge({ status }: { status?: Project["status"] }) {
     </span>
   );
 }
-
 
