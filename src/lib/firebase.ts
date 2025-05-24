@@ -1,4 +1,6 @@
-import { initializeApp, getApps, getApp, type FirebaseOptions } from "firebase/app";
+
+// src/lib/firebase.ts
+import { initializeApp, getApps, getApp, type FirebaseApp, type FirebaseOptions } from "firebase/app";
 import { getFirestore, type Firestore } from "firebase/firestore";
 // import { getAuth } from "firebase/auth"; // We'll use this later for Firebase Auth
 
@@ -13,29 +15,40 @@ const firebaseConfig: FirebaseOptions = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID, // Optional
 };
 
-// Initialize Firebase
-let app;
-if (!getApps().length) {
-  if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-    console.error("Firebase configuration is missing or incomplete. Check your environment variables.");
-    // You might want to throw an error here or handle it more gracefully
-    // For now, we'll let it proceed and potentially fail at Firestore initialization
-    // to make it obvious during development if env vars are not set.
-  }
-  app = initializeApp(firebaseConfig);
+let app: FirebaseApp | undefined = undefined;
+let db: Firestore | undefined = undefined;
+
+// Check if essential config values are present BEFORE attempting to initialize
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+  console.error(
+    "CRITICAL Firebase Setup Error: NEXT_PUBLIC_FIREBASE_API_KEY or NEXT_PUBLIC_FIREBASE_PROJECT_ID is missing or empty in your environment variables. Firebase will not be initialized. Please check your .env.local file and Vercel environment variable configuration."
+  );
 } else {
-  app = getApp();
+  if (!getApps().length) {
+    try {
+      app = initializeApp(firebaseConfig);
+    } catch (e) {
+      console.error("CRITICAL Firebase Setup Error: Failed to initialize Firebase app. This might be due to invalid Firebase config values.", e);
+      app = undefined; // Ensure app is explicitly undefined on error
+    }
+  } else {
+    app = getApp();
+  }
+
+  if (app) {
+    try {
+      db = getFirestore(app);
+    } catch (e) {
+      console.error("CRITICAL Firebase Setup Error: Failed to initialize Firestore instance. Ensure Firestore is enabled in your Firebase project.", e);
+      db = undefined; // Ensure db is explicitly undefined on error
+    }
+  } else {
+    // This case means app initialization failed above or was skipped due to missing critical config
+    console.error("Firebase app was not initialized (likely due to config errors). Firestore cannot be accessed.");
+  }
 }
 
-let db: Firestore;
-try {
-  db = getFirestore(app);
-} catch (error) {
-  console.error("Could not initialize Firestore. Is Firebase configured correctly and Firestore enabled in your project?", error);
-  // Handle the case where db might not be initialized, e.g., by using a mock or throwing
-}
-
-// const auth = getAuth(app); // We'll use this later
+// const auth = getAuth(app); // We'll use this later if app is defined
 
 export { app, db };
 // export { app, db, auth }; // When auth is ready

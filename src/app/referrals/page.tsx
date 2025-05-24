@@ -1,4 +1,3 @@
-
 "use client";
 
 import { ProtectedPage } from "@/components/ProtectedPage";
@@ -219,7 +218,14 @@ export default function ReferralsPage() {
         </Card>
 
         <div className="mt-12 text-center">
-            <Image src="https://placehold.co/800x300.png" alt="Referral Banner" data-ai-hint="people network" width={800} height={300} className="rounded-lg mx-auto shadow-md w-full h-auto max-w-[800px]" />
+            <Image 
+              src="/images/referral-banner.png" 
+              alt="Referral Banner" 
+              data-ai-hint="people network" 
+              width={800} 
+              height={300} 
+              className="rounded-lg mx-auto shadow-md w-full h-auto max-w-[800px]" 
+            />
         </div>
       </div>
     </ProtectedPage>
