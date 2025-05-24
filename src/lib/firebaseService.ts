@@ -22,7 +22,7 @@ export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referra
     email: userData.email,
     role: userData.role,
     id: userId,
-    createdAt: serverTimestamp() as Timestamp,
+    createdAt: serverTimestamp() as Timestamp, // Use serverTimestamp for accurate creation time
     bio: userData.bio || `New ${userData.role} on CodeCrafter.`,
     skills: userData.skills || (userData.role === 'developer' ? [] : undefined),
     avatarUrl: userData.avatarUrl || `https://placehold.co/100x100.png?text=${userData.name?.[0]?.toUpperCase() || 'U'}`,
@@ -35,7 +35,8 @@ export async function addUser(userData: Omit<User, 'id' | 'createdAt' | 'referra
   try {
     await setDoc(doc(db, USERS_COLLECTION, userId), userToSave);
     console.log("User added to Firestore with ID:", userId);
-    return { ...userToSave, createdAt: new Date() }; // Approximate with client time for immediate return
+    // For immediate return, create a Date object. Firestore will have the server timestamp.
+    return { ...userToSave, createdAt: new Date() }; 
   } catch (error) {
     console.error("Error adding user to Firestore: ", error);
     if (error instanceof Error) {
@@ -118,9 +119,14 @@ export async function updateUser(userId: string, data: Partial<Omit<User, 'id' |
   }
   try {
     const userDocRef = doc(db, USERS_COLLECTION, userId);
-    // Ensure skills is not undefined if passed, or remove it if it is (Firestore doesn't like undefined)
     const updateData = { ...data };
-    if (updateData.skills === undefined) delete updateData.skills;
+    if (updateData.skills === undefined && data.role === 'developer') {
+      // If skills are explicitly set to undefined for a developer, ensure it's an empty array or handled.
+      // Firestore doesn't store undefined. If you want to remove the field, use delete operator on data before spreading.
+      // For now, assuming if undefined, it's not meant to be updated or should be empty array for devs.
+    } else if (updateData.skills === undefined) {
+       delete updateData.skills; // Remove if not a developer or not being set
+    }
     
     await updateDoc(userDocRef, updateData);
     console.log("User updated in Firestore:", userId);
@@ -157,7 +163,7 @@ export async function addProject(
     return { 
       id: projectDocRef.id, 
       ...projectWithMetadata,
-      createdAt: new Date() // Approximate with client time for immediate return
+      createdAt: new Date() 
     } as Project;
   } catch (error) {
     console.error("Error adding project to Firestore: ", error);
@@ -263,5 +269,42 @@ export async function getAllProjects(): Promise<Project[]> {
       throw new Error(`Could not fetch all projects from database: ${error.message}`);
     }
     throw new Error("Could not fetch all projects from database due to an unknown error.");
+  }
+}
+
+/**
+ * Fetches all client users referred by a specific referral code.
+ */
+export async function getReferredClients(currentUserReferralCode: string): Promise<User[]> {
+  if (!db) throw new Error("Firestore is not initialized.");
+  if (!currentUserReferralCode) {
+    console.warn("getReferredClients called with no currentUserReferralCode");
+    return [];
+  }
+  try {
+    const referredClientsQuery = query(
+      collection(db, USERS_COLLECTION),
+      where("referredByCode", "==", currentUserReferralCode),
+      where("role", "==", "client"),
+      orderBy("createdAt", "desc")
+    );
+    const querySnapshot = await getDocs(referredClientsQuery);
+    const referredClients: User[] = [];
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      referredClients.push({
+        id: docSnap.id,
+        ...data,
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt || new Date())
+      } as User);
+    });
+    console.log(`Fetched ${referredClients.length} referred clients for code ${currentUserReferralCode}.`);
+    return referredClients;
+  } catch (error) {
+    console.error(`Error fetching referred clients for code ${currentUserReferralCode}: `, error);
+    if (error instanceof Error) {
+      throw new Error(`Could not fetch referred clients: ${error.message}`);
+    }
+    throw new Error("Could not fetch referred clients due to an unknown error.");
   }
 }

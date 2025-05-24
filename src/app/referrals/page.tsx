@@ -4,11 +4,15 @@
 import { ProtectedPage } from "@/components/ProtectedPage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, Gift, Share2, Users, Info, Loader2 } from "lucide-react";
+import { Copy, Gift, Share2, Users, Info, Loader2, AlertTriangle } from "lucide-react";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
-import React, { useEffect, useState } from "react"; // Added React import
+import React, { useEffect, useState } from "react"; 
+import { getReferredClients } from "@/lib/firebaseService";
+import type { User as UserType } from "@/types";
+import { format } from 'date-fns';
 
 export default function ReferralsPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -16,22 +20,47 @@ export default function ReferralsPage() {
   
   const [referralLink, setReferralLink] = useState("");
   const [referralCode, setReferralCode] = useState("");
+  const [referredClients, setReferredClients] = useState<UserType[]>([]);
+  const [isLoadingReferred, setIsLoadingReferred] = useState(false);
+  const [fetchReferredError, setFetchReferredError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.referralCode) {
       setReferralCode(user.referralCode);
-      // Make sure window is defined (client-side) before constructing the link
       if (typeof window !== 'undefined') {
         setReferralLink(`${window.location.origin}/signup?ref=${user.referralCode}`);
       }
+
+      // Fetch referred clients
+      const fetchClients = async () => {
+        setIsLoadingReferred(true);
+        setFetchReferredError(null);
+        try {
+          const clients = await getReferredClients(user.referralCode!);
+          setReferredClients(clients);
+        } catch (e) {
+          console.error("Failed to fetch referred clients:", e);
+          const errorMsg = e instanceof Error ? e.message : "Could not retrieve referred clients list.";
+          setFetchReferredError(errorMsg);
+          toast({
+            title: "Error Fetching Referred Clients",
+            description: errorMsg,
+            variant: "destructive",
+          });
+        } finally {
+          setIsLoadingReferred(false);
+        }
+      };
+      fetchClients();
+
     } else if (user && !user.referralCode && !authLoading) {
        setReferralCode("Not yet available");
        setReferralLink("Not yet available");
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, toast]);
 
   const copyToClipboard = (text: string) => {
-    if (text === "Not yet available" || !text) {
+    if (text === "Not yet available" || !text || text === "Loading...") {
       toast({ title: "Info", description: "Referral code/link is not available to copy yet.", variant: "default" });
       return;
     }
@@ -144,16 +173,51 @@ export default function ReferralsPage() {
         
         <Card className="mt-8 shadow-lg">
             <CardHeader>
-                <CardTitle>Your Referred Clients</CardTitle>
+                <CardTitle>Your Referred Clients ({referredClients.length})</CardTitle>
                 <CardDescription>Track clients who signed up using your code.</CardDescription>
             </CardHeader>
             <CardContent>
+              {isLoadingReferred ? (
+                <div className="flex items-center justify-center p-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary mr-3" />
+                  <p className="text-muted-foreground">Loading your referred clients...</p>
+                </div>
+              ) : fetchReferredError ? (
+                <div className="flex items-center justify-center text-center p-8 border-2 border-dashed border-destructive rounded-lg">
+                    <AlertTriangle className="h-8 w-8 text-destructive mr-3" />
+                    <p className="text-destructive-foreground">Error: {fetchReferredError}</p>
+                </div>
+              ) : referredClients.length === 0 ? (
                 <div className="flex items-center justify-center text-center p-8 border-2 border-dashed rounded-lg">
                     <Info className="h-8 w-8 text-muted-foreground mr-3" />
                     <p className="text-muted-foreground">
-                        Functionality to display your referred clients and commission details will be implemented soon!
+                        You haven't referred any clients yet, or they haven't signed up. Share your code to start earning!
                     </p>
                 </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Client Name</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Date Joined</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {referredClients.map(client => (
+                        <TableRow key={client.id}>
+                          <TableCell className="font-medium">{client.name}</TableCell>
+                          <TableCell>{client.email}</TableCell>
+                          <TableCell>
+                            {client.createdAt ? format(new Date(client.createdAt as any), 'PPP') : 'N/A'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
         </Card>
 
