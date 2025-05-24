@@ -1,3 +1,4 @@
+
 "use client";
 
 import { ProtectedPage } from "@/components/ProtectedPage";
@@ -45,7 +46,7 @@ export default function BillingPage() {
               <p className="text-sm text-muted-foreground">
                 Includes AI matchmaking, unlimited project posts, and priority support.
               </p>
-              <Image src="https://placehold.co/300x150.png" alt="Subscription plan" data-ai-hint="subscription service" width={300} height={150} className="rounded-md mt-2" />
+              <Image src="https://placehold.co/300x150.png" alt="Subscription plan" data-ai-hint="subscription service" width={300} height={150} className="rounded-md mt-2 w-full h-auto object-cover" />
             </CardContent>
             <CardFooter>
               <Button variant="outline" className="w-full">Manage Subscription (Stripe Placeholder)</Button>
@@ -54,12 +55,12 @@ export default function BillingPage() {
 
           {/* Payment Methods */}
           <Card className="lg:col-span-2 shadow-lg">
-            <CardHeader className="flex flex-row justify-between items-center">
+            <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>
                 <CardTitle className="text-xl">Payment Methods</CardTitle>
                 <CardDescription>Your saved payment options.</CardDescription>
               </div>
-              <Button variant="default" size="sm">
+              <Button variant="default" size="sm" className="w-full sm:w-auto mt-2 sm:mt-0">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Method (Stripe Placeholder)
               </Button>
             </CardHeader>
@@ -67,15 +68,15 @@ export default function BillingPage() {
               {paymentMethods.length > 0 ? (
                 <ul className="space-y-3">
                   {paymentMethods.map(method => (
-                    <li key={method.id} className="flex items-center justify-between p-3 border rounded-md hover:bg-muted/50 transition-colors">
+                    <li key={method.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border rounded-md hover:bg-muted/50 transition-colors gap-2">
                       <div className="flex items-center gap-3">
-                        <CreditCard className="h-6 w-6 text-primary" />
+                        <CreditCard className="h-6 w-6 text-primary flex-shrink-0" />
                         <div>
                           <span className="font-medium">{method.type} ending in {method.last4}</span>
                           <p className="text-sm text-muted-foreground">Expires {method.expiry}</p>
                         </div>
                       </div>
-                      <Button variant="ghost" size="sm">Edit</Button>
+                      <Button variant="ghost" size="sm" className="mt-2 sm:mt-0 self-start sm:self-center">Edit</Button>
                     </li>
                   ))}
                 </ul>
@@ -93,38 +94,40 @@ export default function BillingPage() {
             <CardDescription>Review your past payments and download invoices.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Invoice ID</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Project</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invoices.map(invoice => (
-                  <TableRow key={invoice.id}>
-                    <TableCell className="font-medium">{invoice.id.substring(0,6)}...</TableCell>
-                    <TableCell>{invoice.date}</TableCell>
-                    <TableCell>{invoice.project}</TableCell>
-                    <TableCell>${invoice.amount.toFixed(2)}</TableCell>
-                    <TableCell>
-                      <Badge variant={invoice.status === "Paid" ? "default" : "secondary"} className={invoice.status === "Paid" ? "bg-green-500/20 text-green-700" : "bg-yellow-500/20 text-yellow-700"}>
-                        {invoice.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="outline" size="sm">
-                        <Download className="mr-2 h-4 w-4" /> Download
-                      </Button>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Invoice ID</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Project</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {invoices.map(invoice => (
+                    <TableRow key={invoice.id}>
+                      <TableCell className="font-medium whitespace-nowrap">{invoice.id.substring(0,6)}...</TableCell>
+                      <TableCell className="whitespace-nowrap">{invoice.date}</TableCell>
+                      <TableCell>{invoice.project}</TableCell>
+                      <TableCell>${invoice.amount.toFixed(2)}</TableCell>
+                      <TableCell>
+                        <Badge variant={invoice.status === "Paid" ? "default" : "secondary"} className={`${invoice.status === "Paid" ? "bg-green-500/20 text-green-700" : "bg-yellow-500/20 text-yellow-700"} whitespace-nowrap`}>
+                          {invoice.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <Button variant="outline" size="sm">
+                          <Download className="mr-2 h-4 w-4" /> Download
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
             {invoices.length === 0 && (
               <p className="text-muted-foreground text-center py-8">No invoices found.</p>
             )}

@@ -13,7 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 
 export default function AdminPage() {
-  const { allUsers, isLoading: authLoading } = useAuth(); // authLoading now covers initial allUsers fetch
+  const { allUsers, isLoading: authLoading } = useAuth(); 
   const [clients, setClients] = useState<UserType[]>([]);
   const [developers, setDevelopers] = useState<UserType[]>([]);
 
@@ -99,44 +99,46 @@ function UserTable({ users }: UserTableProps) {
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Email</TableHead>
-          <TableHead>Role</TableHead>
-          {users.length > 0 && users[0]?.role === 'developer' && <TableHead>Skills</TableHead>}
-          <TableHead className="text-right">Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {users.map(user => (
-          <TableRow key={user.id}>
-            <TableCell className="font-medium">{user.name}</TableCell>
-            <TableCell>{user.email}</TableCell>
-            <TableCell>
-              <Badge variant={user.role === "admin" ? "destructive" : user.role === "client" ? "secondary" : "default"}>
-                {user.role}
-              </Badge>
-            </TableCell>
-            {user.role === 'developer' && (
-              <TableCell>
-                {user.skills && user.skills.length > 0 
-                  ? user.skills.join(", ") 
-                  : <span className="text-muted-foreground italic">No skills listed</span>}
-              </TableCell>
-            )}
-            <TableCell className="text-right">
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/admin/users/${user.id}`}>
-                  <Eye className="mr-2 h-4 w-4" />
-                  View
-                </Link>
-              </Button>
-            </TableCell>
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Email</TableHead>
+            <TableHead>Role</TableHead>
+            {users.length > 0 && users[0]?.role === 'developer' && <TableHead>Skills</TableHead>}
+            <TableHead className="text-right">Actions</TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {users.map(user => (
+            <TableRow key={user.id}>
+              <TableCell className="font-medium whitespace-nowrap">{user.name}</TableCell>
+              <TableCell className="whitespace-nowrap">{user.email}</TableCell>
+              <TableCell>
+                <Badge variant={user.role === "admin" ? "destructive" : user.role === "client" ? "secondary" : "default"}>
+                  {user.role}
+                </Badge>
+              </TableCell>
+              {user.role === 'developer' && (
+                <TableCell>
+                  {user.skills && user.skills.length > 0 
+                    ? user.skills.join(", ") 
+                    : <span className="text-muted-foreground italic">No skills listed</span>}
+                </TableCell>
+              )}
+              <TableCell className="text-right whitespace-nowrap">
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/admin/users/${user.id}`}>
+                    <Eye className="mr-2 h-4 w-4" />
+                    View
+                  </Link>
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

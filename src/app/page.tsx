@@ -3,10 +3,10 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CheckCircle, Briefcase, Users, Zap, Target, Search, MessageSquare, ThumbsUp, UserCheck, HelpCircle, ArrowRight, Quote, UserPlus, CircleHelp } from "lucide-react";
+import { CheckCircle, Briefcase, Users, Zap, Target, Search, MessageSquare, ThumbsUp, UserCheck, CircleHelp, ArrowRight, Quote, UserPlus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { BenefitListItem } from "@/components/BenefitListItem"; // Import the new component
+import { BenefitListItem } from "@/components/BenefitListItem";
 
 export default function HomePage() {
   return (
@@ -24,7 +24,7 @@ export default function HomePage() {
                   DevConnect is your AI-powered platform to seamlessly match innovative projects with expert freelance developers. Build your vision, faster.
                 </p>
               </div>
-              <div className="flex flex-col gap-3 min-[400px]:flex-row">
+              <div className="flex flex-col gap-3 sm:flex-row">
                 <Button size="lg" asChild className="shadow-lg hover:shadow-primary/30 transition-shadow">
                   <Link href="/signup">Get Started Free</Link>
                 </Button>
@@ -55,7 +55,7 @@ export default function HomePage() {
               We've streamlined the process so you can focus on what matters most.
             </p>
           </div>
-          <div className="mx-auto grid max-w-5xl gap-8 sm:grid-cols-1 md:grid-cols-3 lg:gap-12">
+          <div className="mx-auto grid max-w-5xl grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 lg:gap-12">
             <HowItWorksStep
               icon={<UserPlus className="h-10 w-10 text-primary" />}
               step="1. Sign Up"
@@ -144,7 +144,7 @@ export default function HomePage() {
             <div className="inline-block rounded-lg bg-secondary px-4 py-1.5 text-sm font-semibold text-secondary-foreground">What Our Users Say</div>
             <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl">Trusted by Innovators and Builders</h2>
           </div>
-          <div className="mx-auto grid max-w-5xl gap-8 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          <div className="mx-auto grid max-w-5xl grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 lg:gap-12">
             <TestimonialCard
               quote="DevConnect's AI matchmaking was spot on! Found the perfect developer for my startup in days, not weeks."
               name="Sarah L., CEO of TechBloom"
@@ -168,7 +168,7 @@ export default function HomePage() {
       <section className="w-full py-16 md:py-24 lg:py-32 bg-muted/30">
         <div className="container px-4 md:px-6 max-w-3xl mx-auto">
           <div className="flex flex-col items-center justify-center space-y-4 text-center mb-12">
-            <CircleHelp className="h-12 w-12 text-primary" /> {/* Replaced HelpCircle with CircleHelp if HelpCircle doesn't exist */}
+            <CircleHelp className="h-12 w-12 text-primary" />
             <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl">Frequently Asked Questions</h2>
           </div>
           <Accordion type="single" collapsible className="w-full">
