@@ -12,6 +12,10 @@ export interface User {
   bio?: string;
   skills?: string[];
   createdAt?: Date | Timestamp; // Firestore uses Timestamp, client might use Date
+  referralCode?: string;
+  referredByCode?: string; // Code of the user who referred this user
+  currentPlan?: string;
+  planPrice?: string;
 }
 
 export interface Project {
@@ -22,7 +26,7 @@ export interface Project {
   requiredSkills: string[];
   availability: string; 
   timeZone: string; 
-  status: "Open" | "In Progress" | "Completed" | "Cancelled" | "Unknown"; // Added "Unknown" for safety
+  status: "Open" | "In Progress" | "Completed" | "Cancelled" | "Unknown";
   createdAt: Date | Timestamp;
 }
 
@@ -42,3 +46,4 @@ export interface MatchDevelopersOutput {
   developerMatches: string[]; 
   reasoning: string;
 }
+

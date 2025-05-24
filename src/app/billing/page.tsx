@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, Download, PlusCircle, DollarSign } from "lucide-react";
+import { CreditCard, Download, PlusCircle, DollarSign, Loader2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useAuth } from "@/contexts/AuthContext";
 
-// Mock data
+// Mock data for invoices and payment methods, as these depend on Stripe
 const paymentMethods = [
   { id: "pm_1", type: "Visa", last4: "4242", expiry: "12/25", dataAiHint: "credit card" },
   { id: "pm_2", type: "Mastercard", last4: "5555", expiry: "06/27", dataAiHint: "payment method" },
@@ -23,6 +24,26 @@ const invoices = [
 ];
 
 export default function BillingPage() {
+  const { user, isLoading: authLoading } = useAuth();
+
+  if (authLoading || (!user && !authLoading)) {
+    return (
+      <ProtectedPage>
+        <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
+          <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
+          <p className="text-muted-foreground">Loading billing information...</p>
+        </div>
+      </ProtectedPage>
+    );
+  }
+
+  const currentPlan = user?.currentPlan || "Free Tier";
+  const planPrice = user?.planPrice || "$0/month";
+  const planDescription = currentPlan === "Pro Plan" 
+    ? "Includes AI matchmaking, unlimited project posts, and priority support."
+    : "Basic access to post projects and find developers.";
+
+
   return (
     <ProtectedPage>
       <div className="container mx-auto p-4 md:p-6 lg:p-8">
@@ -40,16 +61,16 @@ export default function BillingPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="font-semibold text-lg">Pro Plan</span>
-                <Badge variant="default">$29/month</Badge>
+                <span className="font-semibold text-lg">{currentPlan}</span>
+                <Badge variant="default">{planPrice}</Badge>
               </div>
               <p className="text-sm text-muted-foreground">
-                Includes AI matchmaking, unlimited project posts, and priority support.
+                {planDescription}
               </p>
               <Image src="https://placehold.co/300x150.png" alt="Subscription plan" data-ai-hint="subscription service" width={300} height={150} className="rounded-md mt-2 w-full h-auto object-cover" />
             </CardContent>
             <CardFooter>
-              <Button variant="outline" className="w-full">Manage Subscription (Stripe Placeholder)</Button>
+              <Button variant="outline" className="w-full" disabled>Manage Subscription (Coming Soon)</Button>
             </CardFooter>
           </Card>
 
@@ -60,8 +81,8 @@ export default function BillingPage() {
                 <CardTitle className="text-xl">Payment Methods</CardTitle>
                 <CardDescription>Your saved payment options.</CardDescription>
               </div>
-              <Button variant="default" size="sm" className="w-full sm:w-auto mt-2 sm:mt-0">
-                <PlusCircle className="mr-2 h-4 w-4" /> Add Method (Stripe Placeholder)
+              <Button variant="default" size="sm" className="w-full sm:w-auto mt-2 sm:mt-0" disabled>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Method (Coming Soon)
               </Button>
             </CardHeader>
             <CardContent>
@@ -76,12 +97,12 @@ export default function BillingPage() {
                           <p className="text-sm text-muted-foreground">Expires {method.expiry}</p>
                         </div>
                       </div>
-                      <Button variant="ghost" size="sm" className="mt-2 sm:mt-0 self-start sm:self-center">Edit</Button>
+                      <Button variant="ghost" size="sm" className="mt-2 sm:mt-0 self-start sm:self-center" disabled>Edit</Button>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-muted-foreground text-center py-4">No payment methods saved.</p>
+                <p className="text-muted-foreground text-center py-4">No payment methods saved. (Coming Soon)</p>
               )}
             </CardContent>
           </Card>
@@ -119,7 +140,7 @@ export default function BillingPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right whitespace-nowrap">
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" disabled>
                           <Download className="mr-2 h-4 w-4" /> Download
                         </Button>
                       </TableCell>
@@ -129,7 +150,7 @@ export default function BillingPage() {
               </Table>
             </div>
             {invoices.length === 0 && (
-              <p className="text-muted-foreground text-center py-8">No invoices found.</p>
+              <p className="text-muted-foreground text-center py-8">No invoices found. (Invoice history coming soon)</p>
             )}
           </CardContent>
         </Card>

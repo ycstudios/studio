@@ -5,15 +5,36 @@ import { ProtectedPage } from "@/components/ProtectedPage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, Gift, Share2, Users } from "lucide-react";
+import { Copy, Gift, Share2, Users, Info, Loader2 } from "lucide-react";
 import Image from "next/image";
+import { useAuth } from "@/contexts/AuthContext";
+import React, { useEffect, useState } from "react"; // Added React import
 
 export default function ReferralsPage() {
+  const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
-  const referralLink = "https://codecrafter.example.com/signup?ref=USER123"; // Mock referral link
-  const referralCode = "USER123";
+  
+  const [referralLink, setReferralLink] = useState("");
+  const [referralCode, setReferralCode] = useState("");
+
+  useEffect(() => {
+    if (user?.referralCode) {
+      setReferralCode(user.referralCode);
+      // Make sure window is defined (client-side) before constructing the link
+      if (typeof window !== 'undefined') {
+        setReferralLink(`${window.location.origin}/signup?ref=${user.referralCode}`);
+      }
+    } else if (user && !user.referralCode && !authLoading) {
+       setReferralCode("Not yet available");
+       setReferralLink("Not yet available");
+    }
+  }, [user, authLoading]);
 
   const copyToClipboard = (text: string) => {
+    if (text === "Not yet available" || !text) {
+      toast({ title: "Info", description: "Referral code/link is not available to copy yet.", variant: "default" });
+      return;
+    }
     navigator.clipboard.writeText(text).then(() => {
       toast({ title: "Copied!", description: `${text} copied to clipboard.` });
     }).catch(err => {
@@ -21,6 +42,18 @@ export default function ReferralsPage() {
       console.error('Failed to copy text: ', err);
     });
   };
+
+  if (authLoading || (!user && !authLoading)) {
+    return (
+      <ProtectedPage>
+        <div className="container mx-auto p-4 md:p-6 lg:p-8 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
+          <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
+          <p className="text-muted-foreground">Loading referral information...</p>
+        </div>
+      </ProtectedPage>
+    );
+  }
+
 
   return (
     <ProtectedPage>
@@ -44,12 +77,12 @@ export default function ReferralsPage() {
             <CardContent className="space-y-4">
               <p className="text-muted-foreground">Share this unique link with your network. When someone signs up as a client using your link, you get rewarded.</p>
               <div className="flex items-center space-x-2 p-3 border rounded-lg bg-muted">
-                <input type="text" value={referralLink} readOnly className="flex-grow bg-transparent outline-none text-sm break-all" />
-                <Button variant="ghost" size="icon" onClick={() => copyToClipboard(referralLink)} className="flex-shrink-0">
+                <input type="text" value={referralLink || "Loading..."} readOnly className="flex-grow bg-transparent outline-none text-sm break-all" />
+                <Button variant="ghost" size="icon" onClick={() => copyToClipboard(referralLink)} className="flex-shrink-0" disabled={!referralLink || referralLink === "Loading..." || referralLink === "Not yet available"}>
                   <Copy className="h-4 w-4" />
                 </Button>
               </div>
-              <Button className="w-full" onClick={() => copyToClipboard(referralLink)}>
+              <Button className="w-full" onClick={() => copyToClipboard(referralLink)} disabled={!referralLink || referralLink === "Loading..." || referralLink === "Not yet available"}>
                 <Copy className="mr-2 h-4 w-4" /> Copy Link
               </Button>
             </CardContent>
@@ -67,12 +100,12 @@ export default function ReferralsPage() {
             <CardContent className="space-y-4">
               <p className="text-muted-foreground">Alternatively, they can enter your referral code during signup. You'll earn for new clients.</p>
                <div className="flex items-center space-x-2 p-3 border rounded-lg bg-muted">
-                <input type="text" value={referralCode} readOnly className="flex-grow bg-transparent outline-none text-sm font-semibold" />
-                <Button variant="ghost" size="icon" onClick={() => copyToClipboard(referralCode)} className="flex-shrink-0">
+                <input type="text" value={referralCode || "Loading..."} readOnly className="flex-grow bg-transparent outline-none text-sm font-semibold" />
+                <Button variant="ghost" size="icon" onClick={() => copyToClipboard(referralCode)} className="flex-shrink-0" disabled={!referralCode || referralCode === "Loading..." || referralCode === "Not yet available"}>
                   <Copy className="h-4 w-4" />
                 </Button>
               </div>
-              <Button variant="outline" className="w-full" onClick={() => copyToClipboard(referralCode)}>
+              <Button variant="outline" className="w-full" onClick={() => copyToClipboard(referralCode)} disabled={!referralCode || referralCode === "Loading..." || referralCode === "Not yet available"}>
                 <Copy className="mr-2 h-4 w-4" /> Copy Code
               </Button>
             </CardContent>
@@ -82,6 +115,7 @@ export default function ReferralsPage() {
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="text-2xl">How It Works</CardTitle>
+            <CardDescription>Refer new clients to CodeCrafter and get rewarded for their first project!</CardDescription>
           </CardHeader>
           <CardContent className="grid md:grid-cols-3 gap-6 text-center">
             <div className="space-y-2 p-4 border rounded-lg bg-background hover:shadow-md transition-shadow">
@@ -96,18 +130,33 @@ export default function ReferralsPage() {
                 <Users className="h-8 w-8 text-secondary-foreground" />
               </div>
               <h3 className="text-lg font-semibold">2. Client Signs Up</h3>
-              <p className="text-sm text-muted-foreground">Your referred friends sign up as clients using your link/code.</p>
+              <p className="text-sm text-muted-foreground">Your referred clients sign up using your link/code.</p>
             </div>
             <div className="space-y-2 p-4 border rounded-lg bg-background hover:shadow-md transition-shadow">
                <div className="p-3 bg-secondary rounded-full inline-block mb-2">
                 <Gift className="h-8 w-8 text-secondary-foreground" />
               </div>
               <h3 className="text-lg font-semibold">3. Earn</h3>
-              <p className="text-sm text-muted-foreground">You earn a commission for successful client referrals!</p>
+              <p className="text-sm text-muted-foreground">You earn a commission for each new client who starts their first project! (Details TBD)</p>
             </div>
           </CardContent>
         </Card>
         
+        <Card className="mt-8 shadow-lg">
+            <CardHeader>
+                <CardTitle>Your Referred Clients</CardTitle>
+                <CardDescription>Track clients who signed up using your code.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex items-center justify-center text-center p-8 border-2 border-dashed rounded-lg">
+                    <Info className="h-8 w-8 text-muted-foreground mr-3" />
+                    <p className="text-muted-foreground">
+                        Functionality to display your referred clients and commission details will be implemented soon!
+                    </p>
+                </div>
+            </CardContent>
+        </Card>
+
         <div className="mt-12 text-center">
             <Image src="https://placehold.co/800x300.png" alt="Referral Banner" data-ai-hint="people network" width={800} height={300} className="rounded-lg mx-auto shadow-md w-full h-auto max-w-[800px]" />
         </div>

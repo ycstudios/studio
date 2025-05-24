@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -38,13 +39,14 @@ const formSchema = z.object({
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
   confirmPassword: z.string(),
   role: z.enum(["client", "developer"], { required_error: "Please select a role." }),
+  referralCode: z.string().optional(),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
 });
 
 export function SignupForm() {
-  const { login } = useAuth(); 
+  const { login, setAllUsers } = useAuth(); 
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -57,29 +59,26 @@ export function SignupForm() {
       password: "",
       confirmPassword: "",
       role: undefined,
+      referralCode: "",
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
     
-    // Note: In a real app, password hashing would happen on the backend before saving.
-    // The ID would typically be the Firebase Auth UID. For this mock, we generate one.
-    // const userId = Math.random().toString(36).substring(2, 15); 
-
-    const newUserOmitId: Omit<User, 'id' | 'createdAt'> = {
+    const newUserOmitIdAndGeneratedFields: Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice' | 'avatarUrl' | 'bio' | 'skills'> & {referredByCode?: string} = {
       name: values.name,
       email: values.email,
       role: values.role as UserRole,
-      // avatarUrl will be set by default in addUser if not provided
-      // bio and skills will be set by default in addUser if not provided
+      referredByCode: values.referralCode || undefined,
     };
 
     try {
-      // addUser in firebaseService now handles ID generation and timestamp
-      const savedUser = await addUser(newUserOmitId); 
+      const savedUser = await addUser(newUserOmitIdAndGeneratedFields); 
       
-      login(savedUser); // Update AuthContext with the user object returned from Firestore (which includes ID and approximated createdAt)
+      login(savedUser); 
+      setAllUsers(prevUsers => [...prevUsers, savedUser].sort((a,b) => (a.name || "").localeCompare(b.name || "")));
+
 
       toast({
         title: "Signup Successful!",
@@ -178,6 +177,22 @@ export function SignupForm() {
                       <SelectItem value="developer">Developer (Looking for projects)</SelectItem>
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={form.control}
+              name="referralCode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Referral Code (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter referral code if you have one" {...field} disabled={isSubmitting} />
+                  </FormControl>
+                  <FormDescription>
+                    If someone referred you, enter their code here.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
