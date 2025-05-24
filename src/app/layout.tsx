@@ -69,8 +69,7 @@ export default function RootLayout({
             (function(){
             var s1=document.createElement("script"),s0=document.getElementsByTagName("script")[0];
             s1.async=true;
-            // IMPORTANT: Replace YOUR_PROPERTY_ID and YOUR_WIDGET_ID with your actual IDs
-            s1.src='https://embed.tawk.to/YOUR_PROPERTY_ID/YOUR_WIDGET_ID'; 
+            s1.src='https://embed.tawk.to/6831c5119dbb8e1916ee687d/1is16jjg3';
             s1.charset='UTF-8';
             s1.setAttribute('crossorigin','*');
             s0.parentNode.insertBefore(s1,s0);

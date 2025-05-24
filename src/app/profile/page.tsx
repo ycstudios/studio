@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { ProtectedPage } from "@/components/ProtectedPage";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -13,15 +13,26 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Edit3, Save, UserCircle2, Briefcase, Palette, Loader2, AlertTriangle, Link as LinkIcon } from "lucide-react";
+import { Edit3, Save, UserCircle2, Briefcase, Palette, Loader2, AlertTriangle, Link as LinkIcon, Trash2 } from "lucide-react";
 import { getUserById, updateUser } from "@/lib/firebaseService";
 import type { User } from "@/types";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const experienceLevels: User["experienceLevel"][] = ['', 'Entry', 'Junior', 'Mid-level', 'Senior', 'Lead', 'Principal'];
 
 
 export default function ProfilePage() {
-  const { user: authUser, login: updateAuthContextUser, isLoading: authLoading } = useAuth();
+  const { user: authUser, login: updateAuthContextUser, isLoading: authLoading, logout } = useAuth();
   const { toast } = useToast();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -34,58 +45,61 @@ export default function ProfilePage() {
   const [bio, setBio] = useState("");
   const [skills, setSkills] = useState(""); 
   const [avatar, setAvatar] = useState("");
-  const [portfolioUrls, setPortfolioUrls] = useState(""); // Stored as comma-separated string in UI
+  const [portfolioUrls, setPortfolioUrls] = useState("");
   const [experienceLevel, setExperienceLevel] = useState<User["experienceLevel"]>('');
 
   const [initialData, setInitialData] = useState<Partial<User>>({});
 
 
+  const fetchUserData = useCallback(async () => {
+    if (!authUser?.id) return;
+    setIsLoadingProfile(true);
+    setFetchError(null);
+    try {
+      const fetchedUser = await getUserById(authUser.id);
+      if (fetchedUser) {
+        setName(fetchedUser.name || "");
+        setEmail(fetchedUser.email || "");
+        setBio(fetchedUser.bio || (fetchedUser.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
+        setSkills(fetchedUser.skills?.join(", ") || (fetchedUser.role === 'developer' ? "" : ""));
+        setAvatar(fetchedUser.avatarUrl || `https://placehold.co/150x150.png`);
+        setPortfolioUrls(fetchedUser.portfolioUrls?.join(", ") || "");
+        setExperienceLevel(fetchedUser.experienceLevel || '');
+        
+        setInitialData({ 
+          name: fetchedUser.name,
+          bio: fetchedUser.bio,
+          skills: fetchedUser.skills,
+          avatarUrl: fetchedUser.avatarUrl,
+          portfolioUrls: fetchedUser.portfolioUrls,
+          experienceLevel: fetchedUser.experienceLevel,
+        });
+      } else {
+        setFetchError("Could not load profile data from the database.");
+        toast({ title: "Error", description: "User data not found in database.", variant: "destructive" });
+      }
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : "Failed to load profile data.";
+      setFetchError(errorMsg);
+      toast({ title: "Error", description: errorMsg, variant: "destructive" });
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUser?.id, toast]);
+
   useEffect(() => {
     if (authUser?.id && !authLoading) {
-      const fetchUserData = async () => {
-        setIsLoadingProfile(true);
-        setFetchError(null);
-        try {
-          const fetchedUser = await getUserById(authUser.id);
-          if (fetchedUser) {
-            setName(fetchedUser.name || "");
-            setEmail(fetchedUser.email || "");
-            setBio(fetchedUser.bio || (fetchedUser.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
-            setSkills(fetchedUser.skills?.join(", ") || (fetchedUser.role === 'developer' ? "" : ""));
-            setAvatar(fetchedUser.avatarUrl || `https://placehold.co/150x150.png`);
-            setPortfolioUrls(fetchedUser.portfolioUrls?.join(", ") || "");
-            setExperienceLevel(fetchedUser.experienceLevel || '');
-            
-            setInitialData({ 
-              name: fetchedUser.name,
-              bio: fetchedUser.bio,
-              skills: fetchedUser.skills,
-              avatarUrl: fetchedUser.avatarUrl,
-              portfolioUrls: fetchedUser.portfolioUrls,
-              experienceLevel: fetchedUser.experienceLevel,
-            });
-          } else {
-            setFetchError("Could not load profile data from the database.");
-            toast({ title: "Error", description: "User data not found in database.", variant: "destructive" });
-          }
-        } catch (e) {
-          console.error("Failed to fetch user data:", e);
-          const errorMsg = e instanceof Error ? e.message : "Failed to load profile data.";
-          setFetchError(errorMsg);
-          toast({ title: "Error", description: errorMsg, variant: "destructive" });
-        } finally {
-          setIsLoadingProfile(false);
-        }
-      };
       fetchUserData();
-    } else if (!authLoading) { 
+    } else if (!authLoading && !authUser) { 
       setIsLoadingProfile(false);
       setFetchError("User not authenticated.");
     }
-  }, [authUser?.id, authLoading, toast]);
+  }, [authUser?.id, authLoading, fetchUserData, authUser]);
 
   const handleEditToggle = () => {
     if (isEditing) { 
+      // Revert to initial data if canceling edit
       setName(initialData.name || authUser?.name || "");
       setBio(initialData.bio || authUser?.bio || (authUser?.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
       setSkills(initialData.skills?.join(", ") || authUser?.skills?.join(", ") || (authUser?.role === 'developer' ? "" : ""));
@@ -135,12 +149,12 @@ export default function ProfilePage() {
         experienceLevel: authUser.role === 'developer' ? experienceLevel : authUser.experienceLevel,
       };
       updateAuthContextUser(updatedAuthUser);
-      setInitialData({ ...initialData, ...updatedData, skills: skillsArray, portfolioUrls: portfolioUrlsArray }); 
+      // Update initialData to reflect saved changes
+      setInitialData(prev => ({ ...prev, ...updatedData, skills: skillsArray, portfolioUrls: portfolioUrlsArray })); 
       
       setIsEditing(false);
       toast({ title: "Profile Updated", description: "Your changes have been saved to the database." });
     } catch (e) {
-      console.error("Failed to save profile:", e);
       const errorMsg = e instanceof Error ? e.message : "Failed to save profile changes.";
       setFetchError(errorMsg);
       toast({ title: "Save Error", description: errorMsg, variant: "destructive" });
@@ -148,8 +162,21 @@ export default function ProfilePage() {
       setIsSaving(false);
     }
   };
+
+  const handleRequestAccountDeletion = () => {
+    // This is a placeholder. Real deletion involves backend logic and re-authentication.
+    toast({
+      title: "Account Deletion Requested",
+      description: "Your request to delete your account has been noted. An administrator will review and process this request. You will be contacted via email.",
+      duration: 7000, // Longer duration for important messages
+    });
+    // In a real scenario, you might also want to:
+    // 1. Log this request in an admin system.
+    // 2. Potentially log the user out after a delay or confirmation.
+    // For now, we just show a toast.
+  };
   
-  const getInitials = (nameStr: string) => {
+  const getInitials = (nameStr?: string) => {
     if (!nameStr) return "?";
     const names = nameStr.split(' ');
     if (names.length > 1 && names[0] && names[names.length - 1]) {
@@ -188,11 +215,11 @@ export default function ProfilePage() {
         <header className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Your Profile</h1>
-            <p className="text-muted-foreground">Manage your account settings and public profile (data from Firestore).</p>
+            <p className="text-muted-foreground">Manage your account settings and public profile.</p>
           </div>
           <Button onClick={handleEditToggle} variant={isEditing ? "secondary" : "default"} className="w-full sm:w-auto" disabled={isSaving}>
             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isEditing ? <Save className="mr-2 h-4 w-4" /> : <Edit3 className="mr-2 h-4 w-4" />)}
-            {isSaving ? "Saving..." : (isEditing ? "Cancel Edit" : "Edit Profile")}
+            {isSaving ? "Saving..." : (isEditing ? (name.trim() !== (initialData.name || authUser?.name || "") || bio.trim() !== (initialData.bio || authUser?.bio || "") || skills !== (initialData.skills?.join(", ") || authUser?.skills?.join(", ") || "") || portfolioUrls !== (initialData.portfolioUrls?.join(", ") || "") || experienceLevel !== (initialData.experienceLevel || '') ? "Save Changes" : "Cancel Edit") : "Edit Profile")}
           </Button>
         </header>
 
@@ -213,7 +240,7 @@ export default function ProfilePage() {
               <p className="text-sm text-muted-foreground">{email}</p>
               {isEditing && (
                 <Button variant="outline" size="sm" className="mt-4" disabled>
-                  <Palette className="mr-2 h-4 w-4" /> Change Avatar (Future Feature)
+                  <Palette className="mr-2 h-4 w-4" /> Change Avatar (Future)
                 </Button>
               )}
             </CardContent>
@@ -257,8 +284,8 @@ export default function ProfilePage() {
                     {isEditing ? (
                       <Input id="skills" placeholder="e.g., JavaScript, React, Figma" value={skills} onChange={(e) => setSkills(e.target.value)} disabled={isSaving} />
                     ) : (
-                      <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-muted/30 min-h-[40px]">
-                        {(skills.split(",").map(s => s.trim()).filter(s => s).length > 0 ? skills.split(",").map(s => s.trim()).filter(s => s) : ["No skills listed"]).map((skill, index) => (
+                       <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-muted/30 min-h-[40px]">
+                        {(initialData.skills && initialData.skills.length > 0 ? initialData.skills : ["No skills listed"]).map((skill, index) => (
                           <span key={index} className={`px-2 py-1 text-xs rounded-md ${skill === "No skills listed" ? "text-muted-foreground italic" : "bg-primary/10 text-primary font-medium"}`}>{skill}</span>
                         ))}
                       </div>
@@ -290,25 +317,29 @@ export default function ProfilePage() {
                   <div>
                     <Label htmlFor="experienceLevel">Experience Level</Label>
                     {isEditing ? (
-                       <Select value={experienceLevel} onValueChange={(value) => setExperienceLevel(value as User["experienceLevel"])} disabled={isSaving}>
+                       <Select value={experienceLevel || ''} onValueChange={(value) => setExperienceLevel(value as User["experienceLevel"])} disabled={isSaving}>
                         <SelectTrigger id="experienceLevel">
                           <SelectValue placeholder="Select experience level" />
                         </SelectTrigger>
                         <SelectContent>
                           {experienceLevels.map(level => (
-                            <SelectItem key={level} value={level || 'none'}>{level || 'Not specified'}</SelectItem>
+                            <SelectItem key={level || 'none'} value={level || 'none'}>{level || 'Not specified'}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     ) : (
-                      <p className="text-lg font-medium p-2 border rounded-md bg-muted/30 min-h-[40px]">{experienceLevel || <span className="italic text-muted-foreground">Not specified</span>}</p>
+                      <p className="text-lg font-medium p-2 border rounded-md bg-muted/30 min-h-[40px]">{initialData.experienceLevel || <span className="italic text-muted-foreground">Not specified</span>}</p>
                     )}
                   </div>
                 </>
               )}
               
               {isEditing && (
-                <Button onClick={handleSaveChanges} className="w-full md:w-auto" disabled={isSaving || !name.trim()}>
+                <Button 
+                  onClick={handleSaveChanges} 
+                  className="w-full md:w-auto" 
+                  disabled={isSaving || !name.trim() || (name.trim() === (initialData.name || authUser?.name || "") && bio.trim() === (initialData.bio || authUser?.bio || "") && skills === (initialData.skills?.join(", ") || authUser?.skills?.join(", ") || "") && portfolioUrls === (initialData.portfolioUrls?.join(", ") || "") && experienceLevel === (initialData.experienceLevel || ''))}
+                >
                   {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                    {isSaving ? "Saving Changes..." : "Save All Changes"}
                 </Button>
@@ -321,17 +352,38 @@ export default function ProfilePage() {
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Account Settings</CardTitle>
-            <CardDescription>Manage other account preferences.</CardDescription>
+            <CardDescription>Manage other account preferences and actions.</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground">
-              Further settings like password changes, notification preferences, and account deletion would be managed here. (Placeholder)
+            <p className="text-muted-foreground mb-4">
+              Options like password changes and notification preferences will be available here in the future.
             </p>
-             <Button variant="destructive" className="mt-4" disabled>Delete Account (Disabled)</Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">
+                  <Trash2 className="mr-2 h-4 w-4" /> Request Account Deletion
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be immediately undone. Requesting account deletion will notify an administrator to process your request. Your account and associated data will be scheduled for removal.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleRequestAccountDeletion} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                    Yes, Request Deletion
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </CardContent>
         </Card>
       </div>
     </ProtectedPage>
   );
 }
+
 

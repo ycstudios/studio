@@ -4,24 +4,12 @@
 import { ProtectedPage } from "@/components/ProtectedPage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, Download, PlusCircle, DollarSign, Loader2 } from "lucide-react";
+import { CreditCard, PlusCircle, DollarSign, Loader2, Info, MessageSquare } from "lucide-react"; // Added Info and MessageSquare
 import Image from "next/image";
-import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 
-// Mock data for invoices and payment methods, as these depend on Stripe
-const paymentMethods = [
-  { id: "pm_1", type: "Visa", last4: "4242", expiry: "12/25", dataAiHint: "credit card" },
-  { id: "pm_2", type: "Mastercard", last4: "5555", expiry: "06/27", dataAiHint: "payment method" },
-];
-
-const invoices = [
-  { id: "inv_1", date: "2023-10-01", amount: 50.00, status: "Paid", project: "Logo Design", dataAiHint: "invoice document" },
-  { id: "inv_2", date: "2023-11-15", amount: 250.00, status: "Pending", project: "Website Development - Phase 1", dataAiHint: "financial report" },
-  { id: "inv_3", date: "2023-12-05", amount: 75.00, status: "Paid", project: "Consultation Call", dataAiHint: "business meeting" },
-];
+// Mock data for invoices and payment methods removed
 
 export default function BillingPage() {
   const { user, isLoading: authLoading } = useAuth();
@@ -49,7 +37,7 @@ export default function BillingPage() {
       <div className="container mx-auto p-4 md:p-6 lg:p-8">
         <header className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight flex items-center"><DollarSign className="mr-3 h-8 w-8 text-primary" />Billing & Payments</h1>
-          <p className="text-muted-foreground">Manage your payment methods, subscriptions, and view your invoice history.</p>
+          <p className="text-muted-foreground">Manage your subscription and view invoice history. For changes or inquiries, please use our live chat support.</p>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -67,7 +55,7 @@ export default function BillingPage() {
               <p className="text-sm text-muted-foreground">
                 {planDescription}
               </p>
-              <Image src="https://placehold.co/300x150.png" alt="Subscription plan" data-ai-hint="subscription service" width={300} height={150} className="rounded-md mt-2 w-full h-auto object-cover" />
+              <Image src="https://placehold.co/300x150.png" alt="Subscription plan illustration" data-ai-hint="subscription service" width={300} height={150} className="rounded-md mt-2 w-full h-auto object-cover" />
             </CardContent>
             <CardFooter>
               <Button variant="outline" className="w-full" disabled>Manage Subscription (Coming Soon)</Button>
@@ -79,31 +67,28 @@ export default function BillingPage() {
             <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>
                 <CardTitle className="text-xl">Payment Methods</CardTitle>
-                <CardDescription>Your saved payment options.</CardDescription>
+                <CardDescription>Manage your saved payment options.</CardDescription>
               </div>
               <Button variant="default" size="sm" className="w-full sm:w-auto mt-2 sm:mt-0" disabled>
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Method (Coming Soon)
               </Button>
             </CardHeader>
             <CardContent>
-              {paymentMethods.length > 0 ? (
-                <ul className="space-y-3">
-                  {paymentMethods.map(method => (
-                    <li key={method.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border rounded-md hover:bg-muted/50 transition-colors gap-2">
-                      <div className="flex items-center gap-3">
-                        <CreditCard className="h-6 w-6 text-primary flex-shrink-0" />
-                        <div>
-                          <span className="font-medium">{method.type} ending in {method.last4}</span>
-                          <p className="text-sm text-muted-foreground">Expires {method.expiry}</p>
-                        </div>
-                      </div>
-                      <Button variant="ghost" size="sm" className="mt-2 sm:mt-0 self-start sm:self-center" disabled>Edit</Button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-muted-foreground text-center py-4">No payment methods saved. (Coming Soon)</p>
-              )}
+              <div className="p-6 text-center border-2 border-dashed rounded-lg">
+                <Info className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
+                <h3 className="text-lg font-medium mb-1">Under Development</h3>
+                <p className="text-sm text-muted-foreground">
+                  The ability to add and manage payment methods directly is coming soon. 
+                  For any urgent billing updates, please contact our support team via live chat.
+                </p>
+                <Button 
+                  variant="outline" 
+                  className="mt-4" 
+                  onClick={() => (window as any).Tawk_API?.maximize?.()} // Opens Tawk.to chat if available
+                >
+                  <MessageSquare className="mr-2 h-4 w-4" /> Contact Support
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -115,43 +100,21 @@ export default function BillingPage() {
             <CardDescription>Review your past payments and download invoices.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Invoice ID</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Project</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {invoices.map(invoice => (
-                    <TableRow key={invoice.id}>
-                      <TableCell className="font-medium whitespace-nowrap">{invoice.id.substring(0,6)}...</TableCell>
-                      <TableCell className="whitespace-nowrap">{invoice.date}</TableCell>
-                      <TableCell>{invoice.project}</TableCell>
-                      <TableCell>${invoice.amount.toFixed(2)}</TableCell>
-                      <TableCell>
-                        <Badge variant={invoice.status === "Paid" ? "default" : "secondary"} className={`${invoice.status === "Paid" ? "bg-green-500/20 text-green-700" : "bg-yellow-500/20 text-yellow-700"} whitespace-nowrap`}>
-                          {invoice.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right whitespace-nowrap">
-                        <Button variant="outline" size="sm" disabled>
-                          <Download className="mr-2 h-4 w-4" /> Download
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            {invoices.length === 0 && (
-              <p className="text-muted-foreground text-center py-8">No invoices found. (Invoice history coming soon)</p>
-            )}
+             <div className="p-8 text-center border-2 border-dashed rounded-lg">
+                <Info className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
+                <h3 className="text-lg font-medium mb-1">Coming Soon</h3>
+                <p className="text-sm text-muted-foreground">
+                  Your invoice history will be accessible here once our full billing system is integrated.
+                  If you need copies of past invoices, please reach out to our support team via live chat.
+                </p>
+                <Button 
+                  variant="outline" 
+                  className="mt-4"
+                  onClick={() => (window as any).Tawk_API?.maximize?.()} // Opens Tawk.to chat if available
+                >
+                   <MessageSquare className="mr-2 h-4 w-4" /> Contact Support
+                </Button>
+              </div>
           </CardContent>
         </Card>
       </div>
