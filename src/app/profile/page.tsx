@@ -12,7 +12,11 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+<<<<<<< HEAD
 import { Badge } from "@/components/ui/badge";
+=======
+import { Badge } from "@/components/ui/badge"; // Added Badge import
+>>>>>>> b228ce7bd19c2d3186329384fef478fde1d465e8
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Edit3, Save, UserCircle2, Briefcase, Loader2, AlertTriangle, Link as LinkIcon, Trash2, DollarSign } from "lucide-react";
@@ -51,10 +55,18 @@ export default function ProfilePage() {
   const [newAvatarUrlInput, setNewAvatarUrlInput] = useState("");
   const [portfolioUrls, setPortfolioUrls] = useState(""); // Comma-separated string for input
   const [experienceLevel, setExperienceLevel] = useState<User["experienceLevel"]>('');
+<<<<<<< HEAD
   const [hourlyRate, setHourlyRate] = useState<string>(""); // String for input, parsed to number
   const [resumeFileUrl, setResumeFileUrl] = useState("");
   const [resumeFileName, setResumeFileName] = useState("");
   const [pastProjects, setPastProjects] = useState("");
+=======
+  const [hourlyRate, setHourlyRate] = useState<string>("");
+  const [resumeFileUrl, setResumeFileUrl] = useState("");
+  const [resumeFileName, setResumeFileName] = useState("");
+  const [pastProjects, setPastProjects] = useState("");
+
+>>>>>>> b228ce7bd19c2d3186329384fef478fde1d465e8
 
   // Store initial fetched data to compare for changes and revert on cancel
   const [initialData, setInitialData] = useState<Partial<User>>({});
@@ -96,8 +108,38 @@ export default function ProfilePage() {
     try {
       const fetchedUser = await getUserById(authUser.id);
       if (fetchedUser) {
+<<<<<<< HEAD
         setInitialData(fetchedUser); // Store fetched data as initial state
         populateFormFields(fetchedUser); // Populate form with fetched data
+=======
+        setName(fetchedUser.name || "");
+        setEmail(fetchedUser.email || "");
+        setBio(fetchedUser.bio || (fetchedUser.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
+        setSkills(fetchedUser.skills?.join(", ") || "");
+        const avatarToDisplay = fetchedUser.avatarUrl || defaultAvatarPlaceholder(fetchedUser.name);
+        setCurrentAvatarUrl(avatarToDisplay);
+        setNewAvatarUrlInput(fetchedUser.avatarUrl || ""); 
+        setPortfolioUrls(fetchedUser.portfolioUrls?.join(", ") || "");
+        setExperienceLevel(fetchedUser.experienceLevel || '');
+        setHourlyRate(fetchedUser.hourlyRate?.toString() || "");
+        setResumeFileUrl(fetchedUser.resumeFileUrl || "");
+        setResumeFileName(fetchedUser.resumeFileName || "");
+        setPastProjects(fetchedUser.pastProjects || "");
+
+        setInitialData({
+          name: fetchedUser.name,
+          email: fetchedUser.email,
+          bio: fetchedUser.bio,
+          skills: fetchedUser.skills,
+          avatarUrl: fetchedUser.avatarUrl,
+          portfolioUrls: fetchedUser.portfolioUrls,
+          experienceLevel: fetchedUser.experienceLevel,
+          hourlyRate: fetchedUser.hourlyRate,
+          resumeFileUrl: fetchedUser.resumeFileUrl,
+          resumeFileName: fetchedUser.resumeFileName,
+          pastProjects: fetchedUser.pastProjects,
+        });
+>>>>>>> b228ce7bd19c2d3186329384fef478fde1d465e8
       } else {
         setFetchError("Could not load your profile data. It might be missing or an error occurred.");
       }
@@ -121,9 +163,26 @@ export default function ProfilePage() {
   const handleEditToggle = () => {
     if (isEditing) {
       // Revert to initial data on cancel
+<<<<<<< HEAD
       populateFormFields(initialData);
     } else {
       // When entering edit mode, set the newAvatarUrlInput to current initial, or empty if it's the default
+=======
+      setName(initialData.name || "");
+      setBio(initialData.bio || (authUser?.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
+      setSkills(initialData.skills?.join(", ") || "");
+      const initialAvatarToDisplay = initialData.avatarUrl || defaultAvatarPlaceholder(initialData.name);
+      setCurrentAvatarUrl(initialAvatarToDisplay);
+      setNewAvatarUrlInput(initialData.avatarUrl || "");
+      setPortfolioUrls(initialData.portfolioUrls?.join(", ") || "");
+      setExperienceLevel(initialData.experienceLevel || '');
+      setHourlyRate(initialData.hourlyRate?.toString() || "");
+      setResumeFileUrl(initialData.resumeFileUrl || "");
+      setResumeFileName(initialData.resumeFileName || "");
+      setPastProjects(initialData.pastProjects || "");
+    } else {
+      // When entering edit mode, set the newAvatarUrlInput to current, or empty if it's the default
+>>>>>>> b228ce7bd19c2d3186329384fef478fde1d465e8
       setNewAvatarUrlInput(initialData.avatarUrl && initialData.avatarUrl !== defaultAvatarPlaceholder(initialData.name) ? initialData.avatarUrl : "");
     }
     setIsEditing(!isEditing);
@@ -152,6 +211,10 @@ export default function ProfilePage() {
       finalAvatarUrl = defaultAvatarPlaceholder(name.trim());
     }
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> b228ce7bd19c2d3186329384fef478fde1d465e8
     const skillsArray = authUser.role === 'developer' ? skills.split(",").map(s => s.trim()).filter(s => s.length > 0) : undefined;
     const portfolioUrlsArray = authUser.role === 'developer' ? portfolioUrls.split(",").map(url => url.trim()).filter(url => url.length > 0 && (url.startsWith('http://') || url.startsWith('https://'))) : undefined;
     
@@ -173,8 +236,14 @@ export default function ProfilePage() {
     const trimmedResumeFileName = resumeFileName.trim();
     const trimmedPastProjects = pastProjects.trim();
 
+    const trimmedBio = bio.trim();
+
     const updatedData: Partial<Omit<User, 'id' | 'createdAt' | 'email' | 'role'>> = {
       name: name.trim(),
+<<<<<<< HEAD
+=======
+      bio: trimmedBio ? trimmedBio : deleteField() as any,
+>>>>>>> b228ce7bd19c2d3186329384fef478fde1d465e8
       avatarUrl: finalAvatarUrl,
       bio: trimmedBio ? trimmedBio : deleteField() as any,
     };
@@ -182,6 +251,7 @@ export default function ProfilePage() {
     if (authUser.role === 'developer') {
       updatedData.skills = skillsArray;
       updatedData.portfolioUrls = portfolioUrlsArray;
+<<<<<<< HEAD
       updatedData.experienceLevel = experienceLevel || ''; 
       updatedData.hourlyRate = hourlyRateNum === undefined ? deleteField() as any : hourlyRateNum;
       updatedData.resumeFileUrl = trimmedResumeUrl ? trimmedResumeUrl : deleteField() as any;
@@ -195,11 +265,19 @@ export default function ProfilePage() {
       updatedData.resumeFileUrl = deleteField() as any;
       updatedData.resumeFileName = deleteField() as any;
       updatedData.pastProjects = deleteField() as any;
+=======
+      updatedData.experienceLevel = experienceLevel || ''; // Ensure empty string if not set
+      updatedData.hourlyRate = hourlyRateNum;
+      updatedData.resumeFileUrl = trimmedResumeUrl || deleteField() as any;
+      updatedData.resumeFileName = resumeFileName.trim() || deleteField() as any;
+      updatedData.pastProjects = pastProjects.trim() || deleteField() as any;
+>>>>>>> b228ce7bd19c2d3186329384fef478fde1d465e8
     }
 
     try {
       await updateUser(authUser.id, updatedData);
 
+<<<<<<< HEAD
       // Update AuthContext user and initialData state for this page
       const refreshedUserData = await getUserById(authUser.id);
       if (refreshedUserData) {
@@ -226,6 +304,40 @@ export default function ProfilePage() {
         populateFormFields(updatedAuthUserContextData);
       }
       
+=======
+      const updatedAuthUser: User = {
+        ...authUser,
+        name: updatedData.name || authUser.name,
+        bio: trimmedBio || undefined, 
+        avatarUrl: updatedData.avatarUrl || authUser.avatarUrl,
+        skills: authUser.role === 'developer' ? skillsArray : authUser.skills,
+        portfolioUrls: authUser.role === 'developer' ? portfolioUrlsArray : authUser.portfolioUrls,
+        experienceLevel: authUser.role === 'developer' ? (experienceLevel || '') : authUser.experienceLevel,
+        hourlyRate: authUser.role === 'developer' ? hourlyRateNum : authUser.hourlyRate,
+        resumeFileUrl: authUser.role === 'developer' ? (trimmedResumeUrl || undefined) : authUser.resumeFileUrl,
+        resumeFileName: authUser.role === 'developer' ? (resumeFileName.trim() || undefined) : authUser.resumeFileName,
+        pastProjects: authUser.role === 'developer' ? (pastProjects.trim() || undefined) : authUser.pastProjects,
+      };
+      updateAuthContextUser(updatedAuthUser);
+
+      // Update initialData to reflect the saved state
+      setInitialData(prev => ({
+        ...prev,
+        name: updatedData.name,
+        bio: trimmedBio || undefined,
+        skills: skillsArray,
+        portfolioUrls: portfolioUrlsArray,
+        experienceLevel: experienceLevel || '',
+        avatarUrl: finalAvatarUrl,
+        hourlyRate: hourlyRateNum,
+        resumeFileUrl: trimmedResumeUrl || undefined,
+        resumeFileName: resumeFileName.trim() || undefined,
+        pastProjects: pastProjects.trim() || undefined,
+      }));
+      
+      setCurrentAvatarUrl(finalAvatarUrl); // Ensure displayed avatar updates
+
+>>>>>>> b228ce7bd19c2d3186329384fef478fde1d465e8
       setIsEditing(false);
       toast({ title: "Profile Updated", description: "Your changes have been saved." });
     } catch (e) {
@@ -340,15 +452,26 @@ export default function ProfilePage() {
                 {authUser.role === "client" ? <Briefcase className="h-4 w-4" /> : <UserCircle2 className="h-4 w-4" />}
                 {authUser.role}
               </CardDescription>
+<<<<<<< HEAD
                {authUser.role === "developer" && ((isEditing ? parseFloat(hourlyRate) : initialData.hourlyRate) ?? -1) >= 0 && (
                 <p className="text-sm text-primary font-semibold mt-1 flex items-center justify-center gap-1">
                   <DollarSign className="h-4 w-4" />
                   ${(isEditing ? hourlyRate : initialData.hourlyRate?.toString()) || '0'}/hr
+=======
+               {authUser.role === "developer" && (initialData.hourlyRate !== undefined && initialData.hourlyRate > 0) && (
+                <p className="text-sm text-primary font-semibold mt-1 flex items-center justify-center gap-1">
+                  <DollarSign className="h-4 w-4" />
+                  ${initialData.hourlyRate}/hr
+>>>>>>> b228ce7bd19c2d3186329384fef478fde1d465e8
                 </p>
               )}
             </CardHeader>
             <CardContent className="text-center">
+<<<<<<< HEAD
               <p className="text-sm text-muted-foreground">{email}</p>
+=======
+              <p className="text-sm text-muted-foreground">{initialData.email}</p>
+>>>>>>> b228ce7bd19c2d3186329384fef478fde1d465e8
             </CardContent>
           </Card>
 
