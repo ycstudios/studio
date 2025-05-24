@@ -7,7 +7,7 @@ import { Briefcase, Users, Zap, Target, Search, MessageSquare, ThumbsUp, UserChe
 import Image from "next/image";
 import Link from "next/link";
 import { BenefitListItem } from "@/components/BenefitListItem";
-import { ImageCarousel } from "@/components/ImageCarousel"; // Import the new carousel component
+import { ImageCarousel } from "@/components/ImageCarousel"; 
 
 const clientCarouselImages = [
   { src: "https://placehold.co/600x450.png", alt: "Client reviewing project proposals", dataAiHint: "client meeting business" },
@@ -26,19 +26,19 @@ export default function HomePage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] bg-background text-foreground">
       {/* Hero Section */}
-      <section className="w-full py-12 md:py-20 lg:py-28 bg-gradient-to-br from-primary/10 via-background to-accent/10">
+      <section className="w-full py-12 md:py-20 lg:py-28 bg-gradient-to-br from-primary/10 via-background to-accent/10 overflow-hidden">
         <div className="container px-4 md:px-6">
           <div className="grid gap-8 lg:grid-cols-2 lg:gap-16 items-center">
-            <div className="flex flex-col justify-center space-y-6">
+            <div className="flex flex-col justify-center space-y-6 animate-in fade-in slide-in-from-left-12 duration-700">
               <div className="space-y-3">
-                <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
+                <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent animate-in fade-in-0 slide-in-from-bottom-10 duration-1000 delay-300">
                   Connect, Collaborate, Create.
                 </h1>
-                <p className="max-w-[600px] text-muted-foreground md:text-xl">
+                <p className="max-w-[600px] text-muted-foreground md:text-xl animate-in fade-in-0 slide-in-from-bottom-10 duration-1000 delay-500">
                   CodeCrafter is your AI-powered platform to seamlessly match innovative projects with expert freelance developers. Build your vision, faster.
                 </p>
               </div>
-              <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex flex-col gap-3 sm:flex-row animate-in fade-in-0 slide-in-from-bottom-10 duration-1000 delay-700">
                 <Button size="lg" asChild className="shadow-lg hover:shadow-primary/30 transition-shadow">
                   <Link href="/signup">Get Started Free</Link>
                 </Button>
@@ -53,7 +53,7 @@ export default function HomePage() {
               height="500"
               alt="Team collaborating on a project"
               data-ai-hint="modern office collaboration"
-              className="mx-auto aspect-video overflow-hidden rounded-xl object-cover shadow-2xl transform hover:scale-105 transition-transform duration-300 w-full h-auto"
+              className="mx-auto aspect-video overflow-hidden rounded-xl object-cover shadow-2xl transform hover:scale-105 transition-transform duration-300 w-full h-auto animate-in fade-in zoom-in-90 duration-700 delay-200"
               priority
             />
           </div>
@@ -247,7 +247,7 @@ function HowItWorksStep({ icon, step, description }: HowItWorksStepProps) {
 interface TestimonialCardProps {
   quote: string;
   name: string;
-  avatarHint: string; // For data-ai-hint
+  avatarHint: string; 
 }
 
 function TestimonialCard({ quote, name, avatarHint }: TestimonialCardProps) {
@@ -269,7 +269,6 @@ function TestimonialCard({ quote, name, avatarHint }: TestimonialCardProps) {
           />
           <div>
             <p className="font-semibold text-sm">{name}</p>
-            {/* <p className="text-xs text-muted-foreground">Role, Company</p> */}
           </div>
         </div>
       </CardContent>
