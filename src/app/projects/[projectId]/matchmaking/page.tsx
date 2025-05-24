@@ -41,6 +41,7 @@ export default function ProjectMatchmakingPage() {
           const fetchedProject = await getProjectById(projectId);
           if (fetchedProject) {
             setProject(fetchedProject);
+            // Auto-run matchmaking if client is owner and project is open
             if (user?.role === 'client' && user.id === fetchedProject.clientId && fetchedProject.status === "Open") {
               handleRunMatchmaking(fetchedProject);
             }
@@ -49,7 +50,7 @@ export default function ProjectMatchmakingPage() {
             toast({ title: "Error", description: "Project not found.", variant: "destructive" });
           }
         } catch (e) {
-          console.error("Failed to fetch project:", e);
+          // console.error("Failed to fetch project:", e); // Removed for production
           const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred.";
           setError(`Failed to load project: ${errorMessage}`);
           toast({ title: "Error Loading Project", description: `Could not load project: ${errorMessage}`, variant: "destructive" });
@@ -62,7 +63,8 @@ export default function ProjectMatchmakingPage() {
         setError("No project ID provided in URL.");
         setIsLoadingProject(false);
     }
-  }, [projectId, toast, user?.role, user?.id]); 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, toast, user?.role, user?.id]); // Removed handleRunMatchmaking from dep array as it's memoized
 
   const handleRunMatchmaking = async (currentProject: ProjectType | null = project) => {
     if (!currentProject) {
@@ -80,7 +82,7 @@ export default function ProjectMatchmakingPage() {
 
     setIsMatching(true);
     setError(null); 
-    // setMatches(null); 
+    setMatches(null); // Clear previous matches
 
     const inputForAI: MatchDevelopersInput = {
       projectRequirements: currentProject.description,
@@ -98,7 +100,7 @@ export default function ProjectMatchmakingPage() {
           description: "Potential developer matches have been found for your project.",
         });
       } catch (e) {
-        console.error("AI Matchmaking error:", e);
+        // console.error("AI Matchmaking error:", e); // Removed for production
         const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred.";
         setError(`AI Matchmaking failed: ${errorMessage}`); 
         toast({
@@ -114,14 +116,13 @@ export default function ProjectMatchmakingPage() {
 
   const handleApplyForProject = () => {
     // Placeholder for actual application logic (e.g., save to Firestore)
-    console.log(`Developer ${user?.id} applied for project ${projectId}`);
+    // console.log(`Developer ${user?.id} applied for project ${projectId}`); // Removed for production
     setApplied(true);
     toast({
       title: "Application Submitted!",
       description: "Your interest in this project has been noted. The project owner will be informed.",
     });
     // In a real app, you'd call a service here to save the application
-    // and potentially disable the button permanently or change its text
   };
 
 
@@ -167,6 +168,7 @@ export default function ProjectMatchmakingPage() {
   }
 
   const canApply = user?.role === 'developer' && project.status === "Open" && user.id !== project.clientId;
+  const isClientOwner = user?.role === 'client' && user.id === project.clientId;
 
 
   return (
@@ -207,7 +209,7 @@ export default function ProjectMatchmakingPage() {
             <h3 className="font-semibold mb-1 text-lg">Client Timezone:</h3>
             <p className="text-muted-foreground mb-4">{project.timeZone || <span className="italic">Not specified</span>}</p>
 
-            {user?.role === 'client' && user.id === project.clientId && project.status === "Open" && (
+            {isClientOwner && project.status === "Open" && (
                  <Button onClick={() => handleRunMatchmaking(project)} disabled={isMatching || isTransitionPending} className="mt-4">
                     {(isMatching || isTransitionPending) ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -269,9 +271,9 @@ export default function ProjectMatchmakingPage() {
                       key={index} 
                       name={`Suggested Developer Profile ${index + 1}`} 
                       description={devProfileText} 
-                      skills={project.requiredSkills || []} // Show project skills as context
+                      skills={project.requiredSkills || []} 
                       dataAiHint="developer profile abstract"
-                      matchQuality="Good Fit" // Placeholder as AI doesn't provide this yet
+                      matchQuality="Good Fit" 
                     />
                   ))}
                 </div>
@@ -323,4 +325,3 @@ function ProjectStatusBadge({ status }: { status?: ProjectType["status"] }) {
     </span>
   );
 }
-

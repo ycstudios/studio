@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -39,7 +40,7 @@ export function LoginForm() {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log("Login attempt with:", values);
+    // console.log("Login attempt with:", values); // Removed for production
     
     let role: UserRole;
     const emailLowerCase = values.email.toLowerCase();
@@ -60,7 +61,7 @@ export function LoginForm() {
     }
 
     login({
-      id: Math.random().toString(36).substring(7),
+      id: Math.random().toString(36).substring(7), // This mock ID generation needs to be replaced by actual Firebase Auth ID
       name: values.email.split('@')[0], 
       email: values.email,
       role: role,
