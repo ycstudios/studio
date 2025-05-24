@@ -3,17 +3,89 @@
 
 import React, { useEffect, useState } from "react";
 import { ProtectedPage } from "@/components/ProtectedPage";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { User, Briefcase, ShieldAlert, Eye, Loader2, Info, FileText, CheckCircle, Clock, AlertTriangle } from "lucide-react";
+import { 
+  User, 
+  Briefcase, 
+  ShieldAlert, 
+  Eye, 
+  Loader2, 
+  Info, 
+  FileText, 
+  CheckCircle, 
+  Clock, 
+  AlertTriangle,
+  Brain,
+  BarChart3,
+  KanbanSquare,
+  ClipboardCheck,
+  Landmark,
+  Bell,
+  History,
+  ArrowRight,
+  Settings
+} from "lucide-react";
 import type { User as UserType, Project } from "@/types";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAllProjects } from "@/lib/firebaseService"; 
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from 'date-fns';
+
+interface AdminFeatureCardProps {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  link?: string; // Optional link for the "Manage" button
+  accentColor?: 'primary' | 'accent';
+}
+
+function AdminFeatureCard({ icon, title, description, link = "#", accentColor = 'primary' }: AdminFeatureCardProps) {
+  return (
+    <Card className={`shadow-lg hover:shadow-${accentColor}/30 border border-transparent hover:border-${accentColor} transition-all duration-300 transform hover:-translate-y-1 flex flex-col`}>
+      <CardHeader className="flex flex-row items-start gap-4 pb-3">
+        {icon}
+        <CardTitle className="text-lg font-semibold mt-1">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex-grow">
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </CardContent>
+      <CardFooter>
+        <Button variant="ghost" size="sm" className={`ml-auto text-${accentColor} hover:text-${accentColor}/80 group`} asChild>
+          <Link href={link}>
+            Manage
+            <ArrowRight className={`ml-2 h-4 w-4 transition-transform group-hover:translate-x-1`} />
+          </Link>
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
+
+const adminFeatures: Omit<AdminFeatureCardProps, 'icon' | 'accentColor'>[] = [
+  { title: "Smart Request Matching", description: "Auto-connect clients to the best-fit developers using tags and pricing.", link: "#" },
+  { title: "Developer Analytics", description: "Track performance, ratings, and project history.", link: "#" },
+  { title: "Project Monitoring", description: "View ongoing, completed, and pending projects in real-time.", link: "#projects-section" },
+  { title: "Request Manager", description: "Accept, reject, or assign service requests to developers.", link: "#" },
+  { title: "Payment Control", description: "Monitor transactions, release payments, handle disputes.", link: "#" },
+  { title: "Notification Center", description: "Real-time alerts for user actions or system events.", link: "#" },
+  { title: "User Management", description: "View and manage all clients and developers.", link: "#users-section" },
+  { title: "Activity Logs", description: "Track all admin-side actions for transparency.", link: "#" },
+];
+
+const featureIcons = [
+  <Brain key="brain" className="h-8 w-8 text-primary flex-shrink-0" />,
+  <BarChart3 key="barchart" className="h-8 w-8 text-accent flex-shrink-0" />,
+  <KanbanSquare key="kanban" className="h-8 w-8 text-primary flex-shrink-0" />,
+  <ClipboardCheck key="clipboard" className="h-8 w-8 text-accent flex-shrink-0" />,
+  <Landmark key="landmark" className="h-8 w-8 text-primary flex-shrink-0" />,
+  <Bell key="bell" className="h-8 w-8 text-accent flex-shrink-0" />,
+  <Users key="users-icon" className="h-8 w-8 text-primary flex-shrink-0" />, // Users is already imported for tables, using new key
+  <History key="history" className="h-8 w-8 text-accent flex-shrink-0" />,
+];
 
 
 export default function AdminPage() {
@@ -68,12 +140,12 @@ export default function AdminPage() {
     );
   }
   
-  if (fetchError && projects.length === 0) { // Show error prominently if project fetching fails
+  if (fetchError && projects.length === 0 && clients.length === 0 && developers.length === 0) { 
      return (
       <ProtectedPage allowedRoles={["admin"]}>
         <div className="container mx-auto p-4 md:p-6 lg:p-8 text-center">
           <AlertTriangle className="h-16 w-16 text-destructive mx-auto mb-4" />
-          <h1 className="text-2xl font-semibold mb-2">Error Loading Projects</h1>
+          <h1 className="text-2xl font-semibold mb-2">Error Loading Admin Data</h1>
           <p className="text-muted-foreground">{fetchError}</p>
         </div>
       </ProtectedPage>
@@ -84,15 +156,35 @@ export default function AdminPage() {
   return (
     <ProtectedPage allowedRoles={["admin"]}>
       <div className="container mx-auto p-4 md:p-6 lg:p-8">
-        <header className="mb-8">
+        <header className="mb-10">
           <h1 className="text-3xl font-bold tracking-tight flex items-center">
             <ShieldAlert className="mr-3 h-8 w-8 text-primary" />
-            Admin Panel
+            CodeCrafter Admin Panel
           </h1>
-          <p className="text-muted-foreground">Manage users and projects registered on the platform (data from Firestore).</p>
+          <p className="text-muted-foreground">Oversee platform operations, manage users, and monitor projects.</p>
         </header>
 
-        <div className="grid grid-cols-1 gap-8 mb-8">
+        {/* Core Admin Features Section */}
+        <section className="mb-12">
+          <div className="flex items-center mb-6 gap-3">
+             <Settings className="h-7 w-7 text-primary" />
+            <h2 className="text-2xl font-semibold tracking-tight">Core Admin Features</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {adminFeatures.map((feature, index) => (
+              <AdminFeatureCard
+                key={feature.title}
+                icon={featureIcons[index]}
+                title={feature.title}
+                description={feature.description}
+                link={feature.link}
+                accentColor={index % 2 === 0 ? 'primary' : 'accent'}
+              />
+            ))}
+          </div>
+        </section>
+        
+        <div id="users-section" className="grid grid-cols-1 gap-8 mb-8">
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="text-xl flex items-center">
@@ -120,19 +212,21 @@ export default function AdminPage() {
           </Card>
         </div>
 
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-xl flex items-center">
-              <FileText className="mr-2 h-5 w-5 text-primary" />
-              All Projects ({projects.length})
-            </CardTitle>
-            <CardDescription>Overview of all projects submitted on the platform.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {fetchError && <p className="text-destructive mb-4">Error loading projects: {fetchError}</p>}
-            <ProjectTable projects={projects} allUsers={allUsers} />
-          </CardContent>
-        </Card>
+        <div id="projects-section">
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-xl flex items-center">
+                <FileText className="mr-2 h-5 w-5 text-primary" />
+                All Projects ({projects.length})
+              </CardTitle>
+              <CardDescription>Overview of all projects submitted on the platform.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {fetchError && projects.length === 0 && <p className="text-destructive mb-4">Error loading projects: {fetchError}</p>}
+              <ProjectTable projects={projects} allUsers={allUsers} />
+            </CardContent>
+          </Card>
+        </div>
 
          {(allUsers.length === 0 && projects.length === 0 && !isLoading && !fetchError) && (
           <Card className="mt-8 shadow-md">
@@ -242,7 +336,7 @@ function ProjectTable({ projects, allUsers }: ProjectTableProps) {
                 <ProjectStatusBadge status={project.status} />
               </TableCell>
                <TableCell className="whitespace-nowrap">
-                 {project.createdAt ? formatDistanceToNow(project.createdAt instanceof Date ? project.createdAt : new Date(), { addSuffix: true }) : 'N/A'}
+                 {project.createdAt ? formatDistanceToNow(project.createdAt instanceof Date ? project.createdAt : new Date( (project.createdAt as any).seconds * 1000 ), { addSuffix: true }) : 'N/A'}
               </TableCell>
               <TableCell className="text-right whitespace-nowrap">
                 <Button variant="outline" size="sm" asChild>
@@ -295,3 +389,5 @@ function ProjectStatusBadge({ status }: { status?: Project["status"] }) {
     </span>
   );
 }
+
+
