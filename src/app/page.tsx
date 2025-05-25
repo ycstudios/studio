@@ -22,6 +22,7 @@ const developerCarouselImages = [
   { src: "https://www.dropbox.com/scl/fi/oy34qipt9kq4ba7y4snbo/WhatsApp-Image-2025-05-20-at-10.14.51-PM.jpeg?rlkey=whc93wr321i8uvi4s958ozueq&st=t7876qd1&dl=1", alt: "Collaborative coding pair", dataAiHint: "collaborative coding pair" },
 ];
 
+
 export default function HomePage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] bg-background text-foreground">
