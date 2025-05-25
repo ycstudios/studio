@@ -122,7 +122,6 @@ export default function AdminPage() {
       setProjects(fetchedProjects);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Could not retrieve project list."
-      console.error("Error fetching projects for admin panel:", error);
       setProjectsFetchError(errorMsg);
     } finally {
       setIsLoadingProjects(false);
@@ -268,7 +267,7 @@ export default function AdminPage() {
             <CardHeader>
               <CardTitle className="text-xl flex items-center">
                 <UsersRound className="mr-2 h-5 w-5 text-primary" />
-                Clients ({authLoading ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : clients.length})
+                Clients ({authLoading && clients.length === 0 ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : clients.length})
               </CardTitle>
               <CardDescription>List of all registered clients from Firestore. Sorted by join date.</CardDescription>
             </CardHeader>
@@ -283,7 +282,7 @@ export default function AdminPage() {
             <CardHeader>
               <CardTitle className="text-xl flex items-center">
                 <User className="mr-2 h-5 w-5 text-primary" />
-                Developers ({authLoading ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : developers.length})
+                Developers ({authLoading && developers.length === 0 ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : developers.length})
               </CardTitle>
               <CardDescription>List of all registered developers from Firestore. Sorted by join date.</CardDescription>
             </CardHeader>
@@ -300,7 +299,7 @@ export default function AdminPage() {
             <CardHeader>
               <CardTitle className="text-xl flex items-center">
                 <FileText className="mr-2 h-5 w-5 text-primary" />
-                All Projects ({isLoadingProjects ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : projects.length})
+                All Projects ({isLoadingProjects && projects.length === 0 ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : projects.length})
               </CardTitle>
               <CardDescription>Overview of all projects on the platform from Firestore.</CardDescription>
             </CardHeader>
@@ -355,7 +354,7 @@ function UserTable({ users, onToggleFlag, onUpdateStatus, isTogglingFlagId, isUp
             <TableHead>Status</TableHead>
             <TableHead>Flagged</TableHead>
             <TableHead>Joined</TableHead>
-            {users.length > 0 && users[0]?.role === 'developer' && <TableHead>Skills</TableHead>}
+            <TableHead>Skills</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -378,13 +377,11 @@ function UserTable({ users, onToggleFlag, onUpdateStatus, isTogglingFlagId, isUp
               <TableCell className="whitespace-nowrap">
                 {user.createdAt ? format(user.createdAt instanceof Date ? user.createdAt : new Date((user.createdAt as any).seconds * 1000), "PP") : 'N/A'}
               </TableCell>
-              {user.role === 'developer' && (
-                <TableCell className="min-w-[150px] max-w-[300px] truncate">
-                  {user.skills && user.skills.length > 0 
-                    ? user.skills.join(", ") 
-                    : <span className="text-muted-foreground italic">No skills</span>}
-                </TableCell>
-              )}
+              <TableCell className="min-w-[150px] max-w-[300px]">
+                {user.role === 'developer' && user.skills && user.skills.length > 0 
+                  ? user.skills.slice(0, 3).join(", ") + (user.skills.length > 3 ? `... (+${user.skills.length - 3})` : "")
+                  : <span className="text-muted-foreground italic">No skills</span>}
+              </TableCell>
               <TableCell className="text-right whitespace-nowrap space-x-2">
                 {user.role === 'developer' && user.accountStatus === 'pending_approval' && (
                   <>
@@ -567,3 +564,4 @@ function AccountStatusBadge({ status }: { status?: UserType["accountStatus"] }) 
     </Badge>
   );
 }
+
