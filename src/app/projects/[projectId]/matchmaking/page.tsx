@@ -27,9 +27,10 @@ import { format, formatDistanceToNow } from 'date-fns';
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { doc, updateDoc } from "firebase/firestore";
-import { PROJECT_APPLICATIONS_COLLECTION } from "@/lib/firebaseService";
+import { db } from "@/lib/firebase"; // For PROJECT_APPLICATIONS_COLLECTION doc() calls
+// Removed: import { PROJECT_APPLICATIONS_COLLECTION } from "@/lib/firebaseService";
+// doc and updateDoc are no longer needed directly in this component for developerNotifiedOfStatus
+// import { doc, updateDoc } from "firebase/firestore";
 
 
 export default function ProjectMatchmakingPage() {
@@ -66,7 +67,7 @@ export default function ProjectMatchmakingPage() {
 
     setIsMatching(true);
     setAiError(null);
-    if (showToast) setMatches(null);
+    if (showToast) setMatches(null); // Clear previous matches if re-running manually
 
     const inputForAI: MatchDevelopersInput = {
       projectRequirements: currentProject.description,
@@ -168,8 +169,7 @@ export default function ProjectMatchmakingPage() {
       } finally {
         setIsLoadingApplications(false);
       }
-    } else if (user.role === 'admin' || user.id === project.clientId) { 
-      // Reordered condition to potentially help TS inference
+    } else if (user.role === 'admin' || user.id === project.clientId) {
       console.log(`[MatchmakingPage] manageApplications: Client/Admin ${user.id} viewing project ${project.id}. Fetching applications.`);
       setIsLoadingApplications(true);
       setApplicationsError(null);
@@ -188,7 +188,7 @@ export default function ProjectMatchmakingPage() {
   }, [user, project]);
 
   useEffect(() => {
-    if (project && user) { 
+    if (project && user) {
       manageApplications();
     }
   }, [project, user, manageApplications]);
@@ -196,9 +196,10 @@ export default function ProjectMatchmakingPage() {
 
   useEffect(() => {
     if (!isLoadingProject && !authLoading && project && user && !initialMatchmakingDoneForCurrentProject) {
+      // Run initial AI matchmaking for client, developer (if project is open), or admin
       if (project.status === "Open" && (user.id === project.clientId || user.role === 'developer' || user.role === 'admin')) {
         console.log(`[MatchmakingPage] Initial AI matchmaking trigger for project ${project.id}, user ${user.id}`);
-        handleRunMatchmaking(project, false);
+        handleRunMatchmaking(project, false); // showToast set to false for initial auto-run
       }
       setInitialMatchmakingDoneForCurrentProject(true);
     }
@@ -231,7 +232,7 @@ export default function ProjectMatchmakingPage() {
         description: "Your interest in this project has been noted. The project owner will be informed.",
       });
       // Re-fetch applications if the current user is admin/client to see the new app (unlikely scenario for dev role)
-      if (user.id === project.clientId || user.role === 'admin') { 
+      if (user.id === project.clientId || user.role === 'admin') {
         manageApplications();
       }
     } catch (error) {
@@ -248,42 +249,36 @@ export default function ProjectMatchmakingPage() {
       toast({ title: "Unauthorized", description: "Only the project owner or an admin can manage applications.", variant: "destructive" });
       return;
     }
-    if (!project.name) {
+     if (!project.name) { // Should not happen if project is loaded
         toast({ title: "Project Error", description: "Project name is missing, cannot proceed.", variant: "destructive" });
         return;
     }
-    if (!application.developerEmail || !application.developerName) {
-        toast({ title: "Application Error", description: "Developer details missing in application.", variant: "destructive" });
+
+    const appData = projectApplications.find(app => app.id === application.id);
+    if (!appData || !appData.developerEmail || !appData.developerName || !appData.projectName || !appData.projectId) {
+        toast({ title: "Application Error", description: "Developer details missing in application. Cannot proceed.", variant: "destructive" });
         return;
     }
+
     setIsProcessingApplication(application.id);
     try {
       await updateProjectApplicationStatus(application.id, newStatus, user.id, user.name || "Admin/Client");
 
       if (newStatus === 'accepted') {
-        await assignDeveloperToProject(project.id, application.id, application.developerId, application.developerName, application.developerEmail, user.id, user.name || "Admin/Client");
+        await assignDeveloperToProject(project.id, application.id, appData.developerId, appData.developerName, appData.developerEmail, user.id, user.name || "Admin/Client");
         await rejectOtherPendingApplications(project.id, application.id, user.id, user.name || "Admin/Client");
-        
-        // Send email to accepted developer
-        const emailHtml = await getApplicationAcceptedEmailToDeveloper(application.developerName, project.name, project.id);
-        await sendEmail(application.developerEmail, `Congratulations! Application Accepted for "${project.name}"`, emailHtml);
-        // The developerNotifiedOfStatus will be updated within assignDeveloperToProject now
-
+        // Email for acceptance is handled in assignDeveloperToProject
       } else if (newStatus === 'rejected') {
-        // Send email to rejected developer
-        const emailHtml = await getApplicationRejectedEmailToDeveloper(application.developerName, project.name, project.id);
-        await sendEmail(application.developerEmail, `Update on Your Application for "${project.name}"`, emailHtml);
-        // The developerNotifiedOfStatus will be updated within updateProjectApplicationStatus now
+        // Email for rejection is handled by updateProjectApplicationStatus
       }
 
       const updatedProject = await getProjectById(project.id);
       if (updatedProject) setProject(updatedProject);
 
-      // Re-fetch applications to update their statuses in the list
       const apps = await getApplicationsByProjectId(project.id);
       setProjectApplications(apps);
 
-      toast({ title: "Application Updated", description: `${application.developerName}'s application has been ${newStatus}.` });
+      toast({ title: "Application Updated", description: `${appData.developerName}'s application has been ${newStatus}.` });
 
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : "Could not update application status.";
@@ -350,7 +345,6 @@ export default function ProjectMatchmakingPage() {
 
   const isLoadingAIMatches = isMatching || isTransitionPending;
 
-  // Helper to safely create a Date object from Firestore Timestamp or other date-like values
   const safeCreateDateLocal = (timestamp: any): Date | undefined => {
     if (!timestamp) return undefined;
     if (timestamp instanceof Date) return timestamp;
@@ -705,3 +699,4 @@ function ApplicationStatusBadge({ status }: { status: ApplicationStatus }) {
     </Badge>
   );
 }
+
