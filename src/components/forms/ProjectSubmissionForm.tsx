@@ -257,20 +257,20 @@ export function ProjectSubmissionForm() {
           <CardContent className="space-y-6">
             <div>
               <h3 className="font-semibold mb-2">Reasoning:</h3>
-              <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">{matchResult.reasoning}</p>
+              <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">{matchResult.overallReasoning}</p>
             </div>
             
             <h3 className="font-semibold">Matched Profiles:</h3>
-            {matchResult.developerMatches.length > 0 ? (
+            {matchResult.matchedDevelopers.length > 0 ? (
               <div className="space-y-4">
-                {matchResult.developerMatches.map((devProfileText, index) => (
+                {matchResult.matchedDevelopers.map((match, index) => (
                   <DeveloperCard 
-                    key={index} 
-                    name={`Potential Developer ${index + 1} (AI Suggestion)`}
-                    description={devProfileText} 
+                    key={match.developerId} 
+                    name={match.developerName}
+                    description={match.reasoningForThisMatch || "No specific reasoning provided for this match."}
                     skills={form.getValues("requiredSkills").split(",").map(s => s.trim())}
                     dataAiHint="developer profile abstract"
-                    matchQuality="Good Fit" // Example match quality
+                    matchQuality={match.matchScore ? (match.matchScore >= 0.8 ? "Strong Fit" : match.matchScore >= 0.6 ? "Good Fit" : "Moderate Fit") : "Good Fit"}
                   />
                 ))}
               </div>
