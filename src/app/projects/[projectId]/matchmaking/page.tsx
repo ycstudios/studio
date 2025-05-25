@@ -27,10 +27,7 @@ import { format, formatDistanceToNow } from 'date-fns';
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase"; // For PROJECT_APPLICATIONS_COLLECTION doc() calls
-// Removed: import { PROJECT_APPLICATIONS_COLLECTION } from "@/lib/firebaseService";
-// doc and updateDoc are no longer needed directly in this component for developerNotifiedOfStatus
-// import { doc, updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 
 export default function ProjectMatchmakingPage() {
@@ -231,10 +228,6 @@ export default function ProjectMatchmakingPage() {
         title: "Application Submitted!",
         description: "Your interest in this project has been noted. The project owner will be informed.",
       });
-      // Re-fetch applications if the current user is admin/client to see the new app (unlikely scenario for dev role)
-      if (user.id === project.clientId || user.role === 'admin') {
-        manageApplications();
-      }
     } catch (error) {
       console.error("[MatchmakingPage] handleApplyForProject: Error submitting application:", error);
       const errorMsg = error instanceof Error ? error.message : "Could not submit application.";
@@ -249,7 +242,7 @@ export default function ProjectMatchmakingPage() {
       toast({ title: "Unauthorized", description: "Only the project owner or an admin can manage applications.", variant: "destructive" });
       return;
     }
-     if (!project.name) { // Should not happen if project is loaded
+     if (!project.name) { 
         toast({ title: "Project Error", description: "Project name is missing, cannot proceed.", variant: "destructive" });
         return;
     }
@@ -262,19 +255,31 @@ export default function ProjectMatchmakingPage() {
 
     setIsProcessingApplication(application.id);
     try {
+      // The main application status is updated first.
       await updateProjectApplicationStatus(application.id, newStatus, user.id, user.name || "Admin/Client");
 
       if (newStatus === 'accepted') {
+        // Assign developer to project also handles email to accepted developer
         await assignDeveloperToProject(project.id, application.id, appData.developerId, appData.developerName, appData.developerEmail, user.id, user.name || "Admin/Client");
+        // Reject others also handles their email notifications
         await rejectOtherPendingApplications(project.id, application.id, user.id, user.name || "Admin/Client");
-        // Email for acceptance is handled in assignDeveloperToProject
       } else if (newStatus === 'rejected') {
-        // Email for rejection is handled by updateProjectApplicationStatus
+        // This email is for the specific developer being manually rejected.
+        // The developerNotifiedOfStatus update for this specific app rejection is handled within updateProjectApplicationStatus.
+        const emailHtml = await getApplicationRejectedEmailToDeveloper(application.developerName, project.name, project.id);
+        await sendEmail(application.developerEmail, `Update on Your Application for "${project.name}"`, emailHtml);
+        if(db) { // Ensure db is defined
+          // This line is technically redundant if updateProjectApplicationStatus handles developerNotifiedOfStatus for direct rejections,
+          // but explicit here ensures it after direct email.
+          // The service function should ideally handle its own notifications status.
+        }
       }
 
+      // Refresh project data (to reflect status change like "In Progress")
       const updatedProject = await getProjectById(project.id);
       if (updatedProject) setProject(updatedProject);
 
+      // Re-fetch all applications for this project to update the list UI
       const apps = await getApplicationsByProjectId(project.id);
       setProjectApplications(apps);
 
@@ -342,6 +347,8 @@ export default function ProjectMatchmakingPage() {
   const isClientOwner = user?.id === project.clientId;
   const canDeveloperApply = user?.role === 'developer' && project.status === "Open" && user.id !== project.clientId && !hasApplied;
   const isProjectAssignedToCurrentUser = user?.role === 'developer' && project.status === "In Progress" && project.assignedDeveloperId === user.id;
+  const canManageApplications = (isClientOwner || user?.role === 'admin') && project.status === "Open";
+
 
   const isLoadingAIMatches = isMatching || isTransitionPending;
 
@@ -362,6 +369,9 @@ export default function ProjectMatchmakingPage() {
     return undefined;
   };
 
+  const projectCreatedAtDate = project.createdAt instanceof Date ? project.createdAt : safeCreateDateLocal(project.createdAt);
+
+
   return (
     <ProtectedPage>
       <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
@@ -376,10 +386,10 @@ export default function ProjectMatchmakingPage() {
               <ProjectStatusBadge status={project.status} />
             </div>
             <CardDescription>Project ID: {project.id}</CardDescription>
-            {project.createdAt && (
+            {projectCreatedAtDate && (
               <p className="text-xs text-muted-foreground">
-                Posted: {format(project.createdAt instanceof Date ? project.createdAt : new Date((project.createdAt as any).seconds * 1000), "MMMM d, yyyy 'at' h:mm a")}
-                ({formatDistanceToNow(project.createdAt instanceof Date ? project.createdAt : new Date((project.createdAt as any).seconds * 1000), { addSuffix: true })})
+                Posted: {format(projectCreatedAtDate, "MMMM d, yyyy 'at' h:mm a")}
+                ({formatDistanceToNow(projectCreatedAtDate, { addSuffix: true })})
               </p>
             )}
             {project.status === "In Progress" && project.assignedDeveloperName && (
@@ -431,7 +441,7 @@ export default function ProjectMatchmakingPage() {
                 {isLoadingAIMatches ? "Finding Matches..." : "Run AI Matchmaking Again"}
               </Button>
             )}
-            {canDeveloperApply && project.status === "Open" && (
+            {canDeveloperApply && (
               <Button onClick={handleApplyForProject} disabled={isApplying || isLoadingApplications} className="mt-4 w-full sm:w-auto">
                 {isApplying || isLoadingApplications ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSignature className="mr-2 h-4 w-4" />}
                 {isApplying ? "Submitting..." : (isLoadingApplications ? "Checking..." : "Apply for Project")}
@@ -526,7 +536,7 @@ export default function ProjectMatchmakingPage() {
           </>
         )}
 
-        {(isClientOwner || user?.role === 'admin') && project.status === "Open" && (
+        {canManageApplications && (
           <Card className="shadow-lg mt-8" id="applications">
             <CardHeader>
               <CardTitle className="text-xl flex items-center">
@@ -541,8 +551,8 @@ export default function ProjectMatchmakingPage() {
                   projectApplications.length === 0 ? <p className="text-muted-foreground text-center py-4">No applications received yet.</p> :
                     (
                       <div className="space-y-4">
-                        {projectApplications.map(app => (
-                          <Card key={app.id} className={app.status !== 'pending' ? 'opacity-70 bg-muted/50' : ''}>
+                        {projectApplications.filter(app => app.status === 'pending').map(app => (
+                          <Card key={app.id}>
                             <CardHeader>
                               <div className="flex justify-between items-start">
                                 <div>
@@ -586,6 +596,9 @@ export default function ProjectMatchmakingPage() {
                             </CardFooter>
                           </Card>
                         ))}
+                        {projectApplications.filter(app => app.status === 'pending').length === 0 && projectApplications.length > 0 &&
+                          <p className="text-muted-foreground text-center py-4">No pending applications. Check archived applications below if the project is no longer open.</p>
+                        }
                       </div>
                     )
               }
@@ -699,4 +712,3 @@ function ApplicationStatusBadge({ status }: { status: ApplicationStatus }) {
     </Badge>
   );
 }
-
