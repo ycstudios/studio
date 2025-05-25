@@ -1,4 +1,5 @@
 
+// src/types/index.ts
 import type { Timestamp } from "firebase/firestore";
 
 export type UserRole = "client" | "developer" | "admin";
@@ -9,7 +10,7 @@ export type ApplicationStatus = "pending" | "accepted" | "rejected";
 export interface User {
   id: string;
   name: string;
-  email: string;,
+  email: string;
   role: UserRole;
   avatarUrl?: string;
   bio?: string;
@@ -53,7 +54,8 @@ export interface ProjectApplication {
   status: ApplicationStatus;
   appliedAt: Timestamp;
   messageToClient?: string; // Optional message from developer
-  // clientNotified?: boolean; // To track if client was notified, for more complex flows
+  clientNotifiedOfNewApplication?: boolean;
+  developerNotifiedOfStatus?: boolean;
 }
 
 export interface DeveloperMatch {
@@ -77,14 +79,14 @@ export interface MatchDevelopersOutput {
 // New: For Admin Activity Logs
 export interface AdminActivityLog {
   id?: string; // Firestore document ID
-  adminId: string; // ID of the admin who performed the action
-  adminName?: string; // Optional: Name of the admin (denormalized for easier display)
-  action: string; // e.g., "USER_FLAGGED", "USER_UNFLAGGED", "PROJECT_STATUS_CHANGED", "DEVELOPER_APPROVED", "DEVELOPER_REJECTED"
+  adminId: string; // ID of the admin who performed the action (or system/client ID for app events)
+  adminName?: string; // Optional: Name of the admin/user (denormalized for easier display)
+  action: string; // e.g., "USER_FLAGGED", "PROJECT_APPLICATION_ACCEPTED", "PROJECT_APPLICATION_REJECTED"
   targetType: "user" | "project" | "system" | "quick_request" | "project_application";
-  targetId: string; // ID of the user/project affected, or client email for quick request
-  targetName?: string; // Optional: Name of the user/project (denormalized)
+  targetId: string; // ID of the user/project/application affected
+  targetName?: string; // Optional: Name of the user/project/application (denormalized)
   timestamp: Timestamp;
-  details?: Record<string, any>; // Any additional relevant information (e.g., old_status, new_status)
+  details?: Record<string, any>; // Any additional relevant information
 }
 
 // For Quick Service Request Form
