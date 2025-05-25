@@ -269,7 +269,8 @@ export async function addUser(
     JSON.stringify(
       documentToWrite,
       (k, v) => {
-        if (typeof v === "object" && v !== null && "isEqual" in v) return "[FieldValue/Timestamp]"
+        // Check if it's a FieldValue by looking for the _methodName property
+        if (v && typeof v === "object" && "_methodName" in v) return "[FieldValue/Timestamp]"
         return v
       },
       2,
@@ -279,13 +280,21 @@ export async function addUser(
   try {
     await setDoc(doc(db, USERS_COLLECTION, userId), documentToWrite)
 
-    if (documentToWrite.name && documentToWrite.email && documentToWrite.role) {
+    // Fetch the user after creation to get the actual values (not FieldValues)
+    const fetchedUser = await getUserById(userId)
+    if (!fetchedUser) {
+      console.error(`[firebaseService addUser] User ${userId} was added but could not be retrieved immediately.`)
+      throw new Error(`User ${userId} was added but could not be retrieved.`)
+    }
+
+    // Now send welcome email with actual string values
+    if (fetchedUser.name && fetchedUser.email && fetchedUser.role) {
       try {
-        const welcomeEmailHtml = await getWelcomeEmailTemplate(documentToWrite.name, documentToWrite.role)
-        await sendEmail(documentToWrite.email, "Welcome to CodeCrafter!", welcomeEmailHtml)
+        const welcomeEmailHtml = await getWelcomeEmailTemplate(fetchedUser.name, fetchedUser.role)
+        await sendEmail(fetchedUser.email, "Welcome to CodeCrafter!", welcomeEmailHtml)
       } catch (emailError) {
         console.error(
-          `[firebaseService addUser] Failed to send welcome email to ${documentToWrite.email} for user ${userId}. Email error:`,
+          `[firebaseService addUser] Failed to send welcome email to ${fetchedUser.email} for user ${userId}. Email error:`,
           emailError instanceof Error ? emailError.message : emailError,
         )
       }
@@ -295,11 +304,6 @@ export async function addUser(
       )
     }
 
-    const fetchedUser = await getUserById(userId)
-    if (!fetchedUser) {
-      console.error(`[firebaseService addUser] User ${userId} was added but could not be retrieved immediately.`)
-      throw new Error(`User ${userId} was added but could not be retrieved.`)
-    }
     return fetchedUser
   } catch (error) {
     console.error("[firebaseService addUser] Error during setDoc: ", error)
