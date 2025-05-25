@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useTransition, useCallback } from "react";
@@ -31,6 +30,10 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { format, formatDistanceToNow } from 'date-fns';
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Timestamp } from "firebase/firestore";
 
 export default function ProjectMatchmakingPage() {
   const params = useParams();
@@ -510,7 +513,7 @@ export default function ProjectMatchmakingPage() {
                                onClick={() => handleUpdateApplication(app, 'rejected')}
                                disabled={isProcessingApplication === app.id}
                              >
-                               {isProcessingApplication === app.id && app.status === 'rejected' ? <Loader2 className="animate-spin mr-2" /> : <ThumbsDown className="mr-2 h-4 w-4" />}
+                               {isProcessingApplication === app.id ? <Loader2 className="animate-spin mr-2" /> : <ThumbsDown className="mr-2 h-4 w-4" />}
                                Reject
                              </Button>
                              <Button 
@@ -518,9 +521,9 @@ export default function ProjectMatchmakingPage() {
                                size="sm" 
                                onClick={() => handleUpdateApplication(app, 'accepted')}
                                disabled={isProcessingApplication === app.id}
-                              >
-                               {isProcessingApplication === app.id && app.status === 'accepted' ? <Loader2 className="animate-spin mr-2" /> : <ThumbsUp className="mr-2 h-4 w-4" />}
-                               Accept
+                             >
+                               {isProcessingApplication === app.id ? <Loader2 className="animate-spin mr-2" /> : <ThumbsUp className="mr-2 h-4 w-4" />}
+                               Approve
                              </Button>
                            </>
                          )}
