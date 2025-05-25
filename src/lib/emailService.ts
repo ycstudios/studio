@@ -124,24 +124,32 @@ export async function sendEmail(to: string, subject: string, htmlBody: string, f
 
   const EMAIL_SERVER_USER = process.env.EMAIL_SERVER_USER;
   const EMAIL_SERVER_PASSWORD = process.env.EMAIL_SERVER_PASSWORD;
-  const EMAIL_FROM = process.env.EMAIL_FROM;
+  const EMAIL_FROM_DISPLAY = process.env.EMAIL_FROM || `"CodeCrafter" <${EMAIL_SERVER_USER || 'noreply@example.com'}>`;
 
   let configComplete = true;
-  if (!EMAIL_SERVER_USER) { console.warn("  > EMAIL_SERVER_USER: MISSING from .env.local! Cannot send email."); configComplete = false; }
-  if (!EMAIL_SERVER_PASSWORD) { console.warn("  > EMAIL_SERVER_PASSWORD: MISSING from .env.local! Cannot send email. Ensure you use a Google App Password if 2FA is enabled."); configComplete = false; }
-  if (!EMAIL_FROM) { console.warn("  > EMAIL_FROM: MISSING from .env.local! Using default."); }
+  if (!EMAIL_SERVER_USER) {
+    console.warn("[EmailService Server Action] > EMAIL_SERVER_USER: MISSING from environment variables! Cannot send real email.");
+    configComplete = false;
+  }
+  if (!EMAIL_SERVER_PASSWORD) {
+    console.warn("[EmailService Server Action] > EMAIL_SERVER_PASSWORD: MISSING from environment variables! Cannot send real email. Ensure you use a Google App Password if 2FA is enabled.");
+    configComplete = false;
+  }
+  if (!process.env.EMAIL_FROM) { // Check the specific EMAIL_FROM for display name
+    console.warn("[EmailService Server Action] > EMAIL_FROM: MISSING from environment variables. Using default sender name.");
+  }
 
   if (!configComplete) {
-    const errorMsg = "Nodemailer/Gmail configuration is incomplete. Required environment variables (EMAIL_SERVER_USER, EMAIL_SERVER_PASSWORD) are missing. Email not sent. Check server logs and .env.local file.";
+    const errorMsg = "Nodemailer/Gmail email configuration is incomplete. Required environment variables (EMAIL_SERVER_USER, EMAIL_SERVER_PASSWORD) are missing. Email not sent. Check server logs and environment variable setup.";
     console.error("--- MOCK EMAIL (Nodemailer/Gmail Config Incomplete) ---");
     console.error(errorMsg);
     console.log("Intended To:", to);
-    console.log("Intended From Name:", fromNameParam || EMAIL_FROM || "CodeCrafter");
+    console.log("Intended From Name:", fromNameParam || EMAIL_FROM_DISPLAY.split('<')[0].trim() || "CodeCrafter");
     console.log("Intended Reply To:", replyToParam || to);
     console.log("Intended Subject:", subject);
     console.log("Intended HTML Body (first 200 chars):", htmlBody.substring(0, 200) + "...");
     console.log("--- END MOCK EMAIL ---");
-    throw new Error(errorMsg); // Throw error to be caught by calling function if critical config is missing
+    throw new Error(errorMsg); // Throw error to be caught by calling function
   }
 
   const transporter = nodemailer.createTransport({
@@ -152,17 +160,17 @@ export async function sendEmail(to: string, subject: string, htmlBody: string, f
       user: EMAIL_SERVER_USER,
       pass: EMAIL_SERVER_PASSWORD, // For Gmail, this should be an App Password if 2FA is enabled
     },
-    // For debugging Nodemailer issues (optional)
+    // For debugging Nodemailer issues (optional - uncomment if needed)
     // logger: true,
     // debug: true,
   });
 
   const mailOptions = {
-    from: EMAIL_FROM || `"CodeCrafter" <${EMAIL_SERVER_USER}>`, // sender address
-    to: to, // list of receivers
-    replyTo: replyToParam || undefined, // optional reply-to address
-    subject: subject, // Subject line
-    html: htmlBody, // html body
+    from: fromNameParam ? `"${fromNameParam}" <${EMAIL_SERVER_USER}>` : EMAIL_FROM_DISPLAY,
+    to: to,
+    replyTo: replyToParam || undefined,
+    subject: subject,
+    html: htmlBody,
   };
 
   try {
@@ -171,7 +179,10 @@ export async function sendEmail(to: string, subject: string, htmlBody: string, f
     console.log(`[EmailService Server Action] Email sent successfully via Nodemailer/Gmail. Message ID: ${info.messageId}`);
   } catch (error) {
     console.error("[EmailService Server Action] Error sending email via Nodemailer/Gmail:", error);
-    if (error instanceof Error) {
+    if (error instanceof Error && (error as any).responseCode === 535) {
+         console.error("[EmailService Server Action] Gmail Authentication Error (535): This often means incorrect username/password or App Password issue. If using 2FA, ensure you're using an App Password. Check 'Less secure app access' if not using 2FA (not recommended).");
+         throw new Error(`Gmail authentication failed: ${error.message}. Check credentials and Google Account security settings.`);
+    } else if (error instanceof Error) {
       throw new Error(`Nodemailer/Gmail failed to send email: ${error.message}`);
     }
     throw new Error('An unknown error occurred while sending email via Nodemailer/Gmail.');
