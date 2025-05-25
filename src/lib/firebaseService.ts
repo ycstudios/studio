@@ -85,6 +85,7 @@ export async function addUser(
     throw new Error("Email already in use. Please try a different email or log in.");
   }
 
+
   const userId = userData.id || doc(collection(db, USERS_COLLECTION)).id;
   const generatedReferralCode = `CODECRAFT_${userId.substring(0, 8).toUpperCase()}`;
   const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.name || 'User')}&background=random&size=100`;
@@ -109,7 +110,7 @@ export async function addUser(
 
   if (userData.role === 'developer') {
     userDocumentData.skills = userData.skills || [];
-    userDocumentData.experienceLevel = userData.experienceLevel || '';
+    userDocumentData.experienceLevel = (userData.experienceLevel as User["experienceLevel"]) || '';
     userDocumentData.hourlyRate = userData.hourlyRate === undefined ? deleteField() as any : userData.hourlyRate;
     userDocumentData.portfolioUrls = userData.portfolioUrls || [];
     userDocumentData.resumeFileUrl = userData.resumeFileUrl || undefined;
@@ -120,7 +121,7 @@ export async function addUser(
   // Remove undefined fields explicitly before setting to avoid Firestore error
   Object.keys(userDocumentData).forEach(keyStr => {
     const key = keyStr as keyof typeof userDocumentData;
-    if ((userDocumentData as any)[key] === undefined) {
+    if ((userDocumentData as any)[key] === undefined && key !== 'hourlyRate') { // hourlyRate can be intentionally deleted
       delete (userDocumentData as any)[key];
     }
   });
@@ -128,15 +129,12 @@ export async function addUser(
 
   try {
     await setDoc(doc(db, USERS_COLLECTION, userId), userDocumentData);
-    console.log(`[firebaseService] User ${userId} added to Firestore.`);
 
     try {
       const welcomeEmailHtml = await getWelcomeEmailTemplate(userDocumentData.name!, userDocumentData.role!);
       await sendEmail(userDocumentData.email!, "Welcome to CodeCrafter!", welcomeEmailHtml);
-      console.log(`[firebaseService] Welcome email attempt for ${userDocumentData.email} finished.`);
     } catch (emailError) {
       console.error(`[firebaseService] Failed to send welcome email to ${userDocumentData.email} during signup:`, emailError);
-      // Do not re-throw here if user creation itself was successful, but log the email error.
     }
 
     const fetchedUser = await getUserById(userId);
@@ -151,41 +149,43 @@ export async function addUser(
   }
 }
 
+// Helper to construct User object from Firestore data
+const mapDocToUser = (docSnap: any): User => {
+  const data = docSnap.data();
+  const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name || 'User')}&background=random&size=100`;
+  const user: User = {
+    id: docSnap.id,
+    name: data.name || "Unnamed User",
+    email: data.email || "No email",
+    role: data.role || "client",
+    createdAt: safeCreateDate(data.createdAt) || new Date(),
+    bio: data.bio || (data.role === 'developer' ? "Skilled developer." : "Client on CodeCrafter."),
+    avatarUrl: data.avatarUrl || defaultAvatar,
+    referralCode: data.referralCode || undefined,
+    referredByCode: data.referredByCode || undefined,
+    currentPlan: data.currentPlan || "Free Tier",
+    planPrice: data.planPrice || "$0/month",
+    isFlagged: data.isFlagged === true,
+    accountStatus: data.accountStatus || (data.role === 'developer' ? 'pending_approval' : 'active'),
+    // Developer specific fields - ensure they default correctly
+    skills: data.role === 'developer' ? (Array.isArray(data.skills) ? data.skills : []) : undefined,
+    experienceLevel: data.role === 'developer' ? (data.experienceLevel || '') as User["experienceLevel"] : undefined,
+    hourlyRate: data.role === 'developer' ? (typeof data.hourlyRate === 'number' ? data.hourlyRate : undefined) : undefined,
+    portfolioUrls: data.role === 'developer' ? (Array.isArray(data.portfolioUrls) ? data.portfolioUrls : []) : undefined,
+    resumeFileUrl: data.role === 'developer' ? (data.resumeFileUrl || undefined) : undefined,
+    resumeFileName: data.role === 'developer' ? (data.resumeFileName || undefined) : undefined,
+    pastProjects: data.role === 'developer' ? (data.pastProjects || undefined) : undefined,
+  };
+  return user;
+};
+
 
 export async function getAllUsers(): Promise<User[]> {
   if (!db) throw new Error("Firestore is not initialized. Check Firebase configuration.");
   try {
     const usersQuery = query(collection(db, USERS_COLLECTION), orderBy("createdAt", "desc"));
     const querySnapshot = await getDocs(usersQuery);
-    const users: User[] = [];
-    querySnapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name || 'User')}&background=random&size=100`;
-      const user: User = {
-        id: docSnap.id,
-        name: data.name || "Unnamed User",
-        email: data.email || "No email", // Should be lowercase from addUser
-        role: data.role || "client",
-        createdAt: safeCreateDate(data.createdAt) || new Date(),
-        bio: data.bio || (data.role === 'developer' ? "Skilled developer." : "Client on CodeCrafter."),
-        avatarUrl: data.avatarUrl || defaultAvatar,
-        referralCode: data.referralCode || undefined,
-        referredByCode: data.referredByCode || undefined,
-        currentPlan: data.currentPlan || "Free Tier",
-        planPrice: data.planPrice || "$0/month",
-        isFlagged: data.isFlagged === true,
-        accountStatus: data.accountStatus || (data.role === 'developer' ? 'pending_approval' : 'active'),
-        skills: data.role === 'developer' ? (Array.isArray(data.skills) ? data.skills : []) : undefined,
-        experienceLevel: data.role === 'developer' ? (data.experienceLevel || '') as User["experienceLevel"] : undefined,
-        hourlyRate: data.role === 'developer' ? (typeof data.hourlyRate === 'number' ? data.hourlyRate : undefined) : undefined,
-        portfolioUrls: data.role === 'developer' ? (Array.isArray(data.portfolioUrls) ? data.portfolioUrls : []) : undefined,
-        resumeFileUrl: data.role === 'developer' ? (data.resumeFileUrl || undefined) : undefined,
-        resumeFileName: data.role === 'developer' ? (data.resumeFileName || undefined) : undefined,
-        pastProjects: data.role === 'developer' ? (data.pastProjects || undefined) : undefined,
-      };
-      users.push(user);
-    });
-    return users;
+    return querySnapshot.docs.map(mapDocToUser);
   } catch (error) {
     console.error("[firebaseService] Error fetching all users from Firestore: ", error);
     if (error instanceof Error) {
@@ -207,31 +207,7 @@ export async function getUserById(userId: string): Promise<User | null> {
     const userDocSnap = await getDoc(userDocRef);
 
     if (userDocSnap.exists()) {
-      const data = userDocSnap.data();
-      const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name || 'User')}&background=random&size=100`;
-      const user: User = {
-        id: userDocSnap.id,
-        name: data.name || "Unnamed User",
-        email: data.email || "No email", // Should be lowercase
-        role: data.role || "client",
-        createdAt: safeCreateDate(data.createdAt) || new Date(),
-        bio: data.bio || (data.role === 'developer' ? "Skilled developer." : "Client on CodeCrafter."),
-        avatarUrl: data.avatarUrl || defaultAvatar,
-        referralCode: data.referralCode || undefined,
-        referredByCode: data.referredByCode || undefined,
-        currentPlan: data.currentPlan || "Free Tier",
-        planPrice: data.planPrice || "$0/month",
-        isFlagged: data.isFlagged === true,
-        accountStatus: data.accountStatus || (data.role === 'developer' ? 'pending_approval' : 'active'),
-        skills: data.role === 'developer' ? (Array.isArray(data.skills) ? data.skills : []) : undefined,
-        experienceLevel: data.role === 'developer' ? (data.experienceLevel || '') as User["experienceLevel"] : undefined,
-        hourlyRate: data.role === 'developer' ? (typeof data.hourlyRate === 'number' ? data.hourlyRate : undefined) : undefined,
-        portfolioUrls: data.role === 'developer' ? (Array.isArray(data.portfolioUrls) ? data.portfolioUrls : []) : undefined,
-        resumeFileUrl: data.role === 'developer' ? (data.resumeFileUrl || undefined) : undefined,
-        resumeFileName: data.role === 'developer' ? (data.resumeFileName || undefined) : undefined,
-        pastProjects: data.role === 'developer' ? (data.pastProjects || undefined) : undefined,
-      };
-      return user;
+      return mapDocToUser(userDocSnap);
     } else {
       console.warn(`[firebaseService] User with ID '${userId}' not found in Firestore.`);
       return null;
@@ -264,31 +240,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
 
     if (!querySnapshot.empty) {
       const userDocSnap = querySnapshot.docs[0];
-      const data = userDocSnap.data();
-      const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name || 'User')}&background=random&size=100`;
-      const user: User = {
-        id: userDocSnap.id,
-        name: data.name || "Unnamed User",
-        email: data.email, // Already lowercased from storage
-        role: data.role || "client",
-        createdAt: safeCreateDate(data.createdAt) || new Date(),
-        bio: data.bio || (data.role === 'developer' ? "Skilled developer." : "Client on CodeCrafter."),
-        avatarUrl: data.avatarUrl || defaultAvatar,
-        referralCode: data.referralCode || undefined,
-        referredByCode: data.referredByCode || undefined,
-        currentPlan: data.currentPlan || "Free Tier",
-        planPrice: data.planPrice || "$0/month",
-        isFlagged: data.isFlagged === true,
-        accountStatus: data.accountStatus || (data.role === 'developer' ? 'pending_approval' : 'active'),
-        skills: data.role === 'developer' ? (Array.isArray(data.skills) ? data.skills : []) : undefined,
-        experienceLevel: data.role === 'developer' ? (data.experienceLevel || '') as User["experienceLevel"] : undefined,
-        hourlyRate: data.role === 'developer' ? (typeof data.hourlyRate === 'number' ? data.hourlyRate : undefined) : undefined,
-        portfolioUrls: data.role === 'developer' ? (Array.isArray(data.portfolioUrls) ? data.portfolioUrls : []) : undefined,
-        resumeFileUrl: data.role === 'developer' ? (data.resumeFileUrl || undefined) : undefined,
-        resumeFileName: data.role === 'developer' ? (data.resumeFileName || undefined) : undefined,
-        pastProjects: data.role === 'developer' ? (data.pastProjects || undefined) : undefined,
-      };
-      return user;
+      return mapDocToUser(userDocSnap);
     } else {
       return null;
     }
@@ -323,7 +275,6 @@ export async function updateUser(userId: string, data: Partial<Omit<User, 'id' |
       updateData.bio = updateData.bio === null || updateData.bio === "" ? deleteField() : updateData.bio;
     }
     if (updateData.hasOwnProperty('avatarUrl') && (updateData.avatarUrl === "" || updateData.avatarUrl?.includes('placehold.co') || updateData.avatarUrl?.includes('ui-avatars.com'))) {
-        // If avatar is empty or a placeholder, delete the field so Firestore uses default or it's simply not set
         updateData.avatarUrl = deleteField();
     }
 
@@ -347,11 +298,10 @@ export async function updateUser(userId: string, data: Partial<Omit<User, 'id' |
         updateData.pastProjects = updateData.pastProjects?.trim() ? updateData.pastProjects.trim() : deleteField();
       }
       if (updateData.hasOwnProperty('hourlyRate')) {
-        // Ensure hourlyRate is a number or deleted
         const rate = updateData.hourlyRate;
         updateData.hourlyRate = (typeof rate === 'number' && rate >= 0) ? rate : deleteField();
       }
-    } else { // If user is not a developer, ensure developer-specific fields are removed
+    } else {
       if (data.hasOwnProperty('skills')) updateData.skills = deleteField();
       if (data.hasOwnProperty('portfolioUrls')) updateData.portfolioUrls = deleteField();
       if (data.hasOwnProperty('experienceLevel')) updateData.experienceLevel = deleteField();
@@ -361,7 +311,6 @@ export async function updateUser(userId: string, data: Partial<Omit<User, 'id' |
       if (data.hasOwnProperty('pastProjects')) updateData.pastProjects = deleteField();
     }
     
-    // Final pass to remove any fields that ended up as undefined after processing
     Object.keys(updateData).forEach(key => {
         if (updateData[key] === undefined) {
             updateData[key] = deleteField();
@@ -582,35 +531,7 @@ export async function getReferredClients(currentUserReferralCode: string): Promi
       orderBy("createdAt", "desc")
     );
     const querySnapshot = await getDocs(referredClientsQuery);
-    const referredClientsData: User[] = [];
-    querySnapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name || 'User')}&background=random&size=100`;
-      referredClientsData.push({
-        id: docSnap.id,
-        name: data.name || "Unnamed User",
-        email: data.email || "No email",
-        role: data.role, // Should be 'client' due to query
-        createdAt: safeCreateDate(data.createdAt) || new Date(),
-        bio: data.bio || "Client referred to CodeCrafter.",
-        avatarUrl: data.avatarUrl || defaultAvatar,
-        referralCode: data.referralCode || undefined, // Their own referral code
-        referredByCode: data.referredByCode, // The code they were referred by
-        currentPlan: data.currentPlan || "Free Tier",
-        planPrice: data.planPrice || "$0/month",
-        isFlagged: data.isFlagged === true,
-        accountStatus: data.accountStatus || 'active', // Referred clients are active by default
-        // Developer specific fields are not expected for clients
-        skills: undefined,
-        experienceLevel: undefined,
-        hourlyRate: undefined,
-        portfolioUrls: undefined,
-        resumeFileUrl: undefined,
-        resumeFileName: undefined,
-        pastProjects: undefined,
-      });
-    });
-    return referredClientsData;
+    return querySnapshot.docs.map(mapDocToUser);
   } catch (error) {
     console.error(`[firebaseService] Error fetching referred clients for code ${currentUserReferralCode}: `, error);
     if (error instanceof Error) {
@@ -655,7 +576,6 @@ export async function addAdminActivityLog(logData: Omit<AdminActivityLog, 'id' |
     await addDoc(collection(db, ADMIN_ACTIVITY_LOGS_COLLECTION), logEntry);
   } catch (error) {
     console.error("[firebaseService] Error adding admin activity log:", error);
-    // Optionally, you could re-throw or handle this more explicitly if admin logs are critical
   }
 }
 
@@ -669,7 +589,6 @@ export async function updateUserAccountStatus(userId: string, newStatus: Account
     await updateDoc(userDocRef, {
       accountStatus: newStatus,
     });
-    console.log(`[firebaseService] User ${userId} account status updated to ${newStatus}.`);
 
     try {
       if (newStatus === "active") {
@@ -679,7 +598,6 @@ export async function updateUserAccountStatus(userId: string, newStatus: Account
         const rejectedEmailHtml = await getDeveloperRejectedEmailTemplate(userName);
         await sendEmail(userEmail, "Update on Your CodeCrafter Developer Application", rejectedEmailHtml);
       }
-      console.log(`[firebaseService] Account status notification email attempt for ${userEmail} (status: ${newStatus}) finished.`);
     } catch (emailError) {
         console.error(`[firebaseService] Failed to send account status notification email to ${userEmail} for status ${newStatus}:`, emailError);
     }

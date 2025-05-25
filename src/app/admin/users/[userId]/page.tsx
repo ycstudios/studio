@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ArrowLeft, Briefcase, UserCircle2, FileText, AlertTriangle, Info, Loader2, Flag, ShieldCheck, ShieldX, Link as LinkIcon, CheckSquare, XSquare, ShieldAlert, Clock, DollarSign } from "lucide-react";
+import { ArrowLeft, Briefcase, UserCircle2, FileText, AlertTriangle, Info, Loader2, Flag, ShieldCheck, ShieldX, Link as LinkIcon, CheckSquare, XSquare, ShieldAlert, Clock, DollarSign, ExternalLink } from "lucide-react";
 import type { User as UserType, AccountStatus } from "@/types";
 import { getUserById, toggleUserFlag, addAdminActivityLog, updateUserAccountStatus } from "@/lib/firebaseService";
 import { useToast } from "@/hooks/use-toast";
@@ -75,10 +75,10 @@ export default function AdminUserDetailPage() {
         details: { newFlagStatus: !(user.isFlagged || false) }
       });
 
-      const updatedUser = await getUserById(user.id); // Re-fetch to get latest
+      const updatedUser = await getUserById(user.id); 
       if (updatedUser) {
-        setUser(updatedUser); // Update local state for this page
-        updateSingleUserInList(updatedUser); // Update global list in AuthContext
+        setUser(updatedUser); 
+        updateSingleUserInList(updatedUser); 
       }
 
       toast({
@@ -111,10 +111,10 @@ export default function AdminUserDetailPage() {
         targetName: user.name || "Unnamed User",
         details: { newAccountStatus: newStatus }
       });
-      const updatedUser = await getUserById(user.id); // Re-fetch to get latest
+      const updatedUser = await getUserById(user.id); 
       if (updatedUser) {
-        setUser(updatedUser); // Update local state
-        updateSingleUserInList(updatedUser); // Update global list
+        setUser(updatedUser); 
+        updateSingleUserInList(updatedUser); 
       }
       toast({
         title: "Account Status Updated",
@@ -182,7 +182,7 @@ export default function AdminUserDetailPage() {
           <Card className="md:col-span-1 shadow-lg">
             <CardHeader className="items-center text-center">
               <Avatar className="h-24 w-24 mb-4 ring-2 ring-primary ring-offset-2">
-                <AvatarImage src={user.avatarUrl || `https://placehold.co/100x100.png`} alt={user.name || 'User'} data-ai-hint="profile avatar" />
+                <AvatarImage src={user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random&size=100`} alt={user.name || 'User'} data-ai-hint="profile avatar" />
                 <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
               </Avatar>
               <CardTitle className="text-2xl">{user.name || "Unnamed User"}</CardTitle>
@@ -296,7 +296,9 @@ export default function AdminUserDetailPage() {
                         {user.portfolioUrls.map((url, index) => (
                             <li key={index} className="text-sm flex items-center">
                             <LinkIcon className="h-3 w-3 mr-1.5 text-muted-foreground" />
-                            <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">{url}</a>
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate flex items-center gap-1">
+                                {url} <ExternalLink className="h-3 w-3 opacity-70" />
+                            </a>
                             </li>
                         ))}
                       </ul>
@@ -313,7 +315,7 @@ export default function AdminUserDetailPage() {
                     <h3 className="text-sm font-medium text-muted-foreground mb-1 mt-2">Resume</h3>
                     {user.resumeFileUrl ? (
                          <a href={user.resumeFileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-base flex items-center gap-1">
-                           <FileText className="h-4 w-4" /> {user.resumeFileName || "View Resume"}
+                           <FileText className="h-4 w-4" /> {user.resumeFileName || "View Resume"} <ExternalLink className="h-3 w-3 opacity-70" />
                          </a>
                     ) : <p className="italic text-muted-foreground">No resume URL provided.</p>}
                   </div>
