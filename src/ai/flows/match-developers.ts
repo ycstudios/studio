@@ -110,27 +110,22 @@ Your task is to:
 - Ensure your output strictly adheres to the JSON schema for MatchDevelopersOutput.
 
 Project Details:
-  Project Name: {{{projectDetails.projectName}}}
-  Project ID: {{{projectDetails.projectId}}}
-  Description: {{{projectDetails.projectRequirements}}}
-  Required Skills: {{#if projectDetails.requiredSkills.length}}{{#each projectDetails.requiredSkills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}{{else}}None specified{{/if}}
-  Client Availability: {{{projectDetails.availability}}}
-  Client Time Zone: {{{projectDetails.timeZone}}}
+  Project Name: \${projectDetails.projectName}
+  Project ID: \${projectDetails.projectId}
+  Description: \${projectDetails.projectRequirements}
+  Required Skills: \${projectDetails.requiredSkills.length ? projectDetails.requiredSkills.join(', ') : 'None specified'}
+  Client Availability: \${projectDetails.availability}
+  Client Time Zone: \${projectDetails.timeZone}
 
 Available Developers:
-{{#if availableDevelopers.length}}
-  {{#each availableDevelopers}}
-  - Developer ID: {{{this.id}}}
-    Name: {{{this.name}}}
-    Skills: {{#if this.skills.length}}{{#each this.skills}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}{{else}}Not specified{{/if}}
-    Experience Level: {{{this.experienceLevel}}}
-    Hourly Rate: {{#if this.hourlyRate}}${{{this.hourlyRate}}}/hr{{else}}Not specified{{/if}}
-    Bio: {{{this.bio}}}
-  ------------------------------------
-  {{/each}}
-{{else}}
-  No developers were found in the provided list of available developers.
-{{/if}}
+\${availableDevelopers.length ? availableDevelopers.map(dev => `
+  - Developer ID: \${dev.id}
+    Name: \${dev.name}
+    Skills: \${dev.skills.length ? dev.skills.join(', ') : 'Not specified'}
+    Experience Level: \${dev.experienceLevel}
+    Hourly Rate: \${dev.hourlyRate ? `$${dev.hourlyRate}/hr` : 'Not specified'}
+    Bio: \${dev.bio}
+  ------------------------------------`).join('\n') : '  No developers were found in the provided list of available developers.'}
 `,
 });
 
