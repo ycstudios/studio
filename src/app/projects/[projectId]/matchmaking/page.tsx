@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Info, AlertTriangle, ArrowLeft, Search, Eye, CheckCircle, Clock, UserCheck, Send, UsersRound, ThumbsUp, ThumbsDown, FileSignature, Brain } from "lucide-react";
+import { Loader2, Info, AlertTriangle, ArrowLeft, Search, Eye, CheckCircle, Clock, UserCheck, Send, UsersRound, ThumbsUp, ThumbsDown, FileSignature, Brain, Star } from "lucide-react";
 import { matchDevelopers, type MatchDevelopersInput, type MatchDevelopersOutput, type MatchedDeveloper } from "@/ai/flows/match-developers";
 import type { Project as ProjectType, User as UserType, ProjectApplication, ApplicationStatus, UserRole } from "@/types";
 import {
