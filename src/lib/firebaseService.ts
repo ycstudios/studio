@@ -20,6 +20,7 @@ import {
   type DocumentSnapshot,
   type QueryDocumentSnapshot,
   type DocumentData,
+  type Firestore,
 } from "firebase/firestore"
 import { db } from "./firebase" // Your Firebase app instance
 import type {
@@ -546,12 +547,12 @@ export async function addProject(
   }
 
   try {
-    const projectWithMetadata: WithFieldValue<Omit<Project, "id" | "createdAt">> = {
+    const projectWithMetadata = {
       ...projectData,
       clientId,
       status: "Open" as ProjectStatus,
       createdAt: serverTimestamp(),
-    }
+    } as const;
     const projectDocRef = await addDoc(collection(db, PROJECTS_COLLECTION), projectWithMetadata)
 
     const fetchedProject = await getProjectById(projectDocRef.id)
@@ -817,10 +818,10 @@ export async function addAdminActivityLog(logData: Omit<AdminActivityLog, "id" |
     return // Don't throw, just skip logging if DB is down
   }
 
-  const logEntry: WithFieldValue<Omit<AdminActivityLog, "id" | "timestamp">> = {
+  const logEntry = {
     ...logData,
     timestamp: serverTimestamp(),
-  }
+  } as const;
 
   try {
     await addDoc(collection(db, ADMIN_ACTIVITY_LOGS_COLLECTION), logEntry)
@@ -900,13 +901,13 @@ export async function addProjectApplication(
       throw new Error("You have already applied for this project.")
     }
 
-    const applicationWithMetadata: WithFieldValue<Omit<ProjectApplication, "id" | "appliedAt">> = {
+    const applicationWithMetadata = {
       ...applicationData,
       status: "pending" as ApplicationStatus,
       appliedAt: serverTimestamp(),
       clientNotifiedOfNewApplication: false,
       developerNotifiedOfStatus: false,
-    }
+    } as const;
     const appDocRef = await addDoc(collection(db, PROJECT_APPLICATIONS_COLLECTION), applicationWithMetadata)
 
     const project = await getProjectById(applicationData.projectId)
@@ -1123,7 +1124,12 @@ export async function updateProjectApplicationStatus(
           appData.projectId,
         )
         await sendEmail(appData.developerEmail, `Update on Your Application for "${appData.projectName}"`, emailHtml)
-        await updateDoc(appDocRef, { developerNotifiedOfStatus: true })
+        if (db) {
+          const docRef = doc(db, PROJECT_APPLICATIONS_COLLECTION, applicationId);
+          await updateDoc(docRef, {
+            developerNotifiedOfStatus: true,
+          });
+        }
       } catch (emailError) {
         console.error(
           `[firebaseService updateProjectApplicationStatus] Failed to send direct rejection email for app ${applicationId}. Email error:`,
@@ -1253,6 +1259,7 @@ export async function rejectOtherPendingApplications(
 
     querySnapshot.forEach((docSnap) => {
       if (docSnap.id !== acceptedApplicationId) {
+        if (!db) return;
         const appRef = doc(db, PROJECT_APPLICATIONS_COLLECTION, docSnap.id)
         batch.update(appRef, { status: "rejected" as ApplicationStatus, developerNotifiedOfStatus: false })
 
@@ -1270,10 +1277,12 @@ export async function rejectOtherPendingApplications(
                 `Update on Your Application for "${appData.projectName}"`,
                 emailHtml,
               )
-              if (db)
-                await updateDoc(doc(db, PROJECT_APPLICATIONS_COLLECTION, docSnap.id), {
+              if (db) {
+                const docRef = doc(db, PROJECT_APPLICATIONS_COLLECTION, docSnap.id);
+                await updateDoc(docRef, {
                   developerNotifiedOfStatus: true,
-                })
+                });
+              }
             } catch (emailError) {
               console.error(
                 `[firebaseService rejectOtherPendingApplications] Failed to send auto-rejection email to ${appData.developerEmail} or update status for app ${docSnap.id}. Email error:`,
