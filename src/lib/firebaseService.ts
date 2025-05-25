@@ -1,5 +1,6 @@
 
 // src/lib/firebaseService.ts
+'use server';
 import { collection, doc, setDoc, getDocs, getDoc, query, orderBy, Timestamp, where, addDoc, updateDoc, serverTimestamp, deleteField, type FieldValue, limit, writeBatch } from "firebase/firestore";
 import { db } from "./firebase"; // Your Firebase app instance
 import type { User, Project, AdminActivityLog, AccountStatus, ProjectApplication, ProjectStatus, ApplicationStatus } from "@/types";
@@ -14,10 +15,10 @@ import {
   getApplicationRejectedEmailToDeveloper,
 } from "./emailService";
 
-// Collection name constants
+// Collection name constants (now local to this module)
 const USERS_COLLECTION = "users";
 const PROJECTS_COLLECTION = "projects";
-export const PROJECT_APPLICATIONS_COLLECTION = "projectApplications"; // Export this
+const PROJECT_APPLICATIONS_COLLECTION = "projectApplications"; // No longer exported
 const ADMIN_ACTIVITY_LOGS_COLLECTION = "adminActivityLogs";
 
 
@@ -29,14 +30,19 @@ function safeCreateDate(timestamp: any): Date | undefined {
         return timestamp.toDate();
     }
     if (timestamp && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
-        const date = new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate();
-        if (!isNaN(date.getTime())) return date;
+        try {
+            const date = new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate();
+            if (!isNaN(date.getTime())) return date;
+        } catch (e) {
+            console.warn("[firebaseService safeCreateDate] Failed to convert object to Timestamp, then to Date:", e);
+        }
     }
     if (typeof timestamp === 'string' || typeof timestamp === 'number') {
         const date = new Date(timestamp);
         if (!isNaN(date.getTime())) return date;
     }
-    return undefined;
+    console.warn("[firebaseService safeCreateDate] Could not parse timestamp into a valid Date:", timestamp);
+    return new Date(0); // Fallback to epoch to avoid undefined if critical, or handle upstream
 }
 
 const getInitialsForDefaultAvatar = (nameStr?: string) => {
@@ -53,13 +59,13 @@ const mapDocToUser = (docSnap: any): User => {
   const data = docSnap.data();
   const userNameForAvatar = data.name || "User";
   const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(getInitialsForDefaultAvatar(userNameForAvatar))}&background=random&size=100`;
-  
+
   const user: User = {
     id: docSnap.id,
     name: data.name || "Unnamed User",
     email: data.email || "No email",
     role: data.role || "client",
-    createdAt: safeCreateDate(data.createdAt) || new Date(0),
+    createdAt: safeCreateDate(data.createdAt), // Use the robust safeCreateDate
     bio: data.bio || (data.role === 'developer' ? "Skilled developer." : "Client on CodeCrafter."),
     avatarUrl: data.avatarUrl || defaultAvatar,
     referralCode: data.referralCode || undefined,
@@ -68,7 +74,8 @@ const mapDocToUser = (docSnap: any): User => {
     planPrice: data.planPrice || "$0/month",
     isFlagged: data.isFlagged === true,
     accountStatus: data.accountStatus || (data.role === 'developer' ? 'pending_approval' : 'active'),
-    
+
+    // Developer-specific fields
     skills: data.role === 'developer' ? (Array.isArray(data.skills) ? data.skills : []) : undefined,
     experienceLevel: data.role === 'developer' ? (data.experienceLevel || '') as User["experienceLevel"] : undefined,
     hourlyRate: data.role === 'developer' ? (typeof data.hourlyRate === 'number' ? data.hourlyRate : undefined) : undefined,
@@ -80,6 +87,26 @@ const mapDocToUser = (docSnap: any): User => {
   return user;
 };
 
+// Type for data written to Firestore, ensuring no undefined values for optional fields
+type UserWriteData = Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice' | 'isFlagged' | 'accountStatus' | 'avatarUrl' | 'bio'> & {
+  createdAt: FieldValue;
+  referralCode: string;
+  currentPlan: string;
+  planPrice: string;
+  isFlagged: boolean;
+  accountStatus: AccountStatus;
+  avatarUrl: string;
+  bio: string;
+  referredByCode?: string;
+  skills?: string[];
+  experienceLevel?: User["experienceLevel"] | FieldValue;
+  hourlyRate?: number | FieldValue;
+  portfolioUrls?: string[] | FieldValue;
+  resumeFileUrl?: string | FieldValue;
+  resumeFileName?: string | FieldValue;
+  pastProjects?: string | FieldValue;
+};
+
 
 export async function addUser(
   userData: Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice' | 'isFlagged' | 'accountStatus' | 'avatarUrl' | 'bio'> & { id?: string, referredByCode?: string }
@@ -88,10 +115,9 @@ export async function addUser(
     console.error("[firebaseService addUser] Firestore is not initialized!");
     throw new Error("Firestore is not initialized. Check Firebase configuration.");
   }
-
-  const lowercasedEmail = userData.email.toLowerCase();
   console.log("[firebaseService addUser] Received userData:", JSON.stringify(userData, null, 2));
 
+  const lowercasedEmail = userData.email.toLowerCase();
 
   const existingUser = await getUserByEmail(lowercasedEmail);
   if (existingUser) {
@@ -101,13 +127,14 @@ export async function addUser(
   const userId = userData.id || doc(collection(db, USERS_COLLECTION)).id;
   const generatedReferralCode = `CODECRAFT_${userId.substring(0, 8).toUpperCase()}`;
   const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(getInitialsForDefaultAvatar(userData.name))}&background=random&size=100`;
+  const defaultBio = userData.role === 'developer' ? "Enthusiastic developer ready to craft some code!" : "Client looking for talented developers.";
 
-  const documentToWrite: { [key: string]: any } = {
+  const documentToWrite: Partial<UserWriteData> = { // Use Partial to build up the object
     name: userData.name,
     email: lowercasedEmail,
     role: userData.role,
     createdAt: serverTimestamp(),
-    bio: `New ${userData.role} on CodeCrafter.`,
+    bio: defaultBio,
     avatarUrl: defaultAvatar,
     referralCode: generatedReferralCode,
     currentPlan: "Free Tier",
@@ -123,12 +150,18 @@ export async function addUser(
   if (userData.role === 'developer') {
     if (Array.isArray(userData.skills) && userData.skills.length > 0) {
         documentToWrite.skills = userData.skills;
+    } else {
+        documentToWrite.skills = []; // Store as empty array if not provided, not undefined
     }
     if (userData.experienceLevel && userData.experienceLevel.trim() !== "") {
         documentToWrite.experienceLevel = userData.experienceLevel;
+    } else {
+        documentToWrite.experienceLevel = ''; // Store as empty string
     }
     if (Array.isArray(userData.portfolioUrls) && userData.portfolioUrls.length > 0) {
         documentToWrite.portfolioUrls = userData.portfolioUrls;
+    } else {
+        documentToWrite.portfolioUrls = [];
     }
     if (userData.pastProjects && userData.pastProjects.trim() !== "") {
         documentToWrite.pastProjects = userData.pastProjects.trim();
@@ -146,7 +179,8 @@ export async function addUser(
   console.log("[firebaseService addUser] documentToWrite before setDoc:", JSON.stringify(documentToWrite, null, 2));
 
   try {
-    await setDoc(doc(db, USERS_COLLECTION, userId), documentToWrite);
+    await setDoc(doc(db, USERS_COLLECTION, userId), documentToWrite as UserWriteData); // Cast as UserWriteData
+    console.log(`[firebaseService addUser] User ${userId} added to Firestore with role: ${documentToWrite.role}.`);
 
     try {
       const welcomeEmailHtml = await getWelcomeEmailTemplate(documentToWrite.name!, documentToWrite.role!);
@@ -198,6 +232,7 @@ export async function getUserById(userId: string): Promise<User | null> {
     throw new Error("Firestore is not initialized. Check Firebase configuration.");
   }
   if (!userId) {
+    console.warn("[firebaseService getUserById] Called with null or undefined userId.");
     return null;
   }
   try {
@@ -207,6 +242,7 @@ export async function getUserById(userId: string): Promise<User | null> {
     if (userDocSnap.exists()) {
       return mapDocToUser(userDocSnap);
     } else {
+      console.log(`[firebaseService getUserById] No user found with ID: ${userId}`);
       return null;
     }
   } catch (error) {
@@ -224,6 +260,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     throw new Error("Firestore is not initialized. Check Firebase configuration.");
   }
   if (!email) {
+    console.warn("[firebaseService getUserByEmail] Called with null or undefined email.");
     return null;
   }
 
@@ -241,6 +278,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
       const userDocSnap = querySnapshot.docs[0];
       return mapDocToUser(userDocSnap);
     } else {
+      console.log(`[firebaseService getUserByEmail] No user found with email: ${lowercasedEmail}`);
       return null;
     }
   } catch (error) {
@@ -265,35 +303,45 @@ export async function updateUser(userId: string, data: Partial<Omit<User, 'id' |
     const userDocRef = doc(db, USERS_COLLECTION, userId);
     const updateData: { [key: string]: any } = {};
 
-    if (data.name !== undefined && data.name.trim() !== "") updateData.name = data.name.trim();
-    
-    updateData.bio = (data.bio && data.bio.trim() !== "") ? data.bio.trim() : deleteField();
-    updateData.avatarUrl = (data.avatarUrl && data.avatarUrl.trim() !== "" && !data.avatarUrl.includes('ui-avatars.com')) ? data.avatarUrl.trim() : deleteField();
-    
+    if (data.name !== undefined) {
+      updateData.name = data.name.trim() ? data.name.trim() : deleteField();
+    }
+
+    const optionalTextFields: (keyof typeof data)[] = ['bio', 'avatarUrl', 'resumeFileUrl', 'resumeFileName', 'pastProjects'];
+    optionalTextFields.forEach(field => {
+      if (data[field] !== undefined) {
+        const value = (data[field] as string | undefined)?.trim();
+        if (value && (field !== 'avatarUrl' || value.startsWith('http'))) {
+          updateData[field] = value;
+        } else if (field === 'avatarUrl' && value && !value.startsWith('http')) {
+           console.warn(`[firebaseService updateUser] Invalid avatarUrl for user ${userId}: ${value}. Field will be removed.`);
+           updateData[field] = deleteField();
+        } else {
+          updateData[field] = deleteField();
+        }
+      }
+    });
+
     const currentUserSnap = await getDoc(userDocRef);
-    const currentUserData = currentUserSnap.exists() ? currentUserSnap.data() as User : null;
-    const effectiveRole = currentUserData?.role;
+    const effectiveRole = currentUserSnap.exists() ? currentUserSnap.data()?.role : null;
 
     if (effectiveRole === 'developer') {
-      updateData.skills = (Array.isArray(data.skills) && data.skills.length > 0) ? data.skills : deleteField();
-      updateData.experienceLevel = data.experienceLevel || ''; // Keep as empty string if not specified, not deleteField()
+      updateData.skills = (Array.isArray(data.skills) && data.skills.length > 0) ? data.skills.filter(s => s.trim() !== "") : deleteField();
+      updateData.experienceLevel = data.experienceLevel && data.experienceLevel.trim() !== "" ? data.experienceLevel : deleteField();
       updateData.hourlyRate = (typeof data.hourlyRate === 'number' && data.hourlyRate >= 0) ? data.hourlyRate : deleteField();
-      updateData.portfolioUrls = (Array.isArray(data.portfolioUrls) && data.portfolioUrls.length > 0) ? data.portfolioUrls : deleteField();
-      updateData.resumeFileUrl = (data.resumeFileUrl && data.resumeFileUrl.trim() !== "") ? data.resumeFileUrl.trim() : deleteField();
-      updateData.resumeFileName = (data.resumeFileName && data.resumeFileName.trim() !== "") ? data.resumeFileName.trim() : deleteField();
-      updateData.pastProjects = (data.pastProjects && data.pastProjects.trim() !== "") ? data.pastProjects.trim() : deleteField();
-    } else { 
-        updateData.skills = deleteField();
-        updateData.experienceLevel = deleteField();
-        updateData.hourlyRate = deleteField();
-        updateData.portfolioUrls = deleteField();
-        updateData.resumeFileUrl = deleteField();
-        updateData.resumeFileName = deleteField();
-        updateData.pastProjects = deleteField();
+      updateData.portfolioUrls = (Array.isArray(data.portfolioUrls) && data.portfolioUrls.length > 0) ? data.portfolioUrls.filter(url => url.trim() !== "" && (url.startsWith('http://') || url.startsWith('https://'))) : deleteField();
+    } else {
+      updateData.skills = deleteField();
+      updateData.experienceLevel = deleteField();
+      updateData.hourlyRate = deleteField();
+      updateData.portfolioUrls = deleteField();
     }
-    
+
     if (Object.keys(updateData).length > 0) {
+        console.log(`[firebaseService updateUser] Updating user ${userId} with data:`, JSON.stringify(updateData, (k, v) => v instanceof FieldValue ? "[FieldValue]" : v));
         await updateDoc(userDocRef, updateData);
+    } else {
+        console.log(`[firebaseService updateUser] No changes to update for user ${userId}.`);
     }
 
   } catch (error) {
@@ -327,6 +375,7 @@ export async function addProject(
       createdAt: serverTimestamp() as Timestamp,
     };
     const projectDocRef = await addDoc(collection(db, PROJECTS_COLLECTION), projectWithMetadata);
+    console.log(`[firebaseService addProject] Project ${projectDocRef.id} added for client ${clientId}.`);
 
     const fetchedProject = await getProjectById(projectDocRef.id);
     if (!fetchedProject) {
@@ -358,6 +407,7 @@ export async function getProjectsByClientId(clientId: string): Promise<Project[]
     throw new Error("Firestore is not initialized. Check Firebase configuration.");
   }
   if (!clientId) {
+    console.warn("[firebaseService getProjectsByClientId] Called with null or undefined clientId.");
     return [];
   }
   try {
@@ -372,6 +422,7 @@ export async function getProjectsByClientId(clientId: string): Promise<Project[]
       const data = docSnap.data();
       const createdAtDate = safeCreateDate(data.createdAt);
       if (!data.name || !data.clientId || !createdAtDate) {
+        console.warn(`[firebaseService getProjectsByClientId] Project ${docSnap.id} has missing essential fields, skipping.`);
         return;
       }
       projects.push({
@@ -392,6 +443,9 @@ export async function getProjectsByClientId(clientId: string): Promise<Project[]
   } catch (error) {
     console.error(`[firebaseService getProjectsByClientId] Error fetching projects for client ${clientId}: `, error);
     if (error instanceof Error) {
+      if (error.message.includes("The query requires an index.")) {
+         throw new Error(`Firestore query for client projects failed. It requires a composite index. Please check the Firebase console for a link to create it. Error: ${error.message}`);
+      }
       throw new Error(`Could not fetch client projects from database: ${error.message}`);
     }
     throw new Error("Could not fetch client projects from database due to an unknown error.");
@@ -404,6 +458,7 @@ export async function getProjectById(projectId: string): Promise<Project | null>
     throw new Error("Firestore is not initialized. Check Firebase configuration.");
   }
   if (!projectId) {
+    console.warn("[firebaseService getProjectById] Called with null or undefined projectId.");
     return null;
   }
   try {
@@ -412,7 +467,6 @@ export async function getProjectById(projectId: string): Promise<Project | null>
 
     if (projectDocSnap.exists()) {
       const data = projectDocSnap.data();
-
       if (!data.name || typeof data.name !== 'string') {
         console.warn(`[firebaseService getProjectById] Project ${projectId} missing or invalid 'name'. Returning null.`);
         return null;
@@ -428,9 +482,9 @@ export async function getProjectById(projectId: string): Promise<Project | null>
       }
       let statusValue = data.status || "Unknown";
        if (!["Open", "In Progress", "Completed", "Cancelled", "Unknown"].includes(statusValue)) {
+          console.warn(`[firebaseService getProjectById] Project ${projectId} has invalid status '${statusValue}', defaulting to 'Unknown'.`);
           statusValue = "Unknown";
       }
-
       return {
         id: projectDocSnap.id,
         name: data.name,
@@ -445,6 +499,7 @@ export async function getProjectById(projectId: string): Promise<Project | null>
         assignedDeveloperName: data.assignedDeveloperName || undefined,
       };
     } else {
+      console.log(`[firebaseService getProjectById] No project found with ID: ${projectId}`);
       return null;
     }
   } catch (error) {
@@ -469,10 +524,12 @@ export async function getAllProjects(): Promise<Project[]> {
       const data = docSnap.data();
       const createdAtDate = safeCreateDate(data.createdAt);
        if (!data.name || !data.clientId || !createdAtDate) {
+        console.warn(`[firebaseService getAllProjects] Project ${docSnap.id} has missing essential fields, skipping.`);
         return;
       }
       let statusValue = data.status || "Unknown";
       if (!["Open", "In Progress", "Completed", "Cancelled", "Unknown"].includes(statusValue)) {
+         console.warn(`[firebaseService getAllProjects] Project ${docSnap.id} has invalid status '${statusValue}', defaulting to 'Unknown'.`);
          statusValue = "Unknown";
      }
       projects.push({
@@ -505,6 +562,7 @@ export async function getReferredClients(currentUserReferralCode: string): Promi
     throw new Error("Firestore is not initialized. Check Firebase configuration.");
   }
   if (!currentUserReferralCode) {
+    console.warn("[firebaseService getReferredClients] Called with null or undefined currentUserReferralCode.");
     return [];
   }
   try {
@@ -519,6 +577,9 @@ export async function getReferredClients(currentUserReferralCode: string): Promi
   } catch (error) {
     console.error(`[firebaseService getReferredClients] Error fetching referred clients for code ${currentUserReferralCode}: `, error);
     if (error instanceof Error) {
+        if (error.message.includes("The query requires an index.")) {
+         throw new Error(`Firestore query for referred clients failed. It requires a composite index. Please check the Firebase console for a link to create it. Error: ${error.message}`);
+      }
       throw new Error(`Could not fetch referred clients: ${error.message}`);
     }
     throw new Error("Could not fetch referred clients due to an unknown error.");
@@ -537,6 +598,7 @@ export async function toggleUserFlag(userId: string, currentFlagStatus: boolean)
     await updateDoc(userDocRef, {
       isFlagged: !currentFlagStatus,
     });
+    console.log(`[firebaseService toggleUserFlag] Flag status for user ${userId} toggled to ${!currentFlagStatus}.`);
   } catch (error) {
     console.error(`[firebaseService toggleUserFlag] Error toggling flag for user ${userId}:`, error);
     if (error instanceof Error) {
@@ -548,7 +610,8 @@ export async function toggleUserFlag(userId: string, currentFlagStatus: boolean)
 
 export async function addAdminActivityLog(logData: Omit<AdminActivityLog, 'id' | 'timestamp'>): Promise<void> {
   if (!db) {
-    return; 
+    console.warn("[firebaseService addAdminActivityLog] Firestore is not initialized! Log entry skipped.");
+    return;
   }
 
   const logEntry: Omit<AdminActivityLog, 'id'> = {
@@ -558,6 +621,7 @@ export async function addAdminActivityLog(logData: Omit<AdminActivityLog, 'id' |
 
   try {
     await addDoc(collection(db, ADMIN_ACTIVITY_LOGS_COLLECTION), logEntry);
+    console.log("[firebaseService addAdminActivityLog] Admin activity log added successfully.");
   } catch (error) {
     console.error("[firebaseService addAdminActivityLog] Error adding admin activity log:", error);
   }
@@ -570,11 +634,19 @@ export async function updateUserAccountStatus(userId: string, newStatus: Account
   }
   if (!userId) throw new Error("User ID is required to update account status.");
 
+  const userDocRef = doc(db, USERS_COLLECTION, userId);
+  const appSnap = await getDoc(userDocRef); // For getting project name and developer details for emails
+  if (!appSnap.exists()) {
+    console.error(`[firebaseService updateUserAccountStatus] User ${userId} not found.`);
+    throw new Error("User not found.");
+  }
+  const userData = appSnap.data() as User; // Assume it exists and has correct type
+
   try {
-    const userDocRef = doc(db, USERS_COLLECTION, userId);
     await updateDoc(userDocRef, {
       accountStatus: newStatus,
     });
+    console.log(`[firebaseService updateUserAccountStatus] Account status for user ${userId} updated to ${newStatus}.`);
 
     try {
       if (newStatus === "active") {
@@ -614,7 +686,7 @@ export async function addProjectApplication(
     if (existingApplications.length > 0) {
       throw new Error("You have already applied for this project.");
     }
-    
+
     const applicationWithMetadata: Omit<ProjectApplication, 'id'> = {
       ...applicationData,
       status: "pending" as ApplicationStatus,
@@ -623,6 +695,7 @@ export async function addProjectApplication(
       developerNotifiedOfStatus: false,
     };
     const appDocRef = await addDoc(collection(db, PROJECT_APPLICATIONS_COLLECTION), applicationWithMetadata);
+    console.log(`[firebaseService addProjectApplication] Application ${appDocRef.id} added for project ${applicationData.projectId} by developer ${applicationData.developerId}.`);
 
     const project = await getProjectById(applicationData.projectId);
     if (project && project.clientId) {
@@ -632,18 +705,20 @@ export async function addProjectApplication(
           const appEmailHtml = await getNewProjectApplicationEmailToClient(client.name, applicationData.developerName, applicationData.projectName, applicationData.projectId);
           await sendEmail(client.email, `New Application for "${applicationData.projectName}"`, appEmailHtml);
           await updateDoc(appDocRef, { clientNotifiedOfNewApplication: true });
+          console.log(`[firebaseService addProjectApplication] Client ${client.email} notified for new application ${appDocRef.id}.`);
         } catch (emailError) {
-          console.error(`[firebaseService addProjectApplication] Failed to send application notification email to client ${client.email}:`, emailError);
+          console.error(`[firebaseService addProjectApplication] Failed to send application notification email to client ${client.email} for app ${appDocRef.id}:`, emailError);
         }
       }
     }
 
     const newAppSnap = await getDoc(appDocRef);
     if (!newAppSnap.exists()) {
+      console.error(`[firebaseService addProjectApplication] Application ${appDocRef.id} was supposedly added but could not be retrieved.`);
       throw new Error("Failed to retrieve the newly created project application.");
     }
     const data = newAppSnap.data()!;
-    
+
     return {
       id: newAppSnap.id,
       projectId: data.projectId,
@@ -652,24 +727,30 @@ export async function addProjectApplication(
       developerName: data.developerName,
       developerEmail: data.developerEmail,
       status: data.status,
-      appliedAt: data.appliedAt, // Keep as Firestore Timestamp
+      appliedAt: data.appliedAt,
       messageToClient: data.messageToClient,
-      clientNotifiedOfNewApplication: data.clientNotifiedOfNewApplication,
-      developerNotifiedOfStatus: data.developerNotifiedOfStatus,
+      clientNotifiedOfNewApplication: data.clientNotifiedOfNewApplication === true,
+      developerNotifiedOfStatus: data.developerNotifiedOfStatus === true,
     } as ProjectApplication;
 
   } catch (error) {
     console.error("[firebaseService addProjectApplication] Error adding project application to Firestore: ", error);
     if (error instanceof Error) {
-      throw error; 
+      throw error;
     }
     throw new Error("Could not add project application due to an unknown error.");
   }
 }
 
 export async function getApplicationsByDeveloperForProject(developerId: string, projectId: string): Promise<ProjectApplication[]> {
-  if (!db) throw new Error("Firestore is not initialized.");
-  if (!developerId || !projectId) return [];
+  if (!db) {
+    console.error(`[firebaseService getApplicationsByDeveloperForProject] Firestore is not initialized for dev ${developerId}, project ${projectId}.`);
+    throw new Error("Firestore is not initialized.");
+  }
+  if (!developerId || !projectId) {
+    console.warn("[firebaseService getApplicationsByDeveloperForProject] Called with missing developerId or projectId.");
+    return [];
+  }
 
   try {
     const q = query(
@@ -683,7 +764,9 @@ export async function getApplicationsByDeveloperForProject(developerId: string, 
       return {
         id: docSnap.id,
         ...data,
-        appliedAt: data.appliedAt, 
+        appliedAt: data.appliedAt,
+        clientNotifiedOfNewApplication: data.clientNotifiedOfNewApplication === true,
+        developerNotifiedOfStatus: data.developerNotifiedOfStatus === true,
       } as ProjectApplication;
     });
   } catch (error) {
@@ -694,8 +777,14 @@ export async function getApplicationsByDeveloperForProject(developerId: string, 
 }
 
 export async function getApplicationsByProjectId(projectId: string): Promise<ProjectApplication[]> {
-  if (!db) throw new Error("Firestore is not initialized.");
-  if (!projectId) return [];
+  if (!db) {
+    console.error(`[firebaseService getApplicationsByProjectId] Firestore is not initialized for project ${projectId}.`);
+    throw new Error("Firestore is not initialized.");
+  }
+  if (!projectId) {
+    console.warn("[firebaseService getApplicationsByProjectId] Called with missing projectId.");
+    return [];
+  }
 
   try {
     const q = query(
@@ -709,12 +798,19 @@ export async function getApplicationsByProjectId(projectId: string): Promise<Pro
       return {
         id: docSnap.id,
         ...data,
-        appliedAt: data.appliedAt, 
+        appliedAt: data.appliedAt,
+        clientNotifiedOfNewApplication: data.clientNotifiedOfNewApplication === true,
+        developerNotifiedOfStatus: data.developerNotifiedOfStatus === true,
       } as ProjectApplication;
     });
   } catch (error) {
     console.error(`[firebaseService getApplicationsByProjectId] Error fetching applications for project ${projectId}:`, error);
-    if (error instanceof Error) throw error;
+    if (error instanceof Error) {
+        if (error.message.includes("The query requires an index.")) {
+         throw new Error(`Firestore query for project applications failed. It requires a composite index (projectId asc, appliedAt desc). Please check the Firebase console for a link to create it. Error: ${error.message}`);
+      }
+      throw error;
+    }
     throw new Error("Could not fetch applications for project.");
   }
 }
@@ -722,23 +818,41 @@ export async function getApplicationsByProjectId(projectId: string): Promise<Pro
 export async function updateProjectApplicationStatus(
   applicationId: string,
   newStatus: ApplicationStatus,
-  actingUserId: string, 
+  actingUserId: string,
   actingUserName?: string
 ): Promise<void> {
-  if (!db) throw new Error("Firestore is not initialized.");
+  if (!db) {
+    console.error(`[firebaseService updateProjectApplicationStatus] Firestore is not initialized for application ${applicationId}.`);
+    throw new Error("Firestore is not initialized.");
+  }
   if (!applicationId) throw new Error("Application ID is required.");
 
-  try {
-    const appDocRef = doc(db, PROJECT_APPLICATIONS_COLLECTION, applicationId);
-    const appSnap = await getDoc(appDocRef);
-    if (!appSnap.exists()) throw new Error("Application not found.");
-    
-    const appData = appSnap.data() as ProjectApplication;
+  const appDocRef = doc(db, PROJECT_APPLICATIONS_COLLECTION, applicationId);
+  const appSnap = await getDoc(appDocRef);
+  if (!appSnap.exists()) {
+    console.error(`[firebaseService updateProjectApplicationStatus] Application ${applicationId} not found.`);
+    throw new Error("Application not found.");
+  }
+  const appData = appSnap.data() as ProjectApplication;
 
+  try {
     await updateDoc(appDocRef, {
       status: newStatus,
-      developerNotifiedOfStatus: false, // Reset notification status, will be updated after email attempt
+      developerNotifiedOfStatus: false,
     });
+    console.log(`[firebaseService updateProjectApplicationStatus] Status of application ${applicationId} updated to ${newStatus}.`);
+
+    // Send email notifications based on the new status
+    if (newStatus === 'rejected' && appData.developerEmail && appData.developerName && appData.projectName && appData.projectId) {
+      try {
+        const emailHtml = await getApplicationRejectedEmailToDeveloper(appData.developerName, appData.projectName, appData.projectId);
+        await sendEmail(appData.developerEmail, `Update on Your Application for "${appData.projectName}"`, emailHtml);
+        await updateDoc(appDocRef, { developerNotifiedOfStatus: true });
+      } catch (emailError) {
+        console.error(`[firebaseService updateProjectApplicationStatus] Failed to send rejection email for app ${applicationId}:`, emailError);
+      }
+    }
+    // Note: Acceptance email is handled in `assignDeveloperToProject` because it involves more steps.
 
     await addAdminActivityLog({
         adminId: actingUserId,
@@ -746,8 +860,8 @@ export async function updateProjectApplicationStatus(
         action: `PROJECT_APPLICATION_${newStatus.toUpperCase()}`,
         targetType: "project_application",
         targetId: applicationId,
-        targetName: `Application for ${appData.projectName} by ${appData.developerName}`,
-        details: { oldStatus: appData.status, newStatus: newStatus }
+        targetName: `Application for ${appData.projectName || 'unknown project'} by ${appData.developerName || 'unknown developer'}`,
+        details: { oldStatus: appData.status, newStatus: newStatus, projectId: appData.projectId }
     });
 
   } catch (error) {
@@ -759,39 +873,50 @@ export async function updateProjectApplicationStatus(
 
 export async function assignDeveloperToProject(
   projectId: string,
-  applicationId: string, // Added applicationId to update its notification status
+  applicationId: string,
   developerId: string,
   developerName: string,
-  developerEmail: string, // Added developerEmail for notification
+  developerEmail: string,
   actingUserId: string,
   actingUserName?: string
 ): Promise<void> {
-  if (!db) throw new Error("Firestore is not initialized.");
+  if (!db) {
+    console.error(`[firebaseService assignDeveloperToProject] Firestore is not initialized for project ${projectId}.`);
+    throw new Error("Firestore is not initialized.");
+  }
   if (!projectId || !applicationId || !developerId || !developerName || !developerEmail) {
     throw new Error("Project ID, Application ID, Developer ID, Name, and Email are required.");
   }
 
+  const projectDocRef = doc(db, PROJECTS_COLLECTION, projectId);
+  const appDocRef = doc(db, PROJECT_APPLICATIONS_COLLECTION, applicationId);
+
   try {
-    const projectDocRef = doc(db, PROJECTS_COLLECTION, projectId);
-    await updateDoc(projectDocRef, {
+    const projectSnap = await getDoc(projectDocRef);
+    const projectName = projectSnap.exists() ? projectSnap.data()?.name : "Unknown Project";
+
+    const batch = writeBatch(db);
+    batch.update(projectDocRef, {
       status: "In Progress" as ProjectStatus,
       assignedDeveloperId: developerId,
       assignedDeveloperName: developerName,
     });
+    batch.update(appDocRef, {
+        status: "accepted" as ApplicationStatus, // Ensure the accepted application's status is also set to accepted
+        developerNotifiedOfStatus: false // Will be updated after email attempt
+    });
 
-    const projectSnap = await getDoc(projectDocRef);
-    const projectName = projectSnap.exists() ? projectSnap.data()?.name : "Unknown Project";
+    await batch.commit();
+    console.log(`[firebaseService assignDeveloperToProject] Developer ${developerName} (${developerId}) assigned to project ${projectId}. Application ${applicationId} marked as accepted.`);
 
-    // Send email to developer
     try {
         const emailHtml = await getApplicationAcceptedEmailToDeveloper(developerName, projectName, projectId);
         await sendEmail(developerEmail, `Application Accepted for "${projectName}"!`, emailHtml);
-        const appDocRef = doc(db, PROJECT_APPLICATIONS_COLLECTION, applicationId);
         await updateDoc(appDocRef, { developerNotifiedOfStatus: true });
+        console.log(`[firebaseService assignDeveloperToProject] Developer ${developerEmail} notified of acceptance for app ${applicationId}.`);
     } catch (emailError) {
         console.error(`[firebaseService assignDeveloperToProject] Failed to send acceptance email to ${developerEmail} or update notification status for app ${applicationId}:`, emailError);
     }
-
 
     await addAdminActivityLog({
         adminId: actingUserId,
@@ -799,8 +924,8 @@ export async function assignDeveloperToProject(
         action: "PROJECT_ASSIGNED_DEVELOPER",
         targetType: "project",
         targetId: projectId,
-        targetName: projectName,
-        details: { assignedDeveloperId: developerId, assignedDeveloperName: developerName }
+        targetName: projectName || `Project ${projectId}`,
+        details: { assignedDeveloperId: developerId, assignedDeveloperName: developerName, fromApplicationId: applicationId }
     });
 
   } catch (error) {
@@ -816,7 +941,10 @@ export async function rejectOtherPendingApplications(
   actingUserId: string,
   actingUserName?: string
 ): Promise<void> {
-  if (!db) throw new Error("Firestore is not initialized.");
+  if (!db) {
+    console.error(`[firebaseService rejectOtherPendingApplications] Firestore is not initialized for project ${projectId}.`);
+    throw new Error("Firestore is not initialized.");
+  }
 
   try {
     const q = query(
@@ -825,26 +953,32 @@ export async function rejectOtherPendingApplications(
       where("status", "==", "pending" as ApplicationStatus)
     );
     const querySnapshot = await getDocs(q);
-    
+    console.log(`[firebaseService rejectOtherPendingApplications] Found ${querySnapshot.docs.length} pending applications for project ${projectId} to potentially reject.`);
+
     const batch = writeBatch(db);
-    const emailPromises: Promise<void>[] = [];
+    const emailTasks: Array<Promise<void>> = [];
 
     querySnapshot.forEach(docSnap => {
       if (docSnap.id !== acceptedApplicationId) {
         const appRef = doc(db, PROJECT_APPLICATIONS_COLLECTION, docSnap.id);
         batch.update(appRef, { status: "rejected" as ApplicationStatus, developerNotifiedOfStatus: false });
-        
+        console.log(`[firebaseService rejectOtherPendingApplications] Batch update for app ${docSnap.id} to rejected.`);
+
         const appData = docSnap.data() as ProjectApplication;
         if (appData.developerEmail && appData.developerName && appData.projectName && appData.projectId) {
-            const emailPromise = getApplicationRejectedEmailToDeveloper(appData.developerName, appData.projectName, appData.projectId)
-            .then(emailHtml => sendEmail(appData.developerEmail, `Update on Your Application for "${appData.projectName}"`, emailHtml))
-            .then(async () => {
-                if(db) { // Check db again before this isolated updateDoc
-                    await updateDoc(appRef, { developerNotifiedOfStatus: true });
-                }
-            })
-            .catch(emailError => console.error(`[firebaseService rejectOther] Failed to send rejection email to ${appData.developerEmail} or update status for app ${docSnap.id}:`, emailError));
-            emailPromises.push(emailPromise);
+          const emailTask = async () => {
+            try {
+              const emailHtml = await getApplicationRejectedEmailToDeveloper(appData.developerName, appData.projectName, appData.projectId);
+              await sendEmail(appData.developerEmail, `Update on Your Application for "${appData.projectName}"`, emailHtml);
+              if (db) { // Ensure db is still defined in this scope
+                await updateDoc(appRef, { developerNotifiedOfStatus: true });
+                console.log(`[firebaseService rejectOtherPendingApplications] Developer ${appData.developerEmail} notified of rejection for app ${docSnap.id}.`);
+              }
+            } catch (emailError) {
+              console.error(`[firebaseService rejectOtherPendingApplications] Failed to send rejection email to ${appData.developerEmail} or update status for app ${docSnap.id}:`, emailError);
+            }
+          };
+          emailTasks.push(emailTask());
         }
 
         addAdminActivityLog({
@@ -853,13 +987,23 @@ export async function rejectOtherPendingApplications(
             action: "PROJECT_APPLICATION_AUTO_REJECTED",
             targetType: "project_application",
             targetId: docSnap.id,
-            targetName: `Application for ${appData.projectName} by ${appData.developerName}`,
-            details: { reason: "Another application was accepted." }
-        }).catch(logError => console.error("[firebaseService rejectOther] Error logging auto-rejection:", logError));
+            targetName: `Application for ${appData.projectName || 'unknown project'} by ${appData.developerName || 'unknown developer'}`,
+            details: { reason: "Another application was accepted for this project.", projectId: appData.projectId }
+        }).catch(logError => console.error("[firebaseService rejectOtherPendingApplications] Error logging auto-rejection:", logError));
       }
     });
-    await batch.commit();
-    await Promise.allSettled(emailPromises); // Wait for all email sending and status updates to attempt
+
+    const otherAppsToRejectCount = querySnapshot.docs.filter(d => d.id !== acceptedApplicationId).length;
+    if (otherAppsToRejectCount > 0) {
+        await batch.commit();
+        console.log(`[firebaseService rejectOtherPendingApplications] Batch commit successful for rejecting ${otherAppsToRejectCount} other applications on project ${projectId}.`);
+    } else {
+        console.log(`[firebaseService rejectOtherPendingApplications] No other pending applications to reject for project ${projectId}.`);
+    }
+
+    await Promise.allSettled(emailTasks);
+    console.log(`[firebaseService rejectOtherPendingApplications] All email notification tasks for rejected applications processed for project ${projectId}.`);
+
   } catch (error) {
     console.error(`[firebaseService rejectOtherPendingApplications] Error rejecting other applications for project ${projectId}:`, error);
   }

@@ -20,16 +20,14 @@ import {
   updateProjectApplicationStatus,
   assignDeveloperToProject,
   rejectOtherPendingApplications,
-  addAdminActivityLog,
 } from "@/lib/firebaseService";
-import { sendEmail, getApplicationRejectedEmailToDeveloper } from "@/lib/emailService"; // Added getApplicationRejectedEmailToDeveloper
-import { db } from "@/lib/firebase";
-import { PROJECT_APPLICATIONS_COLLECTION } from "@/lib/firebaseService";
-import { doc, updateDoc, Timestamp } from "firebase/firestore";
+import { getApplicationRejectedEmailToDeveloper, sendEmail } from "@/lib/emailService";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, formatDistanceToNow } from 'date-fns';
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Timestamp } from "firebase/firestore";
+
 
 export default function ProjectMatchmakingPage() {
   const params = useParams();
@@ -124,7 +122,7 @@ export default function ProjectMatchmakingPage() {
     setHasApplied(false);
     setProjectApplications([]);
     setApplicationsError(null);
-    setInitialMatchmakingDoneForCurrentProject(false);
+    setInitialMatchmakingDoneForCurrentProject(false); // Reset for new project ID
 
     try {
       const fetchedProject = await getProjectById(projectId);
@@ -148,52 +146,56 @@ export default function ProjectMatchmakingPage() {
     fetchProjectData();
   }, [fetchProjectData]);
 
+
   const manageApplications = useCallback(async () => {
-      if (user && project?.id) {
-        if (user.role === 'developer') {
-          console.log(`[MatchmakingPage] manageApplications: Developer ${user.id} viewing project ${project.id}. Checking applications.`);
-          setIsLoadingApplications(true);
-          setHasApplied(false); 
-          try {
-            const existingApplications = await getApplicationsByDeveloperForProject(user.id, project.id);
-            if (existingApplications.length > 0) {
-              console.log(`[MatchmakingPage] manageApplications: Developer ${user.id} has already applied to project ${project.id}.`);
-              setHasApplied(true);
-            }
-          } catch (error) {
-            console.error("[MatchmakingPage] manageApplications: Error checking existing developer applications:", error);
-          } finally {
-            setIsLoadingApplications(false);
-          }
-        } else if (user.id === project.clientId) {
-          console.log(`[MatchmakingPage] manageApplications: Client ${user.id} viewing their project ${project.id}. Fetching applications.`);
-          setIsLoadingApplications(true);
-          setApplicationsError(null);
-          try {
-            const apps = await getApplicationsByProjectId(project.id);
-            console.log(`[MatchmakingPage] manageApplications: Fetched ${apps.length} applications for project ${project.id}.`);
-            setProjectApplications(apps);
-          } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : "Could not fetch applications for this project.";
-            setApplicationsError(errorMsg);
-            console.error("[MatchmakingPage] manageApplications: Error fetching project applications:", error);
-          } finally {
-            setIsLoadingApplications(false);
-          }
+    if (!user || !project?.id) return;
+
+    if (user.role === 'developer') {
+      console.log(`[MatchmakingPage] manageApplications: Developer ${user.id} viewing project ${project.id}. Checking applications.`);
+      setIsLoadingApplications(true); // Set loading true when starting to check
+      setHasApplied(false);
+      try {
+        const existingApplications = await getApplicationsByDeveloperForProject(user.id, project.id);
+        if (existingApplications.length > 0) {
+          console.log(`[MatchmakingPage] manageApplications: Developer ${user.id} has already applied to project ${project.id}.`);
+          setHasApplied(true);
         }
+      } catch (error) {
+        console.error("[MatchmakingPage] manageApplications: Error checking existing developer applications:", error);
+        // Optionally set an error state here if needed
+      } finally {
+        setIsLoadingApplications(false); // Set loading false when done
       }
-    }, [user, project]);
+    } else if (user.id === project.clientId || user.role === 'admin') {
+      console.log(`[MatchmakingPage] manageApplications: Client/Admin ${user.id} viewing project ${project.id}. Fetching applications.`);
+      setIsLoadingApplications(true);
+      setApplicationsError(null);
+      try {
+        const apps = await getApplicationsByProjectId(project.id);
+        console.log(`[MatchmakingPage] manageApplications: Fetched ${apps.length} applications for project ${project.id}.`);
+        setProjectApplications(apps);
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : "Could not fetch applications for this project.";
+        setApplicationsError(errorMsg);
+        console.error("[MatchmakingPage] manageApplications: Error fetching project applications:", error);
+      } finally {
+        setIsLoadingApplications(false);
+      }
+    }
+  }, [user, project]);
 
   useEffect(() => {
-    manageApplications();
-  }, [manageApplications]);
+    if (project && user) { // Only run if project and user are loaded
+      manageApplications();
+    }
+  }, [project, user, manageApplications]);
 
 
   useEffect(() => {
     if (!isLoadingProject && !authLoading && project && user && !initialMatchmakingDoneForCurrentProject) {
       if (project.status === "Open" && (user.id === project.clientId || user.role === 'developer' || user.role === 'admin')) {
         console.log(`[MatchmakingPage] Initial AI matchmaking trigger for project ${project.id}, user ${user.id}`);
-        handleRunMatchmaking(project, false); // showToast set to false for initial auto-run
+        handleRunMatchmaking(project, false);
       }
       setInitialMatchmakingDoneForCurrentProject(true);
     }
@@ -205,15 +207,19 @@ export default function ProjectMatchmakingPage() {
       toast({ title: "Error", description: "Cannot apply: User not a developer or project details missing.", variant: "destructive" });
       return;
     }
+    if (!user.email || !user.name){
+        toast({ title: "Error", description: "Your user profile is incomplete (missing name or email). Please update your profile.", variant: "destructive" });
+        return;
+    }
     setIsApplying(true);
     try {
       const applicationData = {
         projectId: project.id,
         projectName: project.name,
         developerId: user.id,
-        developerName: user.name || "Unknown Developer",
-        developerEmail: user.email, // Ensure user email is available
-        messageToClient: `I am interested in discussing project "${project.name}" further. My skills align well with the requirements.` // Example message
+        developerName: user.name,
+        developerEmail: user.email,
+        messageToClient: `I am interested in discussing project "${project.name}" further. My skills align well with the requirements.`
       };
       await addProjectApplication(applicationData);
       setHasApplied(true);
@@ -221,8 +227,7 @@ export default function ProjectMatchmakingPage() {
         title: "Application Submitted!",
         description: "Your interest in this project has been noted. The project owner will be informed.",
       });
-      // Re-fetch applications if the client is viewing, though less critical here
-      if (user.id === project.clientId) {
+      if (user.id === project.clientId || user.role === 'admin') { // Re-fetch if client/admin is somehow applying (though UI prevents this)
         manageApplications();
       }
     } catch (error) {
@@ -235,11 +240,11 @@ export default function ProjectMatchmakingPage() {
   };
 
   const handleUpdateApplication = async (application: ProjectApplication, newStatus: ApplicationStatus) => {
-    if (!user || !project || user.id !== project.clientId) {
-      toast({ title: "Unauthorized", description: "Only the project owner can manage applications.", variant: "destructive" });
+    if (!user || !project || (user.id !== project.clientId && user.role !== 'admin')) {
+      toast({ title: "Unauthorized", description: "Only the project owner or an admin can manage applications.", variant: "destructive" });
       return;
     }
-    if (!project.name) { 
+    if (!project.name) {
         toast({ title: "Project Error", description: "Project name is missing, cannot proceed.", variant: "destructive" });
         return;
     }
@@ -249,26 +254,17 @@ export default function ProjectMatchmakingPage() {
     }
     setIsProcessingApplication(application.id);
     try {
-      await updateProjectApplicationStatus(application.id, newStatus, user.id, user.name || "Client");
+      await updateProjectApplicationStatus(application.id, newStatus, user.id, user.name || "Admin/Client");
 
       if (newStatus === 'accepted') {
-        await assignDeveloperToProject(project.id, application.id, application.developerId, application.developerName, application.developerEmail, user.id, user.name || "Client");
-        await rejectOtherPendingApplications(project.id, application.id, user.id, user.name || "Client");
-      } else if (newStatus === 'rejected') {
-         // Email for rejection is handled by rejectOtherPendingApplications or if this is the only one
-         // The direct rejection also needs an email.
-        const emailHtml = await getApplicationRejectedEmailToDeveloper(application.developerName, project.name, project.id);
-        await sendEmail(application.developerEmail, `Update on Your Application for "${project.name}"`, emailHtml);
-        if(db) { // Ensure db is defined
-          await updateDoc(doc(db, PROJECT_APPLICATIONS_COLLECTION, application.id), { developerNotifiedOfStatus: true });
-        } else {
-          console.error("[MatchmakingPage] Firestore DB not available, cannot update developerNotifiedOfStatus for rejected application (direct).");
-        }
+        await assignDeveloperToProject(project.id, application.id, application.developerId, application.developerName, application.developerEmail, user.id, user.name || "Admin/Client");
+        await rejectOtherPendingApplications(project.id, application.id, user.id, user.name || "Admin/Client");
       }
+      // Note: Email for rejected applications is now handled within updateProjectApplicationStatus if the status is 'rejected'
 
       const updatedProject = await getProjectById(project.id);
       if (updatedProject) setProject(updatedProject);
-      
+
       const apps = await getApplicationsByProjectId(project.id);
       setProjectApplications(apps);
 
@@ -339,6 +335,24 @@ export default function ProjectMatchmakingPage() {
 
   const isLoadingAIMatches = isMatching || isTransitionPending;
 
+  // Helper to safely create a Date object from Firestore Timestamp or other date-like values
+  const safeCreateDateLocal = (timestamp: any): Date | undefined => {
+    if (!timestamp) return undefined;
+    if (timestamp instanceof Date) return timestamp;
+    if (timestamp instanceof Timestamp) return timestamp.toDate();
+    if (timestamp && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
+      try {
+        const date = new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate();
+        if (!isNaN(date.getTime())) return date;
+      } catch (e) { console.warn("Failed to convert object to Timestamp, then to Date:", e); }
+    }
+    if (typeof timestamp === 'string' || typeof timestamp === 'number') {
+      const date = new Date(timestamp);
+      if (!isNaN(date.getTime())) return date;
+    }
+    return undefined;
+  };
+
   return (
     <ProtectedPage>
       <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
@@ -369,6 +383,16 @@ export default function ProjectMatchmakingPage() {
                 </AlertDescription>
               </Alert>
             )}
+             {project.status === "Completed" && project.assignedDeveloperName && (
+               <Alert variant="default" className="mt-4 bg-purple-500/10 border-purple-500/30">
+                <CheckCircle className="h-4 w-4 text-purple-600" />
+                <AlertTitle className="text-purple-700 dark:text-purple-300">Project Completed</AlertTitle>
+                <AlertDescription className="text-purple-600 dark:text-purple-400">
+                  This project was completed by: <strong>{project.assignedDeveloperName}</strong>.
+                  {project.assignedDeveloperId && <Link href={`/developers/${project.assignedDeveloperId}`} className="ml-2 text-xs underline hover:text-purple-500">(View Profile)</Link>}
+                </AlertDescription>
+              </Alert>
+            )}
           </CardHeader>
           <CardContent>
             <h3 className="font-semibold mb-1 text-lg">Project Description:</h3>
@@ -388,7 +412,7 @@ export default function ProjectMatchmakingPage() {
             <h3 className="font-semibold mb-1 text-lg">Client Timezone:</h3>
             <p className="text-muted-foreground mb-4">{project.timeZone || <span className="italic">Not specified</span>}</p>
 
-            {isClientOwner && project.status === "Open" && (
+            {(isClientOwner || user?.role === 'admin') && project.status === "Open" && (
               <Button onClick={() => handleRunMatchmaking(project, true)} disabled={isLoadingAIMatches} className="mt-4">
                 {isLoadingAIMatches ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -398,8 +422,8 @@ export default function ProjectMatchmakingPage() {
                 {isLoadingAIMatches ? "Finding Matches..." : "Run AI Matchmaking Again"}
               </Button>
             )}
-            {canDeveloperApply && (
-              <Button onClick={handleApplyForProject} disabled={isApplying || isLoadingApplications || project.status !== "Open"} className="mt-4 w-full sm:w-auto">
+            {canDeveloperApply && project.status === "Open" && (
+              <Button onClick={handleApplyForProject} disabled={isApplying || isLoadingApplications} className="mt-4 w-full sm:w-auto">
                 {isApplying || isLoadingApplications ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSignature className="mr-2 h-4 w-4" />}
                 {isApplying ? "Submitting..." : (isLoadingApplications ? "Checking..." : "Apply for Project")}
               </Button>
@@ -419,10 +443,19 @@ export default function ProjectMatchmakingPage() {
                 </AlertDescription>
               </Alert>
             )}
+             {project.status !== "Open" && user?.role === 'developer' && !isProjectAssignedToCurrentUser && (
+                 <Alert variant="default" className="mt-4">
+                    <Info className="h-4 w-4" />
+                    <AlertTitle>Project Not Open</AlertTitle>
+                    <AlertDescription>
+                    This project is no longer accepting new applications.
+                    </AlertDescription>
+                </Alert>
+            )}
           </CardContent>
         </Card>
 
-        {project.status === "Open" && !isProjectAssignedToCurrentUser && (
+        {project.status === "Open" && !isProjectAssignedToCurrentUser && (isClientOwner || user?.role === 'admin') && (
           <>
             {isLoadingAIMatches && !aiError && (
               <Card className="shadow-lg">
@@ -450,7 +483,7 @@ export default function ProjectMatchmakingPage() {
               <Card className="shadow-lg">
                 <CardHeader>
                   <CardTitle className="text-2xl">AI Developer Suggestions</CardTitle>
-                  <CardDescription>Here are developer profiles our AI believes could be a good fit for your project.</CardDescription>
+                  <CardDescription>Here are developer profiles our AI believes could be a good fit for your project. These are AI-generated suggestions based on your criteria.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div>
@@ -464,7 +497,7 @@ export default function ProjectMatchmakingPage() {
                       {matches.developerMatches.map((devProfileText, index) => (
                         <DeveloperCard
                           key={index}
-                          name={`Suggested Developer Profile ${index + 1}`}
+                          name={`Suggested Developer Profile ${index + 1} (AI Suggestion)`}
                           description={devProfileText}
                           skills={project.requiredSkills || []}
                           dataAiHint="developer profile abstract"
@@ -484,7 +517,7 @@ export default function ProjectMatchmakingPage() {
           </>
         )}
 
-        {isClientOwner && project.status === "Open" && (
+        {(isClientOwner || user?.role === 'admin') && project.status === "Open" && (
           <Card className="shadow-lg mt-8" id="applications">
             <CardHeader>
               <CardTitle className="text-xl flex items-center">
@@ -505,7 +538,7 @@ export default function ProjectMatchmakingPage() {
                               <div className="flex justify-between items-start">
                                 <div>
                                   <CardTitle className="text-lg">{app.developerName}</CardTitle>
-                                  <CardDescription>Applied: {app.appliedAt ? formatDistanceToNow(safeCreateDate(app.appliedAt) || new Date(0), { addSuffix: true }) : 'Unknown'}</CardDescription>
+                                  <CardDescription>Applied: {app.appliedAt ? formatDistanceToNow(safeCreateDateLocal(app.appliedAt) || new Date(0), { addSuffix: true }) : 'Unknown'}</CardDescription>
                                 </div>
                                 <ApplicationStatusBadge status={app.status} />
                               </div>
@@ -550,11 +583,11 @@ export default function ProjectMatchmakingPage() {
             </CardContent>
           </Card>
         )}
-        {isClientOwner && project.status !== "Open" && projectApplications.length > 0 && (
+        {(isClientOwner || user?.role === 'admin') && project.status !== "Open" && projectApplications.length > 0 && (
           <Card className="shadow-lg mt-8">
-            <CardHeader><CardTitle>Archived Applications</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-xl flex items-center"><UsersRound className="mr-2 h-5 w-5 text-primary" />Archived Applications</CardTitle></CardHeader>
             <CardContent>
-              <p className="text-muted-foreground text-sm">This project is no longer open for new applications.</p>
+              <p className="text-muted-foreground text-sm">This project is no longer open for new applications or has been assigned. Below are the applications received.</p>
               <div className="space-y-4 mt-4">
                 {projectApplications.map(app => (
                   <Card key={app.id} className={'opacity-70 bg-muted/50'}>
@@ -562,7 +595,7 @@ export default function ProjectMatchmakingPage() {
                       <div className="flex justify-between items-start">
                         <div>
                           <CardTitle className="text-lg">{app.developerName}</CardTitle>
-                          <CardDescription>Applied: {app.appliedAt ? formatDistanceToNow(safeCreateDate(app.appliedAt) || new Date(0), { addSuffix: true }) : 'Unknown'}</CardDescription>
+                          <CardDescription>Applied: {app.appliedAt ? formatDistanceToNow(safeCreateDateLocal(app.appliedAt) || new Date(0), { addSuffix: true }) : 'Unknown'}</CardDescription>
                         </div>
                         <ApplicationStatusBadge status={app.status} />
                       </div>
@@ -587,32 +620,6 @@ export default function ProjectMatchmakingPage() {
       </div>
     </ProtectedPage>
   );
-}
-
-// Helper to safely create a Date object from Firestore Timestamp or other date-like values
-function safeCreateDate(timestamp: any): Date | undefined {
-  if (!timestamp) return undefined;
-  if (timestamp instanceof Date) return timestamp; // Already a JS Date
-  if (timestamp instanceof Timestamp) { // Check if it's a Firestore Timestamp
-    return timestamp.toDate();
-  }
-  // Handle cases where timestamp might be a plain object from Firestore { seconds: number, nanoseconds: number }
-  if (timestamp && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
-    try {
-        const date = new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate();
-        if (!isNaN(date.getTime())) return date; // Ensure it's a valid date
-    } catch (e) {
-        // Could be an invalid Timestamp structure if accessed before full conversion
-        console.warn("Failed to convert object to Timestamp, then to Date:", e);
-    }
-  }
-  // Fallback for string or number timestamps
-  if (typeof timestamp === 'string' || typeof timestamp === 'number') {
-    const date = new Date(timestamp);
-    if (!isNaN(date.getTime())) return date; // Ensure it's a valid date
-  }
-  console.warn("Could not parse timestamp into a valid Date:", timestamp);
-  return undefined;
 }
 
 
