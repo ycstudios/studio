@@ -117,7 +117,7 @@ export async function getQuickServiceRequestClientConfirmationHtml(formData: Qui
 /**
  * Sends an email using EmailJS API.
  */
-export async function sendEmail(to: string, subject: string, htmlBody: string, fromName?: string, replyTo?: string): Promise<void> {
+export async function sendEmail(to: string, subject: string, htmlBody: string, fromNameParam?: string, replyToParam?: string): Promise<void> {
   const {
     EMAILJS_SERVICE_ID,
     EMAILJS_TEMPLATE_ID_GENERIC,
@@ -126,28 +126,38 @@ export async function sendEmail(to: string, subject: string, htmlBody: string, f
     APP_EMAIL_FROM_NAME
   } = process.env;
 
+  console.log("[EmailService] Attempting to send email via EmailJS. Validating environment variables:");
+  console.log(`  > EMAILJS_SERVICE_ID: ${EMAILJS_SERVICE_ID ? `'${EMAILJS_SERVICE_ID}' (Length: ${EMAILJS_SERVICE_ID.length})` : 'NOT SET or empty'}`);
+  console.log(`  > EMAILJS_TEMPLATE_ID_GENERIC: ${EMAILJS_TEMPLATE_ID_GENERIC ? `'${EMAILJS_TEMPLATE_ID_GENERIC}' (Length: ${EMAILJS_TEMPLATE_ID_GENERIC.length})` : 'NOT SET or empty'}`);
+  console.log(`  > EMAILJS_USER_ID (Public Key): ${EMAILJS_USER_ID ? `'${EMAILJS_USER_ID}' (Length: ${EMAILJS_USER_ID.length})` : 'NOT SET or empty'}`);
+  console.log(`  > EMAILJS_PRIVATE_KEY (Access Token): ${EMAILJS_PRIVATE_KEY ? `SET (Length: ${EMAILJS_PRIVATE_KEY.length})` : 'NOT SET or empty'}`); // Avoid logging the key itself
+  console.log(`  > APP_EMAIL_FROM_NAME: ${APP_EMAIL_FROM_NAME ? `'${APP_EMAIL_FROM_NAME}'` : 'NOT SET or empty'}`);
+
   let emailJsConfigComplete = true;
-  if (!EMAILJS_SERVICE_ID) { console.warn("[EmailService] EMAILJS_SERVICE_ID is NOT SET. Emails will be logged to console."); emailJsConfigComplete = false; }
-  if (!EMAILJS_TEMPLATE_ID_GENERIC) { console.warn("[EmailService] EMAILJS_TEMPLATE_ID_GENERIC is NOT SET. Emails will be logged to console."); emailJsConfigComplete = false; }
-  if (!EMAILJS_USER_ID) { console.warn("[EmailService] EMAILJS_USER_ID (Public Key) is NOT SET. Emails will be logged to console."); emailJsConfigComplete = false; }
-  if (!EMAILJS_PRIVATE_KEY) { console.warn("[EmailService] EMAILJS_PRIVATE_KEY (Access Token) is NOT SET. Emails will be logged to console."); emailJsConfigComplete = false; }
+  if (!EMAILJS_SERVICE_ID) emailJsConfigComplete = false;
+  if (!EMAILJS_TEMPLATE_ID_GENERIC) emailJsConfigComplete = false;
+  if (!EMAILJS_USER_ID) emailJsConfigComplete = false;
+  if (!EMAILJS_PRIVATE_KEY) emailJsConfigComplete = false;
 
 
   if (!emailJsConfigComplete) {
-    console.warn("--- MOCK EMAIL (EmailJS Config Incomplete or Missing) ---");
+    console.warn("--- MOCK EMAIL (EmailJS Config Incomplete or Missing. Check .env.local and restart server) ---");
     console.log("To:", to);
-    console.log("From Name:", fromName || APP_EMAIL_FROM_NAME || "CodeCrafter");
-    console.log("Reply To:", replyTo || to);
+    console.log("From Name:", fromNameParam || APP_EMAIL_FROM_NAME || "CodeCrafter");
+    console.log("Reply To:", replyToParam || to);
     console.log("Subject:", subject);
     console.log("HTML Body (first 200 chars):", htmlBody.substring(0, 200) + "...");
     console.log("--- END MOCK EMAIL ---");
     return;
   }
 
+  const effectiveFromName = fromNameParam || APP_EMAIL_FROM_NAME || "CodeCrafter";
+  const effectiveReplyTo = replyToParam || to;
+
   const templateParams = {
     to_email: to,
-    from_name: fromName || APP_EMAIL_FROM_NAME || "CodeCrafter",
-    reply_to_email: replyTo || to,
+    from_name: effectiveFromName,
+    reply_to_email: effectiveReplyTo,
     subject_line: subject,
     html_body_content: htmlBody,
   };
@@ -160,6 +170,10 @@ export async function sendEmail(to: string, subject: string, htmlBody: string, f
     template_params: templateParams,
   };
 
+  console.log("[EmailService] Payload to EmailJS (template_params only):", JSON.stringify(templateParams, null, 2));
+  console.log(`[EmailService] AccessToken (Private Key) is ${EMAILJS_PRIVATE_KEY ? 'PRESENT' : 'MISSING'} for EmailJS API call.`);
+
+
   try {
     console.log(`[EmailService] Attempting to send email to ${to} with subject "${subject}" via EmailJS API...`);
     const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
@@ -170,11 +184,11 @@ export async function sendEmail(to: string, subject: string, htmlBody: string, f
       body: JSON.stringify(data),
     });
 
-    const responseText = await response.text();
+    const responseText = await response.text(); // Get raw response text
     if (response.ok) {
       console.log(`[EmailService] Successfully sent email to ${to} via EmailJS. Response: ${responseText}`);
     } else {
-      console.error(`[EmailService] Failed to send email via EmailJS. Status: ${response.status}, Response: ${responseText}`);
+      console.error(`[EmailService] Failed to send email via EmailJS. Status: ${response.status}, Raw Response: ${responseText}`);
       throw new Error(`EmailJS failed to send email. Status: ${response.status}. ${responseText}`);
     }
   } catch (error) {
@@ -185,3 +199,4 @@ export async function sendEmail(to: string, subject: string, htmlBody: string, f
     throw new Error('An unknown error occurred while sending email via EmailJS.');
   }
 }
+
