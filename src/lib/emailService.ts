@@ -3,6 +3,7 @@
 'use server';
 
 import type { QuickServiceRequestData, User } from '@/types';
+import nodemailer from 'nodemailer';
 
 // --- Basic HTML Email Templates ---
 
@@ -113,93 +114,66 @@ export async function getQuickServiceRequestClientConfirmationHtml(formData: Qui
   return getEmailWrapper("We've Received Your Service Request!", content);
 }
 
+
 /**
- * Sends an email using EmailJS API.
+ * Sends an email using Nodemailer with Gmail.
  * This function MUST run on the server-side.
  */
 export async function sendEmail(to: string, subject: string, htmlBody: string, fromNameParam?: string, replyToParam?: string): Promise<void> {
-  console.log("[EmailService Server Action] Attempting to send email. Validating ENV VARS:");
-  const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID;
-  const EMAILJS_TEMPLATE_ID_GENERIC = process.env.EMAILJS_TEMPLATE_ID_GENERIC;
-  const EMAILJS_USER_ID = process.env.EMAILJS_USER_ID; // Public Key
-  const EMAILJS_PRIVATE_KEY = process.env.EMAILJS_PRIVATE_KEY; // Access Token (Private Key)
-  const APP_EMAIL_FROM_NAME = process.env.APP_EMAIL_FROM_NAME || "CodeCrafter";
+  console.log("[EmailService Server Action] Attempting to send email via Nodemailer/Gmail.");
 
-  let allConfigured = true;
+  const EMAIL_SERVER_USER = process.env.EMAIL_SERVER_USER;
+  const EMAIL_SERVER_PASSWORD = process.env.EMAIL_SERVER_PASSWORD;
+  const EMAIL_FROM = process.env.EMAIL_FROM;
 
-  if (!EMAILJS_SERVICE_ID) { console.error("  > EMAILJS_SERVICE_ID: MISSING!"); allConfigured = false; } 
-  else { console.log(`  > EMAILJS_SERVICE_ID: '${EMAILJS_SERVICE_ID}' (Length: ${EMAILJS_SERVICE_ID.length})`); }
+  let configComplete = true;
+  if (!EMAIL_SERVER_USER) { console.warn("  > EMAIL_SERVER_USER: MISSING from .env.local! Cannot send email."); configComplete = false; }
+  if (!EMAIL_SERVER_PASSWORD) { console.warn("  > EMAIL_SERVER_PASSWORD: MISSING from .env.local! Cannot send email. Ensure you use a Google App Password if 2FA is enabled."); configComplete = false; }
+  if (!EMAIL_FROM) { console.warn("  > EMAIL_FROM: MISSING from .env.local! Using default."); }
 
-  if (!EMAILJS_TEMPLATE_ID_GENERIC) { console.error("  > EMAILJS_TEMPLATE_ID_GENERIC: MISSING!"); allConfigured = false; }
-  else { console.log(`  > EMAILJS_TEMPLATE_ID_GENERIC: '${EMAILJS_TEMPLATE_ID_GENERIC}' (Length: ${EMAILJS_TEMPLATE_ID_GENERIC.length})`); }
-  
-  if (!EMAILJS_USER_ID) { console.error("  > EMAILJS_USER_ID (Public Key): MISSING!"); allConfigured = false; }
-  else { console.log(`  > EMAILJS_USER_ID (Public Key): '${EMAILJS_USER_ID}' (Length: ${EMAILJS_USER_ID.length})`); }
-
-  if (!EMAILJS_PRIVATE_KEY) { console.error("  > EMAILJS_PRIVATE_KEY (Access Token): MISSING!"); allConfigured = false; }
-  else { console.log(`  > EMAILJS_PRIVATE_KEY (Access Token): PRESENT (Length: ${EMAILJS_PRIVATE_KEY.length})`); }
-  
-  console.log(`  > APP_EMAIL_FROM_NAME: '${APP_EMAIL_FROM_NAME}'`);
-
-
-  if (!allConfigured) {
-    const errorMsg = "EmailJS configuration is incomplete on the server. Required environment variables (EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID_GENERIC, EMAILJS_USER_ID, EMAILJS_PRIVATE_KEY) are missing. Email not sent.";
-    console.error(`--- MOCK EMAIL (EmailJS Config Incomplete) ---`);
+  if (!configComplete) {
+    const errorMsg = "Nodemailer/Gmail configuration is incomplete. Required environment variables (EMAIL_SERVER_USER, EMAIL_SERVER_PASSWORD) are missing. Email not sent. Check server logs and .env.local file.";
+    console.error("--- MOCK EMAIL (Nodemailer/Gmail Config Incomplete) ---");
     console.error(errorMsg);
     console.log("Intended To:", to);
-    console.log("Intended From Name:", fromNameParam || APP_EMAIL_FROM_NAME);
-    console.log("Intended Reply To:", replyToParam || to); // If replyToParam is undefined, use 'to' as a sensible default
+    console.log("Intended From Name:", fromNameParam || EMAIL_FROM || "CodeCrafter");
+    console.log("Intended Reply To:", replyToParam || to);
     console.log("Intended Subject:", subject);
     console.log("Intended HTML Body (first 200 chars):", htmlBody.substring(0, 200) + "...");
     console.log("--- END MOCK EMAIL ---");
-    throw new Error(errorMsg); // Throw error to be caught by calling function
+    throw new Error(errorMsg); // Throw error to be caught by calling function if critical config is missing
   }
 
-  const effectiveFromName = fromNameParam || APP_EMAIL_FROM_NAME;
-  const effectiveReplyTo = replyToParam || to; // Default replyTo to the recipient if not specified
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true, // use SSL
+    auth: {
+      user: EMAIL_SERVER_USER,
+      pass: EMAIL_SERVER_PASSWORD, // For Gmail, this should be an App Password if 2FA is enabled
+    },
+    // For debugging Nodemailer issues (optional)
+    // logger: true,
+    // debug: true,
+  });
 
-  const templateParams = {
-    to_email: to,
-    from_name: effectiveFromName,
-    reply_to_email: effectiveReplyTo,
-    subject_line: subject,
-    html_body_content: htmlBody,
+  const mailOptions = {
+    from: EMAIL_FROM || `"CodeCrafter" <${EMAIL_SERVER_USER}>`, // sender address
+    to: to, // list of receivers
+    replyTo: replyToParam || undefined, // optional reply-to address
+    subject: subject, // Subject line
+    html: htmlBody, // html body
   };
-
-  const data = {
-    service_id: EMAILJS_SERVICE_ID,
-    template_id: EMAILJS_TEMPLATE_ID_GENERIC,
-    user_id: EMAILJS_USER_ID,
-    accessToken: EMAILJS_PRIVATE_KEY, // This is the private key (Access Token)
-    template_params: templateParams,
-  };
-
-  console.log("[EmailService Server Action] Payload to be sent to EmailJS (accessToken masked for security in this log):", { ...data, accessToken: data.accessToken ? '***PRESENT***' : '!!!MISSING!!!' });
-  // console.log("[EmailService Server Action] Full template_params:", JSON.stringify(templateParams, null, 2)); // Uncomment for deep debugging of params
 
   try {
-    console.log(`[EmailService Server Action] Attempting to send email to ${to} with subject "${subject}" via EmailJS API...`);
-    const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    });
-
-    const responseText = await response.text(); // Get response text regardless of status
-
-    if (response.ok) {
-      console.log(`[EmailService Server Action] Successfully sent email to ${to} via EmailJS. Response: ${responseText}`);
-    } else {
-      console.error(`[EmailService Server Action] Failed to send email via EmailJS. Status: ${response.status}, Raw Response: ${responseText}`);
-      throw new Error(`EmailJS failed to send email. Status: ${response.status}. Response: ${responseText}`);
-    }
+    console.log(`[EmailService Server Action] Sending email to ${to} with subject "${subject}" via Nodemailer/Gmail...`);
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`[EmailService Server Action] Email sent successfully via Nodemailer/Gmail. Message ID: ${info.messageId}`);
   } catch (error) {
-    console.error("[EmailService Server Action] Network or other error sending email via EmailJS:", error);
+    console.error("[EmailService Server Action] Error sending email via Nodemailer/Gmail:", error);
     if (error instanceof Error) {
-      throw new Error(`Network or other error sending email via EmailJS: ${error.message}`);
+      throw new Error(`Nodemailer/Gmail failed to send email: ${error.message}`);
     }
-    throw new Error('An unknown error occurred while sending email via EmailJS.');
+    throw new Error('An unknown error occurred while sending email via Nodemailer/Gmail.');
   }
 }
