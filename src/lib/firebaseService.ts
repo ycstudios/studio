@@ -573,7 +573,6 @@ export async function getAllProjects(): Promise<Project[]> {
   }
 }
 
-
 export async function getReferredClients(currentUserReferralCode: string): Promise<User[]> {
   if (!db) {
     console.error(`[firebaseService getReferredClients] Firestore is not initialized for referral code: ${currentUserReferralCode}`);
