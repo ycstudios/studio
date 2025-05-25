@@ -1,8 +1,8 @@
 
 // src/lib/emailService.ts
-"use server";
+'use server';
 
-import type { User, QuickServiceRequestData } from "@/types";
+import type { QuickServiceRequestData, User } from '@/types';
 
 // --- Basic HTML Email Templates ---
 
@@ -115,36 +115,48 @@ export async function getQuickServiceRequestClientConfirmationHtml(formData: Qui
 
 /**
  * Sends an email using EmailJS API.
+ * This function MUST run on the server-side.
  */
 export async function sendEmail(to: string, subject: string, htmlBody: string, fromNameParam?: string, replyToParam?: string): Promise<void> {
+  console.log("[EmailService Server Action] Attempting to send email. Validating ENV VARS:");
   const EMAILJS_SERVICE_ID = process.env.EMAILJS_SERVICE_ID;
   const EMAILJS_TEMPLATE_ID_GENERIC = process.env.EMAILJS_TEMPLATE_ID_GENERIC;
   const EMAILJS_USER_ID = process.env.EMAILJS_USER_ID; // Public Key
-  const EMAILJS_PRIVATE_KEY = process.env.EMAILJS_PRIVATE_KEY; // Access Token
+  const EMAILJS_PRIVATE_KEY = process.env.EMAILJS_PRIVATE_KEY; // Access Token (Private Key)
   const APP_EMAIL_FROM_NAME = process.env.APP_EMAIL_FROM_NAME || "CodeCrafter";
 
-  console.log("[EmailService Server Action] Attempting to send email. Validating ENV VARS:");
-  console.log(`  > EMAILJS_SERVICE_ID: ${EMAILJS_SERVICE_ID ? `'${EMAILJS_SERVICE_ID}' (OK)` : 'MISSING!'}`);
-  console.log(`  > EMAILJS_TEMPLATE_ID_GENERIC: ${EMAILJS_TEMPLATE_ID_GENERIC ? `'${EMAILJS_TEMPLATE_ID_GENERIC}' (OK)` : 'MISSING!'}`);
-  console.log(`  > EMAILJS_USER_ID (Public Key): ${EMAILJS_USER_ID ? `'${EMAILJS_USER_ID}' (OK)` : 'MISSING!'}`);
-  console.log(`  > EMAILJS_PRIVATE_KEY (Access Token): ${EMAILJS_PRIVATE_KEY ? 'PRESENT (OK)' : 'MISSING!'}`);
-  console.log(`  > APP_EMAIL_FROM_NAME: ${APP_EMAIL_FROM_NAME ? `'${APP_EMAIL_FROM_NAME}' (OK)` : 'USING DEFAULT (CodeCrafter)'}`);
+  let allConfigured = true;
 
-  if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID_GENERIC || !EMAILJS_USER_ID || !EMAILJS_PRIVATE_KEY) {
-    console.warn("--- MOCK EMAIL (EmailJS Config Incomplete or Missing in server environment. Check .env.local and Vercel ENV VARS) ---");
+  if (!EMAILJS_SERVICE_ID) { console.error("  > EMAILJS_SERVICE_ID: MISSING!"); allConfigured = false; } 
+  else { console.log(`  > EMAILJS_SERVICE_ID: '${EMAILJS_SERVICE_ID}' (Length: ${EMAILJS_SERVICE_ID.length})`); }
+
+  if (!EMAILJS_TEMPLATE_ID_GENERIC) { console.error("  > EMAILJS_TEMPLATE_ID_GENERIC: MISSING!"); allConfigured = false; }
+  else { console.log(`  > EMAILJS_TEMPLATE_ID_GENERIC: '${EMAILJS_TEMPLATE_ID_GENERIC}' (Length: ${EMAILJS_TEMPLATE_ID_GENERIC.length})`); }
+  
+  if (!EMAILJS_USER_ID) { console.error("  > EMAILJS_USER_ID (Public Key): MISSING!"); allConfigured = false; }
+  else { console.log(`  > EMAILJS_USER_ID (Public Key): '${EMAILJS_USER_ID}' (Length: ${EMAILJS_USER_ID.length})`); }
+
+  if (!EMAILJS_PRIVATE_KEY) { console.error("  > EMAILJS_PRIVATE_KEY (Access Token): MISSING!"); allConfigured = false; }
+  else { console.log(`  > EMAILJS_PRIVATE_KEY (Access Token): PRESENT (Length: ${EMAILJS_PRIVATE_KEY.length})`); }
+  
+  console.log(`  > APP_EMAIL_FROM_NAME: '${APP_EMAIL_FROM_NAME}'`);
+
+
+  if (!allConfigured) {
+    const errorMsg = "EmailJS configuration is incomplete on the server. Required environment variables (EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID_GENERIC, EMAILJS_USER_ID, EMAILJS_PRIVATE_KEY) are missing. Email not sent.";
+    console.error(`--- MOCK EMAIL (EmailJS Config Incomplete) ---`);
+    console.error(errorMsg);
     console.log("Intended To:", to);
     console.log("Intended From Name:", fromNameParam || APP_EMAIL_FROM_NAME);
-    console.log("Intended Reply To:", replyToParam || to);
+    console.log("Intended Reply To:", replyToParam || to); // If replyToParam is undefined, use 'to' as a sensible default
     console.log("Intended Subject:", subject);
     console.log("Intended HTML Body (first 200 chars):", htmlBody.substring(0, 200) + "...");
     console.log("--- END MOCK EMAIL ---");
-    // In a real scenario, you might want to throw an error if email sending is critical,
-    // but for notifications, often it's better to let the primary operation succeed.
-    return;
+    throw new Error(errorMsg); // Throw error to be caught by calling function
   }
 
   const effectiveFromName = fromNameParam || APP_EMAIL_FROM_NAME;
-  const effectiveReplyTo = replyToParam || to;
+  const effectiveReplyTo = replyToParam || to; // Default replyTo to the recipient if not specified
 
   const templateParams = {
     to_email: to,
@@ -162,9 +174,8 @@ export async function sendEmail(to: string, subject: string, htmlBody: string, f
     template_params: templateParams,
   };
 
-  console.log("[EmailService Server Action] Payload to be sent to EmailJS (excluding accessToken for brevity in this log, but it IS in the actual payload):", { ...data, accessToken: data.accessToken ? '***PRESENT***' : '!!!MISSING!!!' });
-  console.log("[EmailService Server Action] Full template_params:", JSON.stringify(templateParams, null, 2));
-
+  console.log("[EmailService Server Action] Payload to be sent to EmailJS (accessToken masked for security in this log):", { ...data, accessToken: data.accessToken ? '***PRESENT***' : '!!!MISSING!!!' });
+  // console.log("[EmailService Server Action] Full template_params:", JSON.stringify(templateParams, null, 2)); // Uncomment for deep debugging of params
 
   try {
     console.log(`[EmailService Server Action] Attempting to send email to ${to} with subject "${subject}" via EmailJS API...`);
@@ -176,19 +187,17 @@ export async function sendEmail(to: string, subject: string, htmlBody: string, f
       body: JSON.stringify(data),
     });
 
-    const responseText = await response.text();
+    const responseText = await response.text(); // Get response text regardless of status
+
     if (response.ok) {
       console.log(`[EmailService Server Action] Successfully sent email to ${to} via EmailJS. Response: ${responseText}`);
     } else {
       console.error(`[EmailService Server Action] Failed to send email via EmailJS. Status: ${response.status}, Raw Response: ${responseText}`);
-      // Do not re-throw here, as the primary operation (e.g., user creation) might have succeeded.
-      // The calling function in firebaseService.ts will log this failure.
       throw new Error(`EmailJS failed to send email. Status: ${response.status}. Response: ${responseText}`);
     }
   } catch (error) {
     console.error("[EmailService Server Action] Network or other error sending email via EmailJS:", error);
     if (error instanceof Error) {
-      // Do not re-throw here.
       throw new Error(`Network or other error sending email via EmailJS: ${error.message}`);
     }
     throw new Error('An unknown error occurred while sending email via EmailJS.');
