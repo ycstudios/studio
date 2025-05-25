@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -65,61 +64,56 @@ export function ProjectSubmissionForm() {
       return;
     }
 
-
     setError(null);
     setMatchResult(null);
-    setIsSavingProject(false);
+    setIsSavingProject(true);
 
-    const inputForAI: MatchDevelopersInput = {
-      projectRequirements: values.projectRequirements,
-      requiredSkills: values.requiredSkills.split(",").map(skill => skill.trim()).filter(skill => skill.length > 0),
-      availability: values.availability,
-      timeZone: values.timeZone,
-    };
+    try {
+      // 1. Save Project to Firestore first
+      const projectToSave: Omit<Project, 'id' | 'createdAt' | 'status' | 'clientId'> = {
+        name: values.projectName,
+        description: values.projectRequirements,
+        requiredSkills: values.requiredSkills.split(",").map(skill => skill.trim()).filter(skill => skill.length > 0),
+        availability: values.availability,
+        timeZone: values.timeZone,
+      };
+      const savedProject = await addProject(projectToSave, user.id, user.email, user.name);
 
-    startTransition(async () => {
-      try {
-        // 1. Run AI Matchmaking
-        toast({
-          title: "Finding Matches...",
-          description: "Our AI is searching for suitable developers for your project.",
-        });
-        const result = await matchDevelopers(inputForAI);
-        setMatchResult(result);
-        toast({
-          title: "Matchmaking Complete!",
-          description: "Potential developer matches found. Now saving your project...",
-        });
+      // 2. Run AI Matchmaking with the saved project's ID
+      toast({
+        title: "Finding Matches...",
+        description: "Our AI is searching for suitable developers for your project.",
+      });
 
-        // 2. Save Project to Firestore
-        setIsSavingProject(true);
-        const projectToSave: Omit<Project, 'id' | 'createdAt' | 'status' | 'clientId'> = {
-          name: values.projectName,
-          description: values.projectRequirements,
-          requiredSkills: inputForAI.requiredSkills,
-          availability: values.availability,
-          timeZone: values.timeZone,
-        };
-        await addProject(projectToSave, user.id, user.email, user.name); 
-        toast({
-          title: "Project Saved & Submitted!",
-          description: "Your project has been saved and an email confirmation sent.",
-        });
-        form.reset(); 
+      const inputForAI: MatchDevelopersInput = {
+        projectId: savedProject.id,
+        projectName: savedProject.name,
+        projectRequirements: values.projectRequirements,
+        requiredSkills: values.requiredSkills.split(",").map(skill => skill.trim()).filter(skill => skill.length > 0),
+        availability: values.availability,
+        timeZone: values.timeZone,
+      };
 
-      } catch (e) {
-        console.error("Project submission or matchmaking error:", e);
-        const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred during project submission.";
-        setError(errorMessage);
-        toast({
-          title: "Submission Error",
-          description: errorMessage,
-          variant: "destructive",
-        });
-      } finally {
-        setIsSavingProject(false);
-      }
-    });
+      const result = await matchDevelopers(inputForAI);
+      setMatchResult(result);
+      toast({
+        title: "Project Saved & Matches Found!",
+        description: "Your project has been saved and potential developer matches have been identified.",
+      });
+      form.reset();
+
+    } catch (e) {
+      console.error("Project submission or matchmaking error:", e);
+      const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred during project submission.";
+      setError(errorMessage);
+      toast({
+        title: "Submission Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingProject(false);
+    }
   }
 
   return (
