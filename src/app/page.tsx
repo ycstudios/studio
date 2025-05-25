@@ -18,7 +18,7 @@ const clientCarouselImages = [
 
 const developerCarouselImages = [
   { src: "https://www.dropbox.com/scl/fi/z32zfcmqttj3x4uw7wmfp/4.png?rlkey=dhhd1ruga8j2p59g1m49gsec1&st=ygiv7hmu&dl=1", alt: "Developer coding on a laptop", dataAiHint: "developer coding programming" },
-  { src: "https://www.dropbox.com/scl/fi/t0dwobaqyivouil5eimb0/2.png?rlkey=zo3fimsbeaet5i5a9evkrvmgi&st=xrii6zvv&dl=2", alt: "Focused developer coding", dataAiHint: "focused developer code" },
+  { src: "https://www.dropbox.com/scl/fi/t0dwobaqyivouil5eimb0/2.png?rlkey=zo3fimsbeaet5i5a9evkrvmgi&st=xrii6zvv&dl=1", alt: "Focused developer coding", dataAiHint: "focused developer code" },
   { src: "https://www.dropbox.com/scl/fi/oy34qipt9kq4ba7y4snbo/WhatsApp-Image-2025-05-20-at-10.14.51-PM.jpeg?rlkey=whc93wr321i8uvi4s958ozueq&st=t7876qd1&dl=1", alt: "Collaborative coding pair", dataAiHint: "collaborative coding pair" },
 ];
 
