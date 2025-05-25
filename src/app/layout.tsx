@@ -8,6 +8,7 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { TawkToController } from "@/components/TawkToController"; // Import the new controller
 import { siteConfig } from '@/config/site';
 
 const geistSans = Geist({
@@ -50,15 +51,17 @@ export default function RootLayout({
             <main className="flex-1 flex flex-col">{children}</main>
             <Toaster />
             <Footer />
+            <TawkToController /> {/* Add the TawkToController here */}
           </AuthProvider>
         </ThemeProvider>
 
         {/*
           Tawk.to Live Chat Widget Script
           =========================================================================
-          Ensure the src URL below contains your correct Property ID and Widget ID
-          obtained from your Tawk.to dashboard.
-          Example: s1.src='https://embed.tawk.to/YOUR_PROPERTY_ID/YOUR_WIDGET_ID';
+          CRITICAL: Replace YOUR_PROPERTY_ID and YOUR_WIDGET_ID below with the
+          actual Property ID and Widget ID from YOUR Tawk.to dashboard.
+          The script WILL NOT WORK with these placeholder values.
+          Example: s1.src='https://embed.tawk.to/6831c5119dbb8e1916ee687d/1is16jjg3';
           =========================================================================
         */}
         <Script id="tawk-to-script" strategy="afterInteractive">
@@ -67,7 +70,7 @@ export default function RootLayout({
             (function(){
             var s1=document.createElement("script"),s0=document.getElementsByTagName("script")[0];
             s1.async=true;
-            s1.src='https://embed.tawk.to/6831c5119dbb8e1916ee687d/1is16jjg3';
+            s1.src='https://embed.tawk.to/6831c5119dbb8e1916ee687d/1is16jjg3'; // Ensure this is your correct Property & Widget ID
             s1.charset='UTF-8';
             s1.setAttribute('crossorigin','*');
             s0.parentNode.insertBefore(s1,s0);
