@@ -71,6 +71,31 @@ const formSchema = z.object({
 }, {
   message: "Experience level is required for developers.",
   path: ["experienceLevel"],
+}).refine(data => {
+  if (data.role === "developer") {
+    const urls = data.portfolioUrls?.split(",").map(url => url.trim()).filter(url => url.length > 0);
+    return !!urls && urls.length > 0 && urls.every(url => url.startsWith('http://') || url.startsWith('https://'));
+  }
+  return true;
+}, {
+  message: "At least one valid portfolio URL (starting with http:// or https://) is required for developers.",
+  path: ["portfolioUrls"],
+}).refine(data => {
+  if (data.role === "developer") {
+    return !!data.resumeFileUrl && data.resumeFileUrl.trim().length > 0;
+  }
+  return true;
+}, {
+  message: "A resume URL is required for developers.",
+  path: ["resumeFileUrl"],
+}).refine(data => {
+  if (data.role === "developer") {
+    return !!data.pastProjects && data.pastProjects.trim().length > 0;
+  }
+  return true;
+}, {
+  message: "Past project highlights are required for developers.",
+  path: ["pastProjects"],
 });
 
 
@@ -117,7 +142,7 @@ export function SignupForm() {
 
     const newUserOmitIdAndGeneratedFields: Omit<User, 'id' | 'createdAt' | 'referralCode' | 'currentPlan' | 'planPrice' | 'isFlagged' | 'accountStatus' | 'avatarUrl' | 'bio'> & {referredByCode?: string} = {
       name: values.name,
-      email: values.email,
+      email: values.email.toLowerCase(), // Store email in lowercase
       role: values.role as UserRole,
       referredByCode: values.referralCode?.trim() || undefined,
       ...(values.role === 'developer' && {
@@ -252,11 +277,11 @@ export function SignupForm() {
                   name="skills"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Your Skills</FormLabel>
+                      <FormLabel>Your Skills <span className="text-destructive">*</span></FormLabel>
                       <FormControl>
                         <Input placeholder="e.g., React, Node.js, Python, Figma" {...field} disabled={isSubmitting}/>
                       </FormControl>
-                      <FormDescription>Comma-separated list of your technical skills.</FormDescription>
+                      <FormDescription>Comma-separated list of your technical skills. (Required)</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -266,7 +291,7 @@ export function SignupForm() {
                   name="experienceLevel"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Experience Level</FormLabel>
+                      <FormLabel>Experience Level <span className="text-destructive">*</span></FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSubmitting}>
                         <FormControl>
                           <SelectTrigger>
@@ -279,34 +304,21 @@ export function SignupForm() {
                           ))}
                         </SelectContent>
                       </Select>
+                       <FormDescription>(Required)</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="hourlyRate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Hourly Rate ($ USD - Optional)</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="e.g., 50" {...field} disabled={isSubmitting} min="0" step="1"/>
-                      </FormControl>
-                      <FormDescription>Your preferred hourly rate in USD.</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
+                 <FormField
                   control={form.control}
                   name="portfolioUrls"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Portfolio URLs (Optional)</FormLabel>
+                      <FormLabel>Portfolio URLs <span className="text-destructive">*</span></FormLabel>
                       <FormControl>
                         <Input placeholder="e.g., https://github.com/yourprofile, https://yourproject.com" {...field} disabled={isSubmitting}/>
                       </FormControl>
-                      <FormDescription>Comma-separated links to your GitHub, projects, or online portfolio.</FormDescription>
+                      <FormDescription>Comma-separated links to your GitHub, projects, or online portfolio. At least one valid URL is required. (Required)</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -316,11 +328,11 @@ export function SignupForm() {
                   name="resumeFileUrl"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Resume URL (Optional)</FormLabel>
+                      <FormLabel>Resume URL <span className="text-destructive">*</span></FormLabel>
                       <FormControl>
                         <Input type="url" placeholder="https://link-to-your-resume.pdf" {...field} disabled={isSubmitting}/>
                       </FormControl>
-                      <FormDescription>Link to your resume (e.g., Google Drive, Dropbox, personal site).</FormDescription>
+                      <FormDescription>Link to your resume (e.g., Google Drive, Dropbox, personal site). (Required)</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -344,10 +356,25 @@ export function SignupForm() {
                   name="pastProjects"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Past Project Highlights (Optional)</FormLabel>
+                      <FormLabel>Past Project Highlights <span className="text-destructive">*</span></FormLabel>
                       <FormControl>
                         <Textarea placeholder="Briefly describe 1-2 key projects you've worked on, highlighting your role and impact." className="min-h-[100px]" {...field} disabled={isSubmitting} />
                       </FormControl>
+                      <FormDescription>(Required)</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="hourlyRate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Hourly Rate ($ USD - Optional)</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="e.g., 50" {...field} disabled={isSubmitting} min="0" step="1"/>
+                      </FormControl>
+                      <FormDescription>Your preferred hourly rate in USD.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
