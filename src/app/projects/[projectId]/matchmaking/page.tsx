@@ -5,16 +5,15 @@ import React, { useEffect, useState, useTransition, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ProtectedPage } from "@/components/ProtectedPage";
 import { DeveloperCard } from "@/components/DeveloperCard";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Info, AlertTriangle, ArrowLeft, Search, Eye, CheckCircle, Clock, UserCheck } from "lucide-react";
+import { Loader2, Info, AlertTriangle, ArrowLeft, Search, Eye, CheckCircle, Clock, UserCheck, Send } from "lucide-react";
 import { matchDevelopers, MatchDevelopersInput, MatchDevelopersOutput } from "@/ai/flows/match-developers";
-import type { Project as ProjectType } from "@/types";
-import { getProjectById } from "@/lib/firebaseService";
+import type { Project as ProjectType, User as UserType, ProjectApplication } from "@/types";
+import { getProjectById, addProjectApplication, getApplicationsByDeveloperForProject, getUserById } from "@/lib/firebaseService";
 import { useAuth } from "@/contexts/AuthContext";
-import Link from "next/link"; // Keep for potential future use, though not directly used now
 import { format, formatDistanceToNow } from 'date-fns';
 
 export default function ProjectMatchmakingPage() {
@@ -28,15 +27,15 @@ export default function ProjectMatchmakingPage() {
   const [matches, setMatches] = useState<MatchDevelopersOutput | null>(null);
   
   const [isLoadingProject, setIsLoadingProject] = useState(true);
-  const [isMatching, setIsMatching] = useState(false); // For AI specific loading (manual trigger)
+  const [isMatching, setIsMatching] = useState(false); 
+  const [isApplying, setIsApplying] = useState(false);
   
-  const [error, setError] = useState<string | null>(null); // For project fetch error
-  const [aiError, setAiError] = useState<string | null>(null); // For AI match error
+  const [error, setError] = useState<string | null>(null); 
+  const [aiError, setAiError] = useState<string | null>(null); 
   
-  const [isTransitionPending, startTransition] = useTransition(); // For AI match transition
-  const [applied, setApplied] = useState(false); // For developer "Apply" button state
+  const [isTransitionPending, startTransition] = useTransition();
+  const [hasApplied, setHasApplied] = useState(false);
 
-  // Flag to ensure initial auto-matchmaking runs only once per project load
   const [initialMatchmakingDoneForCurrentProject, setInitialMatchmakingDoneForCurrentProject] = useState(false);
 
   const handleRunMatchmaking = useCallback(async (currentProject: ProjectType, showToast: boolean = true) => {
@@ -45,9 +44,9 @@ export default function ProjectMatchmakingPage() {
       return;
     }
 
-    setIsMatching(true); // Indicates AI processing specifically for this action
+    setIsMatching(true); 
     setAiError(null);
-    if (showToast) setMatches(null); // Clear previous matches only if explicitly re-running
+    if (showToast) setMatches(null); 
 
     const inputForAI: MatchDevelopersInput = {
       projectRequirements: currentProject.description,
@@ -90,67 +89,102 @@ export default function ProjectMatchmakingPage() {
         setIsMatching(false);
       }
     });
-  }, [toast, startTransition]); // Removed 'project' from here as currentProject is passed
+  }, [toast, startTransition]); 
 
-  // Effect for fetching the main project data
-  useEffect(() => {
+  const fetchProjectData = useCallback(async () => {
     if (!projectId) {
       setError("No project ID provided in URL.");
       setIsLoadingProject(false);
       return;
     }
-    console.log(`[MatchmakingPage] projectId changed or component mounted. Fetching project: ${projectId}`);
+    console.log(`[MatchmakingPage] Fetching project: ${projectId}`);
 
-    const fetchProjectData = async () => {
-      setIsLoadingProject(true);
-      setError(null);
-      setProject(null); // Clear previous project data
-      setMatches(null); // Clear previous matches
-      setAiError(null);   // Clear previous AI error
-      setApplied(false); // Reset applied state for new project load
-      setInitialMatchmakingDoneForCurrentProject(false); // Reset for this project load
+    setIsLoadingProject(true);
+    setError(null);
+    setProject(null);
+    setMatches(null);
+    setAiError(null);
+    setHasApplied(false);
+    setInitialMatchmakingDoneForCurrentProject(false);
 
-      try {
-        const fetchedProject = await getProjectById(projectId);
-        if (fetchedProject) {
-          setProject(fetchedProject);
-          console.log(`[MatchmakingPage] Successfully fetched project: ${fetchedProject.name}`);
-        } else {
-          setError(`Project with ID '${projectId}' not found or data is invalid.`);
-          console.warn(`[MatchmakingPage] Project not found: ${projectId}`);
-        }
-      } catch (e) {
-        const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred while fetching project details.";
-        setError(`Failed to load project: ${errorMessage}`);
-        console.error(`[MatchmakingPage] Error fetching project ${projectId}:`, e);
-      } finally {
-        setIsLoadingProject(false);
-        console.log(`[MatchmakingPage] Finished fetching project ${projectId}, isLoadingProject: false`);
+    try {
+      const fetchedProject = await getProjectById(projectId);
+      if (fetchedProject) {
+        setProject(fetchedProject);
+        console.log(`[MatchmakingPage] Successfully fetched project: ${fetchedProject.name}`);
+      } else {
+        setError(`Project with ID '${projectId}' not found or data is invalid.`);
+        console.warn(`[MatchmakingPage] Project not found: ${projectId}`);
       }
-    };
+    } catch (e) {
+      const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred while fetching project details.";
+      setError(`Failed to load project: ${errorMessage}`);
+      console.error(`[MatchmakingPage] Error fetching project ${projectId}:`, e);
+    } finally {
+      setIsLoadingProject(false);
+    }
+  }, [projectId]);
 
+  useEffect(() => {
     fetchProjectData();
-  }, [projectId]); // Key dependency: only refetch if projectId changes
+  }, [fetchProjectData]);
 
-
-  // Effect for running initial (automatic) AI matchmaking after project data is loaded and user is available
   useEffect(() => {
     if (!isLoadingProject && !authLoading && project && user && !initialMatchmakingDoneForCurrentProject) {
       console.log(`[MatchmakingPage] Conditions met for initial AI matchmaking for project: ${project.name}, status: ${project.status}, user role: ${user.role}`);
       if (project.status === "Open" && (user.id === project.clientId || user.role === 'developer' || user.role === 'admin')) {
-        handleRunMatchmaking(project, false); // false to not show initial toast for auto-run
+        handleRunMatchmaking(project, false); 
       }
-      setInitialMatchmakingDoneForCurrentProject(true); // Mark as done for this project load, regardless of whether match was run (e.g. project not Open)
+      setInitialMatchmakingDoneForCurrentProject(true);
     }
   }, [project, user, isLoadingProject, authLoading, initialMatchmakingDoneForCurrentProject, handleRunMatchmaking]);
 
+  // Check if developer has already applied
+  useEffect(() => {
+    if (user?.role === 'developer' && project?.id) {
+      const checkApplicationStatus = async () => {
+        try {
+          const existingApplications = await getApplicationsByDeveloperForProject(user.id, project.id);
+          if (existingApplications.length > 0) {
+            setHasApplied(true);
+          }
+        } catch (error) {
+          console.error("Error checking existing applications:", error);
+        }
+      };
+      checkApplicationStatus();
+    }
+  }, [user, project]);
 
-  const handleApplyForProject = () => {
-    setApplied(true);
-    toast({
-      title: "Application Submitted!",
-      description: "Your interest in this project has been noted. The project owner will be informed.",
-    });
+
+  const handleApplyForProject = async () => {
+    if (!user || user.role !== 'developer' || !project || !project.name) {
+      toast({ title: "Error", description: "Cannot apply: User not a developer or project details missing.", variant: "destructive"});
+      return;
+    }
+    setIsApplying(true);
+    try {
+      const applicationData = {
+        projectId: project.id,
+        projectName: project.name,
+        developerId: user.id,
+        developerName: user.name || "Unknown Developer",
+        developerEmail: user.email,
+        // messageToClient: "I am very interested in this project!" // TODO: Add modal/textarea for this
+      };
+      await addProjectApplication(applicationData);
+      setHasApplied(true);
+      toast({
+        title: "Application Submitted!",
+        description: "Your interest in this project has been noted. The project owner will be informed.",
+      });
+    } catch (error) {
+      console.error("Error submitting application:", error);
+      const errorMsg = error instanceof Error ? error.message : "Could not submit application.";
+      toast({ title: "Application Error", description: errorMsg, variant: "destructive"});
+    } finally {
+      setIsApplying(false);
+    }
   };
 
 
@@ -204,7 +238,7 @@ export default function ProjectMatchmakingPage() {
   }
 
   const isClientOwner = user?.role === 'client' && user.id === project.clientId;
-  const canApply = user?.role === 'developer' && project.status === "Open" && user.id !== project.clientId;
+  const canApply = user?.role === 'developer' && project.status === "Open" && user.id !== project.clientId && !hasApplied;
 
   const isLoadingAIMatches = isMatching || isTransitionPending;
 
@@ -257,16 +291,23 @@ export default function ProjectMatchmakingPage() {
                     {isLoadingAIMatches ? "Finding Matches..." : "Run AI Matchmaking Again"}
                 </Button>
             )}
-            {canApply && (
-              <Button onClick={handleApplyForProject} disabled={applied} className="mt-4 w-full sm:w-auto">
-                {applied ? <CheckCircle className="mr-2 h-4 w-4" /> : <UserCheck className="mr-2 h-4 w-4" />}
-                {applied ? "Application Submitted" : "Apply for Project"}
-              </Button>
+            {user?.role === 'developer' && project.status === "Open" && user.id !== project.clientId && (
+              hasApplied ? (
+                <Button disabled className="mt-4 w-full sm:w-auto cursor-not-allowed">
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Application Submitted
+                </Button>
+              ) : (
+                <Button onClick={handleApplyForProject} disabled={isApplying} className="mt-4 w-full sm:w-auto">
+                  {isApplying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                  {isApplying ? "Submitting..." : "Apply for Project"}
+                </Button>
+              )
             )}
           </CardContent>
         </Card>
 
-        {isLoadingAIMatches && !aiError && ( // Show this loading specifically for AI calls
+        {isLoadingAIMatches && !aiError && ( 
              <Card className="shadow-lg">
                 <CardHeader>
                     <CardTitle className="text-xl flex items-center gap-2">
@@ -280,7 +321,7 @@ export default function ProjectMatchmakingPage() {
             </Card>
         )}
 
-        {aiError && !isLoadingAIMatches && ( // Show AI error only if not currently loading AI
+        {aiError && !isLoadingAIMatches && ( 
              <Alert variant="destructive" className="my-6">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>AI Matchmaking Error</AlertTitle>
@@ -288,7 +329,6 @@ export default function ProjectMatchmakingPage() {
             </Alert>
         )}
 
-        {/* Display matches only if not loading AI, no AI error, and matches exist */}
         {matches && !isLoadingAIMatches && !aiError && (
           <Card className="shadow-lg">
             <CardHeader>
@@ -321,6 +361,22 @@ export default function ProjectMatchmakingPage() {
                     <p className="text-muted-foreground">No specific developer profiles were matched by the AI for this project at this time.</p>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+         {/* Placeholder for Client to view applications - Iteration 2 */}
+        {isClientOwner && (
+          <Card className="shadow-lg mt-8" id="applications">
+            <CardHeader>
+              <CardTitle>Project Applications</CardTitle>
+              <CardDescription>Developers who have applied for this project will appear here. (Coming Soon)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="p-8 text-center border-2 border-dashed rounded-lg">
+                <Info className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
+                <p className="text-muted-foreground">This section will list applications from developers. You'll be able to review and accept/reject them here.</p>
+              </div>
             </CardContent>
           </Card>
         )}

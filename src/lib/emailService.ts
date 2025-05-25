@@ -6,25 +6,26 @@ import type { QuickServiceRequestData, User } from '@/types';
 import nodemailer from 'nodemailer';
 
 // --- Basic HTML Email Templates ---
+const APP_NAME = process.env.APP_EMAIL_FROM_NAME || "CodeCrafter";
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:9002';
 
 function getEmailWrapper(title: string, content: string): string {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:9002';
   return `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 20px auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
       <div style="background-color: #0A0F1C; color: #FFFFFF; padding: 20px; text-align: center;">
-        <h1 style="margin: 0; font-size: 24px;">CodeCrafter</h1>
+        <h1 style="margin: 0; font-size: 24px;">${APP_NAME}</h1>
       </div>
       <div style="padding: 20px;">
         <h2 style="color: #007ACC; font-size: 20px;">${title}</h2>
         ${content}
         <p style="margin-top: 30px; font-size: 0.9em; color: #555;">
-          Thank you for using CodeCrafter!<br/>
-          The CodeCrafter Team
+          Thank you for using ${APP_NAME}!<br/>
+          The ${APP_NAME} Team
         </p>
-        <p style="font-size: 0.8em; color: #777;">If you need assistance, please contact us through our support channels on <a href="${baseUrl}" style="color: #007ACC;">${baseUrl}</a>.</p>
+        <p style="font-size: 0.8em; color: #777;">If you need assistance, please contact us through our support channels on <a href="${BASE_URL}" style="color: #007ACC;">${BASE_URL}</a>.</p>
       </div>
       <div style="background-color: #f8f8f8; color: #777; padding: 15px; text-align: center; font-size: 0.8em;">
-        <p>&copy; ${new Date().getFullYear()} CodeCrafter. All rights reserved.</p>
+        <p>&copy; ${new Date().getFullYear()} ${APP_NAME}. All rights reserved.</p>
         <p>If you received this email in error, please ignore it.</p>
       </div>
     </div>
@@ -33,7 +34,6 @@ function getEmailWrapper(title: string, content: string): string {
 
 export async function getWelcomeEmailTemplate(userName: string, userRole: User['role']): Promise<string> {
   let roleSpecificMessage = "";
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:9002';
   if (userRole === "developer") {
     roleSpecificMessage = "<p>Your developer account is currently pending approval by our team. We'll notify you once it's reviewed. In the meantime, feel free to explore and complete your profile!</p>";
   } else if (userRole === "client") {
@@ -42,21 +42,20 @@ export async function getWelcomeEmailTemplate(userName: string, userRole: User['
 
   const content = `
     <p>Hi ${userName},</p>
-    <p>Welcome to CodeCrafter! We're thrilled to have you on board.</p>
+    <p>Welcome to ${APP_NAME}! We're thrilled to have you on board.</p>
     ${roleSpecificMessage}
     <p>Get started by exploring your dashboard:</p>
-    <p><a href="${baseUrl}/dashboard" style="display: inline-block; background-color: #007ACC; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Go to Dashboard</a></p>
+    <p><a href="${BASE_URL}/dashboard" style="display: inline-block; background-color: #007ACC; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Go to Dashboard</a></p>
   `;
-  return getEmailWrapper("Welcome to CodeCrafter!", content);
+  return getEmailWrapper(`Welcome to ${APP_NAME}!`, content);
 }
 
 export async function getDeveloperApprovedEmailTemplate(developerName: string): Promise<string> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:9002';
   const content = `
     <p>Hi ${developerName},</p>
-    <p>Great news! Your developer account on CodeCrafter has been approved.</p>
+    <p>Great news! Your developer account on ${APP_NAME} has been approved.</p>
     <p>You can now browse open projects and apply for those that match your skills. Make sure your profile is up-to-date to attract the best opportunities.</p>
-    <p><a href="${baseUrl}/dashboard" style="display: inline-block; background-color: #007ACC; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Your Dashboard</a></p>
+    <p><a href="${BASE_URL}/dashboard" style="display: inline-block; background-color: #007ACC; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Your Dashboard</a></p>
   `;
   return getEmailWrapper("Your Developer Account is Approved!", content);
 }
@@ -64,28 +63,38 @@ export async function getDeveloperApprovedEmailTemplate(developerName: string): 
 export async function getDeveloperRejectedEmailTemplate(developerName: string): Promise<string> {
   const content = `
     <p>Hi ${developerName},</p>
-    <p>Thank you for your interest in joining CodeCrafter as a developer. After reviewing your application, we've decided not to proceed at this time.</p>
+    <p>Thank you for your interest in joining ${APP_NAME} as a developer. After reviewing your application, we've decided not to proceed at this time.</p>
     <p>We appreciate you taking the time to apply. We encourage you to continue developing your skills and wish you the best in your future endeavors.</p>
     <p>If you have any questions, please feel free to contact our support.</p>
   `;
-  return getEmailWrapper("Update on Your CodeCrafter Developer Application", content);
+  return getEmailWrapper(`Update on Your ${APP_NAME} Developer Application`, content);
 }
 
 export async function getClientProjectPostedEmailTemplate(clientName: string, projectName: string, projectId: string): Promise<string> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:9002';
   const content = `
     <p>Hi ${clientName},</p>
-    <p>Your project, "<strong>${projectName}</strong>," has been successfully posted on CodeCrafter!</p>
+    <p>Your project, "<strong>${projectName}</strong>," has been successfully posted on ${APP_NAME}!</p>
     <p>Our AI is already working to find suitable developer matches for you. You can view your project and its matches here:</p>
-    <p><a href="${baseUrl}/projects/${projectId}/matchmaking" style="display: inline-block; background-color: #007ACC; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Your Project</a></p>
+    <p><a href="${BASE_URL}/projects/${projectId}/matchmaking" style="display: inline-block; background-color: #007ACC; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Your Project</a></p>
     <p>We'll keep you updated on any significant activity related to your project.</p>
   `;
   return getEmailWrapper("Your Project Has Been Posted!", content);
 }
 
+export async function getNewProjectApplicationEmailToClient(clientName: string, developerName: string, projectName: string, projectId: string): Promise<string> {
+  const content = `
+    <p>Hi ${clientName},</p>
+    <p>You have received a new application for your project "<strong>${projectName}</strong>" from developer <strong>${developerName}</strong>.</p>
+    <p>You can review this application and others by visiting your project page:</p>
+    <p><a href="${BASE_URL}/projects/${projectId}/matchmaking#applications" style="display: inline-block; background-color: #007ACC; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Project Applications</a></p>
+  `;
+  return getEmailWrapper(`New Application for "${projectName}"`, content);
+}
+
+
 export async function getQuickServiceRequestAdminNotificationHtml(formData: QuickServiceRequestData): Promise<string> {
   const content = `
-    <p>A new quick service request has been submitted through the CodeCrafter landing page:</p>
+    <p>A new quick service request has been submitted through the ${APP_NAME} landing page:</p>
     <ul>
       <li><strong>Name:</strong> ${formData.name}</li>
       <li><strong>Email:</strong> ${formData.email}</li>
@@ -99,70 +108,59 @@ export async function getQuickServiceRequestAdminNotificationHtml(formData: Quic
 }
 
 export async function getQuickServiceRequestClientConfirmationHtml(formData: QuickServiceRequestData): Promise<string> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:9002';
   const content = `
     <p>Hi ${formData.name},</p>
-    <p>Thank you for submitting your service request to CodeCrafter! We've received the following details:</p>
+    <p>Thank you for submitting your service request to ${APP_NAME}! We've received the following details:</p>
     <ul>
       <li><strong>Description:</strong><br/><pre style="white-space: pre-wrap; background-color: #f9f9f9; padding: 10px; border-radius: 4px;">${formData.description}</pre></li>
       ${formData.budget ? `<li><strong>Budget Range:</strong> ${formData.budget}</li>` : ''}
       ${formData.urgency ? `<li><strong>Urgency:</strong> ${formData.urgency}</li>` : ''}
     </ul>
     <p>Our team will review your request and get in touch with you shortly to discuss how we can help you find the perfect developer.</p>
-    <p>In the meantime, feel free to <a href="${baseUrl}/signup" style="color: #007ACC;">create an account</a> to explore more features.</p>
+    <p>In the meantime, feel free to <a href="${BASE_URL}/signup" style="color: #007ACC;">create an account</a> to explore more features.</p>
   `;
   return getEmailWrapper("We've Received Your Service Request!", content);
 }
 
 
-/**
- * Sends an email using Nodemailer with Gmail.
- * This function MUST run on the server-side.
- */
 export async function sendEmail(to: string, subject: string, htmlBody: string, fromNameParam?: string, replyToParam?: string): Promise<void> {
-  console.log("[EmailService Server Action] Attempting to send email via Nodemailer/Gmail.");
+  console.log("[EmailService Server Action] Attempting to send email.");
 
   const EMAIL_SERVER_USER = process.env.EMAIL_SERVER_USER;
   const EMAIL_SERVER_PASSWORD = process.env.EMAIL_SERVER_PASSWORD;
-  const EMAIL_FROM_DISPLAY = process.env.EMAIL_FROM || `"CodeCrafter" <${EMAIL_SERVER_USER || 'noreply@example.com'}>`;
+  let EMAIL_FROM_DISPLAY = process.env.EMAIL_FROM;
 
-  let configComplete = true;
-  if (!EMAIL_SERVER_USER) {
-    console.warn("[EmailService Server Action] > EMAIL_SERVER_USER: MISSING from environment variables! Cannot send real email.");
-    configComplete = false;
-  }
-  if (!EMAIL_SERVER_PASSWORD) {
-    console.warn("[EmailService Server Action] > EMAIL_SERVER_PASSWORD: MISSING from environment variables! Cannot send real email. Ensure you use a Google App Password if 2FA is enabled.");
-    configComplete = false;
-  }
-  if (!process.env.EMAIL_FROM) { // Check the specific EMAIL_FROM for display name
-    console.warn("[EmailService Server Action] > EMAIL_FROM: MISSING from environment variables. Using default sender name.");
+  console.log("[EmailService Server Action] Validating ENV VARS for Nodemailer/Gmail:");
+  console.log(`  > EMAIL_SERVER_USER: ${EMAIL_SERVER_USER ? `******** (PRESENT OK)` : 'MISSING!'}`);
+  console.log(`  > EMAIL_SERVER_PASSWORD: ${EMAIL_SERVER_PASSWORD ? '******** (PRESENT OK)' : 'MISSING!'}`);
+  console.log(`  > EMAIL_FROM: ${EMAIL_FROM_DISPLAY ? `'${EMAIL_FROM_DISPLAY}' (PRESENT OK)` : 'MISSING! Using default.'}`);
+  
+  if (!EMAIL_FROM_DISPLAY) {
+      EMAIL_FROM_DISPLAY = `"${APP_NAME}" <${EMAIL_SERVER_USER || 'noreply@example.com'}>`;
   }
 
-  if (!configComplete) {
+
+  if (!EMAIL_SERVER_USER || !EMAIL_SERVER_PASSWORD) {
     const errorMsg = "Nodemailer/Gmail email configuration is incomplete. Required environment variables (EMAIL_SERVER_USER, EMAIL_SERVER_PASSWORD) are missing. Email not sent. Check server logs and environment variable setup.";
     console.error("--- MOCK EMAIL (Nodemailer/Gmail Config Incomplete) ---");
     console.error(errorMsg);
     console.log("Intended To:", to);
-    console.log("Intended From Name:", fromNameParam || EMAIL_FROM_DISPLAY.split('<')[0].trim() || "CodeCrafter");
+    console.log("Intended From Name:", fromNameParam || EMAIL_FROM_DISPLAY.split('<')[0].trim() || APP_NAME);
     console.log("Intended Reply To:", replyToParam || to);
     console.log("Intended Subject:", subject);
     console.log("Intended HTML Body (first 200 chars):", htmlBody.substring(0, 200) + "...");
     console.log("--- END MOCK EMAIL ---");
-    throw new Error(errorMsg); // Throw error to be caught by calling function
+    throw new Error(errorMsg); 
   }
 
   const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 465,
-    secure: true, // use SSL
+    secure: true, 
     auth: {
       user: EMAIL_SERVER_USER,
-      pass: EMAIL_SERVER_PASSWORD, // For Gmail, this should be an App Password if 2FA is enabled
+      pass: EMAIL_SERVER_PASSWORD, 
     },
-    // For debugging Nodemailer issues (optional - uncomment if needed)
-    // logger: true,
-    // debug: true,
   });
 
   const mailOptions = {

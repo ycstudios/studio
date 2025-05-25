@@ -3,18 +3,23 @@ import type { Timestamp } from "firebase/firestore";
 
 export type UserRole = "client" | "developer" | "admin";
 export type AccountStatus = 'active' | 'pending_approval' | 'suspended' | 'rejected';
+export type ProjectStatus = "Open" | "In Progress" | "Completed" | "Cancelled" | "Unknown";
+export type ApplicationStatus = "pending" | "accepted" | "rejected";
 
 export interface User {
   id: string;
   name: string;
-  email: string;
+  email: string;,
   role: UserRole;
   avatarUrl?: string;
   bio?: string;
   skills?: string[];
-  portfolioUrls?: string[];
   experienceLevel?: 'Entry' | 'Junior' | 'Mid-level' | 'Senior' | 'Lead' | 'Principal' | '';
   hourlyRate?: number;
+  portfolioUrls?: string[];
+  resumeFileUrl?: string;
+  resumeFileName?: string;
+  pastProjects?: string;
   createdAt?: Date | Timestamp;
   referralCode?: string;
   referredByCode?: string;
@@ -22,9 +27,6 @@ export interface User {
   planPrice?: string;
   isFlagged?: boolean;
   accountStatus: AccountStatus;
-  resumeFileUrl?: string;
-  resumeFileName?: string;
-  pastProjects?: string;
 }
 
 export interface Project {
@@ -35,8 +37,23 @@ export interface Project {
   requiredSkills: string[];
   availability: string;
   timeZone: string;
-  status: "Open" | "In Progress" | "Completed" | "Cancelled" | "Unknown";
+  status: ProjectStatus;
   createdAt: Date | Timestamp;
+  assignedDeveloperId?: string;
+  assignedDeveloperName?: string;
+}
+
+export interface ProjectApplication {
+  id: string; // Firestore document ID
+  projectId: string;
+  projectName: string; // Denormalized
+  developerId: string;
+  developerName: string; // Denormalized
+  developerEmail: string; // Denormalized
+  status: ApplicationStatus;
+  appliedAt: Timestamp;
+  messageToClient?: string; // Optional message from developer
+  // clientNotified?: boolean; // To track if client was notified, for more complex flows
 }
 
 export interface DeveloperMatch {
@@ -63,7 +80,7 @@ export interface AdminActivityLog {
   adminId: string; // ID of the admin who performed the action
   adminName?: string; // Optional: Name of the admin (denormalized for easier display)
   action: string; // e.g., "USER_FLAGGED", "USER_UNFLAGGED", "PROJECT_STATUS_CHANGED", "DEVELOPER_APPROVED", "DEVELOPER_REJECTED"
-  targetType: "user" | "project" | "system" | "quick_request";
+  targetType: "user" | "project" | "system" | "quick_request" | "project_application";
   targetId: string; // ID of the user/project affected, or client email for quick request
   targetName?: string; // Optional: Name of the user/project (denormalized)
   timestamp: Timestamp;
