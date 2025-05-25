@@ -60,7 +60,7 @@ export default function ProfilePage() {
   const [initialData, setInitialData] = useState<Partial<User>>({});
 
   const getInitials = useCallback((nameStr?: string) => {
-    if (!nameStr) return "?";
+    if (!nameStr || typeof nameStr !== 'string') return "U";
     const names = nameStr.split(' ');
     if (names.length > 1 && names[0] && names[names.length - 1]) {
       return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
@@ -90,7 +90,10 @@ export default function ProfilePage() {
   }, [defaultAvatarPlaceholder]);
 
   const fetchUserData = useCallback(async () => {
-    if (!authUser?.id) return;
+    if (!authUser?.id) {
+        setIsLoadingProfile(false);
+        return;
+    }
     setIsLoadingProfile(true);
     setFetchError(null);
     try {
@@ -120,8 +123,10 @@ export default function ProfilePage() {
 
   const handleEditToggle = () => {
     if (isEditing) {
+      // Revert to initial data if canceling edit
       populateFormFields(initialData);
     } else {
+      // Ensure newAvatarUrlInput is set from initialData when starting to edit
       setNewAvatarUrlInput(initialData.avatarUrl && initialData.avatarUrl !== defaultAvatarPlaceholder(initialData.name) ? initialData.avatarUrl : "");
     }
     setIsEditing(!isEditing);
@@ -146,10 +151,15 @@ export default function ProfilePage() {
       setIsSaving(false);
       return;
     }
-    if (!finalAvatarUrl) { 
-      finalAvatarUrl = defaultAvatarPlaceholder(name.trim());
-    }
+    // If empty, it will be handled by deleteField() in updatedData construction or default in firebaseService
 
+    const trimmedName = name.trim();
+    const trimmedBio = bio.trim();
+    const trimmedNewAvatarUrl = newAvatarUrlInput.trim();
+    const trimmedResumeUrl = resumeFileUrl.trim();
+    const trimmedResumeFileName = resumeFileName.trim();
+    const trimmedPastProjects = pastProjects.trim();
+    
     const skillsArray = authUser.role === 'developer' ? skills.split(",").map(s => s.trim()).filter(s => s.length > 0) : undefined;
     const portfolioUrlsArray = authUser.role === 'developer' ? portfolioUrls.split(",").map(url => url.trim()).filter(url => url.length > 0 && (url.startsWith('http://') || url.startsWith('https://'))) : undefined;
     
@@ -160,49 +170,37 @@ export default function ProfilePage() {
         return;
     }
     
-    const trimmedResumeUrl = resumeFileUrl.trim();
     if (authUser.role === 'developer' && trimmedResumeUrl && !trimmedResumeUrl.startsWith('http://') && !trimmedResumeUrl.startsWith('https://')) {
         toast({ title: "Invalid Resume URL", description: "Resume URL must be a valid URL (http:// or https://) or empty.", variant: "destructive" });
         setIsSaving(false);
         return;
     }
 
-    const trimmedBio = bio.trim();
-    const trimmedResumeFileName = resumeFileName.trim();
-    const trimmedPastProjects = pastProjects.trim();
-
     const updatedData: Partial<Omit<User, 'id' | 'createdAt' | 'email' | 'role'>> = {
-      name: name.trim(),
-      bio: trimmedBio ? trimmedBio : deleteField() as any,
-      avatarUrl: (finalAvatarUrl && finalAvatarUrl !== defaultAvatarPlaceholder(name.trim())) ? finalAvatarUrl : deleteField() as any,
+      name: trimmedName,
+      bio: trimmedBio || undefined, // Pass undefined to let firebaseService handle deleteField
+      avatarUrl: trimmedNewAvatarUrl || undefined, // Pass undefined to let firebaseService handle deleteField or default
     };
 
     if (authUser.role === 'developer') {
-      updatedData.skills = skillsArray && skillsArray.length > 0 ? skillsArray : deleteField() as any;
-      updatedData.portfolioUrls = portfolioUrlsArray && portfolioUrlsArray.length > 0 ? portfolioUrlsArray : deleteField() as any;
+      updatedData.skills = skillsArray;
+      updatedData.portfolioUrls = portfolioUrlsArray;
       updatedData.experienceLevel = experienceLevel || ''; 
-      updatedData.hourlyRate = hourlyRateNum !== undefined ? hourlyRateNum : deleteField() as any;
-      updatedData.resumeFileUrl = trimmedResumeUrl ? trimmedResumeUrl : deleteField() as any;
-      updatedData.resumeFileName = trimmedResumeFileName ? trimmedResumeFileName : deleteField() as any;
-      updatedData.pastProjects = trimmedPastProjects ? trimmedPastProjects : deleteField() as any;
-    } else { 
-      updatedData.skills = deleteField() as any;
-      updatedData.portfolioUrls = deleteField() as any;
-      updatedData.experienceLevel = deleteField() as any;
-      updatedData.hourlyRate = deleteField() as any;
-      updatedData.resumeFileUrl = deleteField() as any;
-      updatedData.resumeFileName = deleteField() as any;
-      updatedData.pastProjects = deleteField() as any;
+      updatedData.hourlyRate = hourlyRateNum; // Pass undefined if cleared
+      updatedData.resumeFileUrl = trimmedResumeUrl || undefined;
+      updatedData.resumeFileName = trimmedResumeFileName || undefined;
+      updatedData.pastProjects = trimmedPastProjects || undefined;
     }
 
     try {
       await updateUser(authUser.id, updatedData);
       
-      const refreshedUserData = await getUserById(authUser.id); // Re-fetch to get the most current state including server-generated fields
+      // Re-fetch to get the most current state including server-generated fields or defaults
+      const refreshedUserData = await getUserById(authUser.id); 
       if (refreshedUserData) {
-        updateAuthContextUser(refreshedUserData);
-        setInitialData(refreshedUserData);
-        populateFormFields(refreshedUserData);
+        updateAuthContextUser(refreshedUserData); // Update AuthContext
+        setInitialData(refreshedUserData);     // Update local initial data for future comparisons
+        populateFormFields(refreshedUserData); // Re-populate form with confirmed saved data
       }
       
       setIsEditing(false);
@@ -255,26 +253,37 @@ export default function ProfilePage() {
      return (
       <ProtectedPage> 
         <div className="container mx-auto p-4 md:p-6 lg:p-8 text-center">
-            <p className="text-muted-foreground">User not authenticated.</p>
+            <p className="text-muted-foreground">User not authenticated. Please log in to view your profile.</p>
         </div>
       </ProtectedPage>
     );
   }
 
-  const hasChanges = isEditing && (
-    name.trim() !== (initialData.name || "") ||
-    (newAvatarUrlInput.trim() || defaultAvatarPlaceholder(name.trim())) !== (initialData.avatarUrl || defaultAvatarPlaceholder(initialData.name)) ||
-    bio.trim() !== (initialData.bio || (authUser?.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers.")) ||
-    (authUser.role === 'developer' && (
-      skills !== (initialData.skills?.join(", ") || "") ||
-      portfolioUrls !== (initialData.portfolioUrls?.join(", ") || "") ||
-      experienceLevel !== (initialData.experienceLevel || '') ||
-      (hourlyRate.trim() === '' ? undefined : parseFloat(hourlyRate)) !== initialData.hourlyRate ||
-      resumeFileUrl.trim() !== (initialData.resumeFileUrl || "") ||
-      resumeFileName.trim() !== (initialData.resumeFileName || "") ||
-      pastProjects.trim() !== (initialData.pastProjects || "")
-    ))
-  );
+  const nameForSaveButton = isEditing ? name : (initialData.name || "");
+  const avatarForSaveButton = isEditing ? newAvatarUrlInput : (initialData.avatarUrl || "");
+  const bioForSaveButton = isEditing ? bio : (initialData.bio || (authUser?.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
+  
+  let hasChanges = false;
+  if (isEditing) {
+    const initialBio = initialData.bio || (authUser?.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers.");
+    const initialAvatar = initialData.avatarUrl || defaultAvatarPlaceholder(initialData.name);
+
+    hasChanges = 
+      name.trim() !== (initialData.name || "") ||
+      (newAvatarUrlInput.trim() || defaultAvatarPlaceholder(name.trim())) !== initialAvatar ||
+      bio.trim() !== initialBio;
+
+    if (authUser.role === 'developer') {
+      hasChanges = hasChanges ||
+        skills !== (initialData.skills?.join(", ") || "") ||
+        portfolioUrls !== (initialData.portfolioUrls?.join(", ") || "") ||
+        experienceLevel !== (initialData.experienceLevel || '') ||
+        (hourlyRate.trim() === '' ? undefined : parseFloat(hourlyRate)) !== initialData.hourlyRate ||
+        resumeFileUrl.trim() !== (initialData.resumeFileUrl || "") ||
+        resumeFileName.trim() !== (initialData.resumeFileName || "") ||
+        pastProjects.trim() !== (initialData.pastProjects || "");
+    }
+  }
 
 
   return (
@@ -283,7 +292,7 @@ export default function ProfilePage() {
         <header className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Your Profile</h1>
-            <p className="text-muted-foreground">Manage your account settings and public profile information from Firestore.</p>
+            <p className="text-muted-foreground">Manage your account settings and public profile information.</p>
           </div>
           <Button
             onClick={isEditing ? (hasChanges ? handleSaveChanges : () => setIsEditing(false)) : handleEditToggle}
@@ -310,15 +319,15 @@ export default function ProfilePage() {
           <Card className="md:col-span-1 shadow-lg">
             <CardHeader className="items-center text-center">
                <Avatar className="h-24 w-24 mb-4 ring-2 ring-primary ring-offset-2">
-                <AvatarImage src={currentAvatarUrl} alt={name} data-ai-hint="profile avatar" />
-                <AvatarFallback>{getInitials(name)}</AvatarFallback>
+                <AvatarImage src={isEditing ? (newAvatarUrlInput.trim() || defaultAvatarPlaceholder(name)) : currentAvatarUrl} alt={name || "User"} data-ai-hint="profile avatar" />
+                <AvatarFallback>{getInitials(isEditing ? name : authUser.name)}</AvatarFallback>
               </Avatar>
               <CardTitle className="text-2xl">{isEditing ? name : (initialData.name || "Unnamed User")}</CardTitle>
               <CardDescription className="capitalize flex items-center justify-center gap-1">
                 {authUser?.role === "client" ? <Briefcase className="h-4 w-4" /> : <UserCircle2 className="h-4 w-4" />}
                 {authUser?.role}
               </CardDescription>
-              {authUser?.role === "developer" && ((isEditing ? parseFloat(hourlyRate) : initialData.hourlyRate) ?? -1) >= 0 && (
+              {authUser?.role === "developer" && ((isEditing ? (hourlyRate.trim() ? parseFloat(hourlyRate) : undefined) : initialData.hourlyRate) !== undefined) && (
                 <p className="text-sm text-primary font-semibold mt-1 flex items-center justify-center gap-1">
                   <DollarSign className="h-4 w-4" />
                   ${(isEditing ? hourlyRate : initialData.hourlyRate?.toString()) || '0'}/hr
@@ -349,7 +358,7 @@ export default function ProfilePage() {
 
               <div>
                 <Label htmlFor="email">Email Address</Label>
-                 <p className="text-lg p-2 border rounded-md bg-muted/30 text-muted-foreground min-h-[40px]">{email} (Not editable)</p>
+                 <p className="text-lg p-2 border rounded-md bg-muted/30 text-muted-foreground min-h-[40px]">{email || "N/A"} (Not editable)</p>
               </div>
 
               {isEditing && (
@@ -383,8 +392,8 @@ export default function ProfilePage() {
                       <Input id="skills" placeholder="e.g., JavaScript, React, Figma" value={skills} onChange={(e) => setSkills(e.target.value)} disabled={isSaving} />
                     ) : (
                        <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-muted/30 min-h-[40px]">
-                        {(initialData.skills?.length ? initialData.skills : ["No skills listed"]).map((skill, index) => (
-                          <Badge key={index} variant={skill === "No skills listed" ? "outline" : "secondary"} className={skill === "No skills listed" ? "italic text-muted-foreground" : ""}>{skill}</Badge>
+                        {(initialData.skills?.length ? initialData.skills : [<span key="no-skills" className="italic text-muted-foreground">No skills listed</span>]).map((skill, index) => (
+                          typeof skill === 'string' ? <Badge key={index} variant={skill === "No skills listed" ? "outline" : "secondary"} className={skill === "No skills listed" ? "italic text-muted-foreground" : ""}>{skill}</Badge> : skill
                         ))}
                       </div>
                     )}
@@ -400,7 +409,7 @@ export default function ProfilePage() {
                         </SelectTrigger>
                         <SelectContent>
                           {experienceLevels.map(level => (
-                            <SelectItem key={level || 'none'} value={level || 'none'}>{level || 'Not specified'}</SelectItem>
+                            <SelectItem key={level || 'none'} value={level || ''}>{level || 'Not specified'}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -427,16 +436,13 @@ export default function ProfilePage() {
                     {isEditing ? (
                       <Input id="portfolioUrls" placeholder="e.g., https://github.com/user, https://linkedin.com/in/user" value={portfolioUrls} onChange={(e) => setPortfolioUrls(e.target.value)} disabled={isSaving} />
                     ) : (
-                      <div className="p-2 border rounded-md bg-muted/30 min-h-[40px]">
+                      <div className="p-2 border rounded-md bg-muted/30 min-h-[40px] space-y-1">
                         {initialData.portfolioUrls?.length ? (
-                          <ul className="space-y-1">
-                            {initialData.portfolioUrls.map((url, index) => (
-                              <li key={index} className="text-sm flex items-center">
-                                <LinkIcon className="h-3 w-3 mr-1.5 text-muted-foreground flex-shrink-0" />
-                                <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate block">{url}</a>
-                              </li>
-                            ))}
-                          </ul>
+                            initialData.portfolioUrls.map((url, index) => (
+                              <a key={index} href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm flex items-center gap-1.5 truncate">
+                                <LinkIcon className="h-3.5 w-3.5 flex-shrink-0" /> {url}
+                              </a>
+                            ))
                         ) : <p className="italic text-muted-foreground">No portfolio URLs listed.</p>}
                       </div>
                     )}
@@ -449,8 +455,8 @@ export default function ProfilePage() {
                       <Input id="resumeFileUrl" type="url" placeholder="https://link-to-your-resume.pdf" value={resumeFileUrl} onChange={(e) => setResumeFileUrl(e.target.value)} disabled={isSaving} />
                     ) : (
                        initialData.resumeFileUrl ? (
-                        <a href={initialData.resumeFileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-lg p-2 border rounded-md bg-muted/30 block min-h-[40px] truncate">
-                          {initialData.resumeFileName || initialData.resumeFileUrl}
+                        <a href={initialData.resumeFileUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm p-2 border rounded-md bg-muted/30 block min-h-[40px] truncate flex items-center gap-1.5">
+                          <LinkIcon className="h-3.5 w-3.5 flex-shrink-0" />{initialData.resumeFileName || initialData.resumeFileUrl}
                         </a>
                       ) : <p className="text-lg p-2 border rounded-md bg-muted/30 min-h-[40px] italic text-muted-foreground">Not provided</p>
                     )}

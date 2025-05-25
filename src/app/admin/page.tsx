@@ -42,6 +42,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getAllProjects, toggleUserFlag, addAdminActivityLog, getUserById, updateUserAccountStatus } from "@/lib/firebaseService"; 
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow, format } from 'date-fns';
+import { Timestamp } from "firebase/firestore";
 
 interface AdminFeatureCardProps {
   icon: React.ReactNode;
@@ -109,8 +110,13 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!authLoading && allUsers) {
-      setClients(allUsers.filter(u => u.role === 'client').sort((a,b) => (a.createdAt instanceof Date ? a.createdAt.getTime() : 0) - (b.createdAt instanceof Date ? b.createdAt.getTime() : 0)));
-      setDevelopers(allUsers.filter(u => u.role === 'developer').sort((a,b) => (a.createdAt instanceof Date ? a.createdAt.getTime() : 0) - (b.createdAt instanceof Date ? b.createdAt.getTime() : 0)));
+      const sortedUsers = [...allUsers].sort((a, b) => {
+        const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : (a.createdAt as Timestamp)?.seconds || 0;
+        const dateB = b.createdAt instanceof Date ? b.createdAt.getTime() : (b.createdAt as Timestamp)?.seconds || 0;
+        return dateB - dateA; // Sort descending by date
+      });
+      setClients(sortedUsers.filter(u => u.role === 'client'));
+      setDevelopers(sortedUsers.filter(u => u.role === 'developer'));
     }
   }, [allUsers, authLoading]);
 
@@ -119,14 +125,19 @@ export default function AdminPage() {
     setProjectsFetchError(null);
     try {
       const fetchedProjects = await getAllProjects();
-      setProjects(fetchedProjects);
+      setProjects(fetchedProjects.sort((a,b) => {
+        const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : (a.createdAt as Timestamp)?.seconds || 0;
+        const dateB = b.createdAt instanceof Date ? b.createdAt.getTime() : (b.createdAt as Timestamp)?.seconds || 0;
+        return dateB - dateA; // Sort descending by date
+      }));
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Could not retrieve project list."
       setProjectsFetchError(errorMsg);
+      toast({title: "Error Fetching Projects", description: errorMsg, variant: "destructive"});
     } finally {
       setIsLoadingProjects(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     fetchProjects();
@@ -269,7 +280,7 @@ export default function AdminPage() {
                 <UsersRound className="mr-2 h-5 w-5 text-primary" />
                 Clients ({authLoading && clients.length === 0 ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : clients.length})
               </CardTitle>
-              <CardDescription>List of all registered clients from Firestore. Sorted by join date.</CardDescription>
+              <CardDescription>List of all registered clients. Sorted by most recent join date.</CardDescription>
             </CardHeader>
             <CardContent>
               {authLoading && clients.length === 0 ? <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> :
@@ -284,7 +295,7 @@ export default function AdminPage() {
                 <User className="mr-2 h-5 w-5 text-primary" />
                 Developers ({authLoading && developers.length === 0 ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : developers.length})
               </CardTitle>
-              <CardDescription>List of all registered developers from Firestore. Sorted by join date.</CardDescription>
+              <CardDescription>List of all registered developers. Sorted by most recent join date.</CardDescription>
             </CardHeader>
             <CardContent>
                {authLoading && developers.length === 0 ? <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> :
@@ -301,7 +312,7 @@ export default function AdminPage() {
                 <FileText className="mr-2 h-5 w-5 text-primary" />
                 All Projects ({isLoadingProjects && projects.length === 0 ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : projects.length})
               </CardTitle>
-              <CardDescription>Overview of all projects on the platform from Firestore.</CardDescription>
+              <CardDescription>Overview of all projects on the platform. Sorted by most recent creation date.</CardDescription>
             </CardHeader>
             <CardContent>
               {isLoadingProjects && projects.length === 0 && <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
@@ -375,7 +386,7 @@ function UserTable({ users, onToggleFlag, onUpdateStatus, isTogglingFlagId, isUp
                 {user.isFlagged ? <ShieldX className="h-5 w-5 text-destructive" /> : <ShieldCheck className="h-5 w-5 text-green-500" />}
               </TableCell>
               <TableCell className="whitespace-nowrap">
-                {user.createdAt ? format(user.createdAt instanceof Date ? user.createdAt : new Date((user.createdAt as any).seconds * 1000), "PP") : 'N/A'}
+                 {user.createdAt instanceof Date ? format(user.createdAt, "PP") : (user.createdAt as Timestamp)?.seconds ? format(new Date((user.createdAt as Timestamp).seconds * 1000), "PP") : 'N/A'}
               </TableCell>
               <TableCell className="min-w-[150px] max-w-[300px]">
                 {user.role === 'developer' && user.skills && user.skills.length > 0 
@@ -475,7 +486,7 @@ function ProjectTable({ projects, allUsers }: ProjectTableProps) {
                 {project.assignedDeveloperName || <span className="text-muted-foreground italic">Not assigned</span>}
               </TableCell>
                <TableCell className="whitespace-nowrap">
-                 {project.createdAt ? formatDistanceToNow(project.createdAt instanceof Date ? project.createdAt : new Date( (project.createdAt as any).seconds * 1000 ), { addSuffix: true }) : 'N/A'}
+                 {project.createdAt instanceof Date ? formatDistanceToNow(project.createdAt, { addSuffix: true }) : (project.createdAt as Timestamp)?.seconds ? formatDistanceToNow(new Date((project.createdAt as Timestamp).seconds * 1000), { addSuffix: true }) : 'N/A'}
               </TableCell>
               <TableCell className="text-right whitespace-nowrap">
                 <Button variant="outline" size="sm" asChild>

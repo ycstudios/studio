@@ -23,10 +23,6 @@ export function TawkToController() {
 
   useEffect(() => {
     const configureTawkVisibility = () => {
-      if (isLoading) {
-        return;
-      }
-
       if (window.Tawk_API && typeof window.Tawk_API.hideWidget === 'function' && typeof window.Tawk_API.showWidget === 'function') {
         if (user?.role === "admin") {
           window.Tawk_API.hideWidget();
@@ -36,41 +32,46 @@ export function TawkToController() {
       }
     };
     
+    // If Tawk_API is already loaded and has an onLoad property, set our handler.
     if (window.Tawk_API && window.Tawk_API.onLoad) {
       window.Tawk_API.onLoad = function() {
+         // This will run after Tawk.to has fully initialized itself.
          configureTawkVisibility();
       };
-    } else if (window.Tawk_API && typeof window.Tawk_API.getStatus === 'function') { 
-      // If API is already loaded and onLoad might have fired before this component mounted
+      // It's possible Tawk.to loaded *before* this component mounted and onLoad already fired.
+      // So, try to configure visibility immediately if Tawk_API seems ready.
+      if (typeof window.Tawk_API.getStatus === 'function') {
+         configureTawkVisibility();
+      }
+    } else if (window.Tawk_API && typeof window.Tawk_API.getStatus === 'function') {
+      // Tawk_API exists but onLoad might not have been set by this component yet,
+      // or Tawk.to is already loaded.
       configureTawkVisibility();
     } else {
-      // Fallback if Tawk_API is not yet fully initialized - set interval to check
+      // Tawk_API is not yet available. Set an interval to check for it.
+      // This is a fallback for scenarios where the Tawk.to script loads very slowly
+      // or after this component's initial render.
       const intervalId = setInterval(() => {
         if (window.Tawk_API && window.Tawk_API.onLoad) {
           window.Tawk_API.onLoad = function() {
             configureTawkVisibility();
           };
-          // Once onLoad is set, try to configure immediately if API seems ready
+          // Try to configure immediately if API seems ready after setting onLoad
           if (typeof window.Tawk_API.getStatus === 'function') {
              configureTawkVisibility();
           }
           clearInterval(intervalId);
         } else if (window.Tawk_API && typeof window.Tawk_API.getStatus === 'function') {
-          // API is available, but onLoad might not have been set by us yet
+          // API became available, but onLoad was not set by this component's interval path
           configureTawkVisibility();
-          clearInterval(intervalId); // Stop checking if API methods are available
+          clearInterval(intervalId);
         }
-      }, 100); // Check every 100ms
+      }, 200); // Check every 200ms
 
-      return () => clearInterval(intervalId); // Cleanup interval on unmount
-    }
-    // Initial attempt to configure if Tawk_API is already present
-    if (window.Tawk_API && typeof window.Tawk_API.getStatus === 'function') {
-      configureTawkVisibility();
+      return () => clearInterval(intervalId); // Cleanup interval on component unmount
     }
 
-  }, [user, isLoading]); 
+  }, [user, isLoading]); // Re-run effect if user or isLoading state changes
 
-  return null; 
+  return null; // This component does not render anything itself
 }
-
