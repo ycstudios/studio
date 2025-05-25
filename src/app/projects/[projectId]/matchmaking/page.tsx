@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useTransition, useCallback } from "react";
@@ -11,7 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Info, AlertTriangle, ArrowLeft, Search, Eye, CheckCircle, Clock, UserCheck, Send, UsersRound, ThumbsUp, ThumbsDown, FileSignature, Brain } from "lucide-react";
 import { matchDevelopers, type MatchDevelopersInput, type MatchDevelopersOutput, type MatchedDeveloper } from "@/ai/flows/match-developers";
-import type { Project as ProjectType, User as UserType, ProjectApplication, ApplicationStatus } from "@/types";
+import type { Project as ProjectType, User as UserType, ProjectApplication, ApplicationStatus, UserRole } from "@/types";
 import {
   getProjectById,
   addProjectApplication,
@@ -37,6 +36,7 @@ export default function ProjectMatchmakingPage() {
   const projectId = params.projectId as string;
   const { toast } = useToast();
   const { user, isLoading: authLoading, allUsers } = useAuth();
+  const userRole = user?.role as UserRole | undefined;
 
   const [project, setProject] = useState<ProjectType | null>(null);
   const [matches, setMatches] = useState<MatchDevelopersOutput | null>(null);
@@ -178,7 +178,7 @@ export default function ProjectMatchmakingPage() {
       } finally {
         setIsLoadingApplications(false);
       }
-    } else if (user.role === 'admin' || (project && user.id === project.clientId)) {
+    } else if (userRole === 'admin' || (project && user.id === project.clientId)) {
       console.log(`[MatchmakingPage] manageApplications: Client/Admin ${user.id} viewing project ${project.id}. Fetching applications.`);
       setIsLoadingApplications(true);
       setApplicationsError(null);
@@ -194,7 +194,7 @@ export default function ProjectMatchmakingPage() {
         setIsLoadingApplications(false);
       }
     }
-  }, [user, project]);
+  }, [user, project, userRole]);
 
   useEffect(() => {
     if (project && user) {
@@ -205,7 +205,7 @@ export default function ProjectMatchmakingPage() {
 
   useEffect(() => {
     if (!isLoadingProject && !authLoading && project && user && !initialMatchmakingDoneForCurrentProject) {
-      if (project.status === "Open" && (user.id === project.clientId || user.role === 'developer' || user.role === 'admin')) {
+      if (project.status === "Open" && (user.id === project.clientId || userRole === 'admin')) {
         console.log(`[MatchmakingPage] Initial AI matchmaking trigger for project ${project.id}, user ${user.id}`);
         handleRunMatchmaking(project, false); 
       }
@@ -239,7 +239,7 @@ export default function ProjectMatchmakingPage() {
         title: "Application Submitted!",
         description: "Your interest in this project has been noted. The project owner will be informed.",
       });
-       if (user.id === project.clientId || user.role === 'admin') {
+       if (user.id === project.clientId || userRole === 'admin') {
         manageApplications();
       }
     } catch (error) {
@@ -252,7 +252,7 @@ export default function ProjectMatchmakingPage() {
   };
 
   const handleUpdateApplication = async (application: ProjectApplication, newStatus: ApplicationStatus) => {
-    if (!user || !project || (user.id !== project.clientId && user.role !== 'admin')) {
+    if (!user || !project || (user.id !== project.clientId && userRole !== 'admin')) {
       toast({ title: "Unauthorized", description: "Only the project owner or an admin can manage applications.", variant: "destructive" });
       return;
     }
@@ -349,7 +349,7 @@ export default function ProjectMatchmakingPage() {
   const isClientOwner = user?.id === project.clientId;
   const canDeveloperApply = user?.role === 'developer' && project.status === "Open" && (user?.id !== project.clientId) && !hasApplied;
   const isProjectAssignedToCurrentUser = user?.role === 'developer' && project.status === "In Progress" && project.assignedDeveloperId === user.id;
-  const canManageApplications = (isClientOwner || user?.role === 'admin') && project.status === "Open";
+  const canManageApplications = (isClientOwner || userRole === 'admin') && project.status === "Open";
 
   const isLoadingAIMatches = isMatching || isTransitionPending;
 
@@ -439,7 +439,7 @@ export default function ProjectMatchmakingPage() {
             <h3 className="font-semibold mb-1 text-lg">Client Timezone:</h3>
             <p className="text-muted-foreground mb-4">{project.timeZone || <span className="italic">Not specified</span>}</p>
 
-            {(isClientOwner || user?.role === 'admin') && project.status === "Open" && (
+            {(isClientOwner || userRole === 'admin') && project.status === "Open" && (
               <Button onClick={() => handleRunMatchmaking(project, true)} disabled={isLoadingAIMatches} className="mt-4">
                 {isLoadingAIMatches ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -482,7 +482,7 @@ export default function ProjectMatchmakingPage() {
           </CardContent>
         </Card>
 
-        {project.status === "Open" && !isProjectAssignedToCurrentUser && (isClientOwner || user?.role === 'admin') && (
+        {project.status === "Open" && !isProjectAssignedToCurrentUser && (isClientOwner || userRole === 'admin') && (
           <>
             {isLoadingAIMatches && !aiError && !matches && ( // Show loading only if no matches yet
               <Card className="shadow-lg mt-8">
@@ -644,7 +644,7 @@ export default function ProjectMatchmakingPage() {
             </CardContent>
           </Card>
         )}
-        {(isClientOwner || user?.role === 'admin') && project.status !== "Open" && projectApplications.length > 0 && (
+        {(isClientOwner || userRole === 'admin') && project.status !== "Open" && projectApplications.length > 0 && (
           <Card className="shadow-lg mt-8">
             <CardHeader><CardTitle className="text-xl flex items-center"><UsersRound className="mr-2 h-5 w-5 text-primary" />Archived Applications</CardTitle></CardHeader>
             <CardContent>
