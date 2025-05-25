@@ -51,5 +51,4 @@ if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
     console.error("[Firebase Init] Firebase app was not initialized (likely due to config errors). Firestore cannot be accessed.");
   }
 }
-
 export { app, db };
