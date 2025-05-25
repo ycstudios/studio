@@ -12,13 +12,13 @@ import { QuickServiceRequestForm } from "@/components/forms/QuickServiceRequestF
 
 const clientCarouselImages = [
   { src: "https://www.dropbox.com/scl/fi/tf9c4m5q307qb45r6w62n/1.png?rlkey=ucr5x9pen2ndl58grawxul7xt&st=w1y9w892&dl=1", alt: "Client reviewing project proposals", dataAiHint: "client meeting business" },
-  { src: "https://www.dropbox.com/scl/fi/hqpsqf1ssc85sctwotm3d/5.png?rlkey=0xaucl1y0c0vrdnsft5595okn&st=0e1x9p9y&dl=1", alt: "Team planning a project", dataAiHint: "project planning team" },
-  { src: "https://www.dropbox.com/scl/fi/kv7ve56w2414gwaf269wq/2.png?rlkey=s1cqcqfxdf2ememoqezrvcshp&st=ojo6qt9j&dl=1", alt: "Successful project launch presentation", dataAiHint: "successful presentation" },
+  { src: "https://www.dropbox.com/scl/fi/run6pj80rnyg4c2v8p4i0/5.png?rlkey=dv9nrkq0xw8owctqeyi4oam7l&st=5hxq3ua7&dl=1", alt: "Team planning a project", dataAiHint: "project planning team" },
+  { src: "https://www.dropbox.com/scl/fi/zbnylk1b43itu41n38f8p/3.png?rlkey=2khyq20q6wa0xpu4inu8oftny&st=khxa8r72&dl=1", alt: "Successful project launch presentation", dataAiHint: "successful presentation" },
 ];
 
 const developerCarouselImages = [
   { src: "https://www.dropbox.com/scl/fi/z32zfcmqttj3x4uw7wmfp/4.png?rlkey=dhhd1ruga8j2p59g1m49gsec1&st=ygiv7hmu&dl=1", alt: "Developer coding on a laptop", dataAiHint: "developer coding programming" },
-  { src: "https://www.dropbox.com/scl/fi/a9nxd7kl8kvj0v0x57b8i/3.png?rlkey=dr38kz8v8eusty9jekrty8ges&st=e8nc4fg0&dl=1", alt: "Focused developer coding", dataAiHint: "focused developer code" },
+  { src: "https://www.dropbox.com/scl/fi/t0dwobaqyivouil5eimb0/2.png?rlkey=zo3fimsbeaet5i5a9evkrvmgi&st=xrii6zvv&dl=2", alt: "Focused developer coding", dataAiHint: "focused developer code" },
   { src: "https://www.dropbox.com/scl/fi/oy34qipt9kq4ba7y4snbo/WhatsApp-Image-2025-05-20-at-10.14.51-PM.jpeg?rlkey=whc93wr321i8uvi4s958ozueq&st=t7876qd1&dl=1", alt: "Collaborative coding pair", dataAiHint: "collaborative coding pair" },
 ];
 
