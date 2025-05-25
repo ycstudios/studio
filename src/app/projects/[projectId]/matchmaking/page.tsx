@@ -10,30 +10,26 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Info, AlertTriangle, ArrowLeft, Search, Eye, CheckCircle, Clock, UserCheck, Send, Users, MessageSquare, ThumbsUp, ThumbsDown, FileSignature, UsersRound } from "lucide-react";
-import { matchDevelopers, MatchDevelopersInput, MatchDevelopersOutput } from "@/ai/flows/match-developers";
+import { matchDevelopers, type MatchDevelopersInput, type MatchDevelopersOutput } from "@/ai/flows/match-developers";
 import type { Project as ProjectType, User as UserType, ProjectApplication, ApplicationStatus } from "@/types";
 import {
   getProjectById,
   addProjectApplication,
   getApplicationsByDeveloperForProject,
-  getUserById,
   getApplicationsByProjectId,
   updateProjectApplicationStatus,
   assignDeveloperToProject,
   rejectOtherPendingApplications,
   addAdminActivityLog,
-  PROJECT_APPLICATIONS_COLLECTION // Import this
 } from "@/lib/firebaseService";
+import { sendEmail, getApplicationRejectedEmailToDeveloper } from "@/lib/emailService"; // Added getApplicationRejectedEmailToDeveloper
+import { db } from "@/lib/firebase";
+import { PROJECT_APPLICATIONS_COLLECTION } from "@/lib/firebaseService";
+import { doc, updateDoc, Timestamp } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, formatDistanceToNow } from 'date-fns';
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase"; // Import db
-import { doc, updateDoc } from "firebase/firestore";
-
 
 export default function ProjectMatchmakingPage() {
   const params = useParams();
@@ -197,7 +193,7 @@ export default function ProjectMatchmakingPage() {
     if (!isLoadingProject && !authLoading && project && user && !initialMatchmakingDoneForCurrentProject) {
       if (project.status === "Open" && (user.id === project.clientId || user.role === 'developer' || user.role === 'admin')) {
         console.log(`[MatchmakingPage] Initial AI matchmaking trigger for project ${project.id}, user ${user.id}`);
-        handleRunMatchmaking(project, false);
+        handleRunMatchmaking(project, false); // showToast set to false for initial auto-run
       }
       setInitialMatchmakingDoneForCurrentProject(true);
     }
@@ -216,8 +212,8 @@ export default function ProjectMatchmakingPage() {
         projectName: project.name,
         developerId: user.id,
         developerName: user.name || "Unknown Developer",
-        developerEmail: user.email,
-        messageToClient: `I am interested in discussing project "${project.name}" further. My skills align well with the requirements.`
+        developerEmail: user.email, // Ensure user email is available
+        messageToClient: `I am interested in discussing project "${project.name}" further. My skills align well with the requirements.` // Example message
       };
       await addProjectApplication(applicationData);
       setHasApplied(true);
@@ -593,18 +589,29 @@ export default function ProjectMatchmakingPage() {
   );
 }
 
+// Helper to safely create a Date object from Firestore Timestamp or other date-like values
 function safeCreateDate(timestamp: any): Date | undefined {
   if (!timestamp) return undefined;
-  if (timestamp instanceof Date) return timestamp;
-  if (timestamp instanceof Timestamp) return timestamp.toDate();
-  if (timestamp && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
-    const date = new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate();
-    if (!isNaN(date.getTime())) return date;
+  if (timestamp instanceof Date) return timestamp; // Already a JS Date
+  if (timestamp instanceof Timestamp) { // Check if it's a Firestore Timestamp
+    return timestamp.toDate();
   }
+  // Handle cases where timestamp might be a plain object from Firestore { seconds: number, nanoseconds: number }
+  if (timestamp && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
+    try {
+        const date = new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate();
+        if (!isNaN(date.getTime())) return date; // Ensure it's a valid date
+    } catch (e) {
+        // Could be an invalid Timestamp structure if accessed before full conversion
+        console.warn("Failed to convert object to Timestamp, then to Date:", e);
+    }
+  }
+  // Fallback for string or number timestamps
   if (typeof timestamp === 'string' || typeof timestamp === 'number') {
     const date = new Date(timestamp);
-    if (!isNaN(date.getTime())) return date;
+    if (!isNaN(date.getTime())) return date; // Ensure it's a valid date
   }
+  console.warn("Could not parse timestamp into a valid Date:", timestamp);
   return undefined;
 }
 
