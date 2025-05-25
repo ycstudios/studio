@@ -1,4 +1,3 @@
-
 // src/lib/firebaseService.ts
 'use server';
 import { collection, doc, setDoc, getDocs, getDoc, query, orderBy, Timestamp, where, addDoc, updateDoc, serverTimestamp, deleteField, type FieldValue, limit } from "firebase/firestore";
@@ -11,6 +10,11 @@ import {
   getDeveloperRejectedEmailTemplate,
   getClientProjectPostedEmailTemplate,
 } from "./emailService";
+
+// Collection name constants
+const USERS_COLLECTION = "users";
+const PROJECTS_COLLECTION = "projects";
+const ADMIN_ACTIVITY_LOGS_COLLECTION = "adminActivityLogs";
 
 // Helper to ensure date is constructed correctly from various Firestore timestamp formats
 function safeCreateDate(timestamp: any): Date | undefined {
