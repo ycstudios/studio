@@ -5,17 +5,32 @@ import React, { useEffect, useState, useTransition, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ProtectedPage } from "@/components/ProtectedPage";
 import { DeveloperCard } from "@/components/DeveloperCard";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Info, AlertTriangle, ArrowLeft, Search, Eye, CheckCircle, Clock, UserCheck } from "lucide-react";
+import { Loader2, Info, AlertTriangle, ArrowLeft, Search, Eye, CheckCircle, Clock, UserCheck, Send, Users, MessageSquare, ThumbsUp, ThumbsDown, FileSignature } from "lucide-react";
 import { matchDevelopers, MatchDevelopersInput, MatchDevelopersOutput } from "@/ai/flows/match-developers";
-import type { Project as ProjectType } from "@/types";
-import { getProjectById } from "@/lib/firebaseService";
+import type { Project as ProjectType, User as UserType, ProjectApplication, ApplicationStatus } from "@/types";
+import { 
+  getProjectById, 
+  addProjectApplication, 
+  getApplicationsByDeveloperForProject, 
+  getUserById, 
+  getApplicationsByProjectId,
+  updateProjectApplicationStatus,
+  assignDeveloperToProject,
+  rejectOtherPendingApplications,
+  addAdminActivityLog
+} from "@/lib/firebaseService";
+import { 
+  sendEmail,
+  getApplicationAcceptedEmailToDeveloper,
+  getApplicationRejectedEmailToDeveloper
+} from "@/lib/emailService";
 import { useAuth } from "@/contexts/AuthContext";
-import Link from "next/link"; // Keep for potential future use, though not directly used now
 import { format, formatDistanceToNow } from 'date-fns';
+import Link from "next/link";
 
 export default function ProjectMatchmakingPage() {
   const params = useParams();
@@ -26,17 +41,21 @@ export default function ProjectMatchmakingPage() {
 
   const [project, setProject] = useState<ProjectType | null>(null);
   const [matches, setMatches] = useState<MatchDevelopersOutput | null>(null);
+  const [projectApplications, setProjectApplications] = useState<ProjectApplication[]>([]);
   
   const [isLoadingProject, setIsLoadingProject] = useState(true);
-  const [isMatching, setIsMatching] = useState(false); // For AI specific loading (manual trigger)
+  const [isMatching, setIsMatching] = useState(false); 
+  const [isApplying, setIsApplying] = useState(false);
+  const [isLoadingApplications, setIsLoadingApplications] = useState(false);
+  const [isProcessingApplication, setIsProcessingApplication] = useState<string | null>(null); // applicationId
   
-  const [error, setError] = useState<string | null>(null); // For project fetch error
-  const [aiError, setAiError] = useState<string | null>(null); // For AI match error
+  const [error, setError] = useState<string | null>(null); 
+  const [aiError, setAiError] = useState<string | null>(null); 
+  const [applicationsError, setApplicationsError] = useState<string | null>(null);
   
-  const [isTransitionPending, startTransition] = useTransition(); // For AI match transition
-  const [applied, setApplied] = useState(false); // For developer "Apply" button state
+  const [isTransitionPending, startTransition] = useTransition();
+  const [hasApplied, setHasApplied] = useState(false);
 
-  // Flag to ensure initial auto-matchmaking runs only once per project load
   const [initialMatchmakingDoneForCurrentProject, setInitialMatchmakingDoneForCurrentProject] = useState(false);
 
   const handleRunMatchmaking = useCallback(async (currentProject: ProjectType, showToast: boolean = true) => {
@@ -45,9 +64,9 @@ export default function ProjectMatchmakingPage() {
       return;
     }
 
-    setIsMatching(true); // Indicates AI processing specifically for this action
+    setIsMatching(true); 
     setAiError(null);
-    if (showToast) setMatches(null); // Clear previous matches only if explicitly re-running
+    if (showToast) setMatches(null); 
 
     const inputForAI: MatchDevelopersInput = {
       projectRequirements: currentProject.description,
@@ -74,7 +93,6 @@ export default function ProjectMatchmakingPage() {
             description: "Potential developer matches have been found.",
           });
         }
-        console.log(`[MatchmakingPage] handleRunMatchmaking: AI match complete for project ID ${currentProject.id}`);
       } catch (e) {
         const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred during AI matchmaking.";
         setAiError(`AI Matchmaking failed: ${errorMessage}`);
@@ -90,67 +108,161 @@ export default function ProjectMatchmakingPage() {
         setIsMatching(false);
       }
     });
-  }, [toast, startTransition]); // Removed 'project' from here as currentProject is passed
+  }, [toast, startTransition]); 
 
-  // Effect for fetching the main project data
-  useEffect(() => {
+  const fetchProjectData = useCallback(async () => {
     if (!projectId) {
       setError("No project ID provided in URL.");
       setIsLoadingProject(false);
       return;
     }
-    console.log(`[MatchmakingPage] projectId changed or component mounted. Fetching project: ${projectId}`);
 
-    const fetchProjectData = async () => {
-      setIsLoadingProject(true);
-      setError(null);
-      setProject(null); // Clear previous project data
-      setMatches(null); // Clear previous matches
-      setAiError(null);   // Clear previous AI error
-      setApplied(false); // Reset applied state for new project load
-      setInitialMatchmakingDoneForCurrentProject(false); // Reset for this project load
+    setIsLoadingProject(true);
+    setError(null);
+    setProject(null);
+    setMatches(null);
+    setAiError(null);
+    setHasApplied(false);
+    setProjectApplications([]);
+    setApplicationsError(null);
+    setInitialMatchmakingDoneForCurrentProject(false);
 
-      try {
-        const fetchedProject = await getProjectById(projectId);
-        if (fetchedProject) {
-          setProject(fetchedProject);
-          console.log(`[MatchmakingPage] Successfully fetched project: ${fetchedProject.name}`);
-        } else {
-          setError(`Project with ID '${projectId}' not found or data is invalid.`);
-          console.warn(`[MatchmakingPage] Project not found: ${projectId}`);
+    try {
+      const fetchedProject = await getProjectById(projectId);
+      if (fetchedProject) {
+        setProject(fetchedProject);
+      } else {
+        setError(`Project with ID '${projectId}' not found or data is invalid.`);
+      }
+    } catch (e) {
+      const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred while fetching project details.";
+      setError(`Failed to load project: ${errorMessage}`);
+    } finally {
+      setIsLoadingProject(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    fetchProjectData();
+  }, [fetchProjectData]);
+
+  // Check if developer has already applied & fetch applications if client owner
+  useEffect(() => {
+    const manageApplications = async () => {
+      if (user && project?.id) {
+        if (user.role === 'developer') {
+          setIsLoadingApplications(true);
+          try {
+            const existingApplications = await getApplicationsByDeveloperForProject(user.id, project.id);
+            if (existingApplications.length > 0) {
+              setHasApplied(true);
+            }
+          } catch (error) {
+            console.error("Error checking existing applications:", error);
+            // Minor error, don't block UI
+          } finally {
+            setIsLoadingApplications(false);
+          }
+        } else if (user.id === project.clientId) {
+          setIsLoadingApplications(true);
+          setApplicationsError(null);
+          try {
+            const apps = await getApplicationsByProjectId(project.id);
+            setProjectApplications(apps);
+          } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : "Could not fetch applications for this project.";
+            setApplicationsError(errorMsg);
+            console.error("Error fetching project applications:", error);
+          } finally {
+            setIsLoadingApplications(false);
+          }
         }
-      } catch (e) {
-        const errorMessage = (e instanceof Error) ? e.message : "An unexpected error occurred while fetching project details.";
-        setError(`Failed to load project: ${errorMessage}`);
-        console.error(`[MatchmakingPage] Error fetching project ${projectId}:`, e);
-      } finally {
-        setIsLoadingProject(false);
-        console.log(`[MatchmakingPage] Finished fetching project ${projectId}, isLoadingProject: false`);
       }
     };
+    manageApplications();
+  }, [user, project]);
 
-    fetchProjectData();
-  }, [projectId]); // Key dependency: only refetch if projectId changes
 
-
-  // Effect for running initial (automatic) AI matchmaking after project data is loaded and user is available
   useEffect(() => {
     if (!isLoadingProject && !authLoading && project && user && !initialMatchmakingDoneForCurrentProject) {
-      console.log(`[MatchmakingPage] Conditions met for initial AI matchmaking for project: ${project.name}, status: ${project.status}, user role: ${user.role}`);
       if (project.status === "Open" && (user.id === project.clientId || user.role === 'developer' || user.role === 'admin')) {
-        handleRunMatchmaking(project, false); // false to not show initial toast for auto-run
+        handleRunMatchmaking(project, false); 
       }
-      setInitialMatchmakingDoneForCurrentProject(true); // Mark as done for this project load, regardless of whether match was run (e.g. project not Open)
+      setInitialMatchmakingDoneForCurrentProject(true);
     }
   }, [project, user, isLoadingProject, authLoading, initialMatchmakingDoneForCurrentProject, handleRunMatchmaking]);
 
 
-  const handleApplyForProject = () => {
-    setApplied(true);
-    toast({
-      title: "Application Submitted!",
-      description: "Your interest in this project has been noted. The project owner will be informed.",
-    });
+  const handleApplyForProject = async () => {
+    if (!user || user.role !== 'developer' || !project || !project.name) {
+      toast({ title: "Error", description: "Cannot apply: User not a developer or project details missing.", variant: "destructive"});
+      return;
+    }
+    setIsApplying(true);
+    try {
+      const applicationData = {
+        projectId: project.id,
+        projectName: project.name,
+        developerId: user.id,
+        developerName: user.name || "Unknown Developer",
+        developerEmail: user.email,
+        messageToClient: "I am interested in discussing this project further!" // TODO: Add modal/textarea for this
+      };
+      await addProjectApplication(applicationData);
+      setHasApplied(true);
+      toast({
+        title: "Application Submitted!",
+        description: "Your interest in this project has been noted. The project owner will be informed.",
+      });
+    } catch (error) {
+      console.error("Error submitting application:", error);
+      const errorMsg = error instanceof Error ? error.message : "Could not submit application.";
+      toast({ title: "Application Error", description: errorMsg, variant: "destructive"});
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
+  const handleUpdateApplication = async (application: ProjectApplication, newStatus: ApplicationStatus) => {
+    if (!user || user.id !== project?.clientId) {
+        toast({ title: "Unauthorized", description: "Only the project owner can manage applications.", variant: "destructive" });
+        return;
+    }
+    setIsProcessingApplication(application.id);
+    try {
+        await updateProjectApplicationStatus(application.id, newStatus, user.id, user.name);
+
+        const developer = await getUserById(application.developerId);
+        if (!developer) throw new Error("Developer not found for notification.");
+
+        if (newStatus === 'accepted') {
+            await assignDeveloperToProject(project!.id, application.developerId, application.developerName, user.id, user.name);
+            await rejectOtherPendingApplications(project!.id, application.id, user.id, user.name);
+            const emailHtml = await getApplicationAcceptedEmailToDeveloper(application.developerName, project!.name, project!.id);
+            await sendEmail(application.developerEmail, `Application Accepted for "${project!.name}"!`, emailHtml);
+            await updateProjectApplicationStatus(application.id, newStatus, user.id, user.name); // to set developerNotifiedOfStatus potentially
+
+            // Refresh project data to reflect new status and assigned developer
+            const updatedProject = await getProjectById(project!.id);
+            if (updatedProject) setProject(updatedProject);
+        } else if (newStatus === 'rejected') {
+            const emailHtml = await getApplicationRejectedEmailToDeveloper(application.developerName, project!.name, project!.id);
+            await sendEmail(application.developerEmail, `Update on Your Application for "${project!.name}"`, emailHtml);
+             await updateProjectApplicationStatus(application.id, newStatus, user.id, user.name); // to set developerNotifiedOfStatus potentially
+        }
+
+        // Refresh applications list
+        const apps = await getApplicationsByProjectId(project!.id);
+        setProjectApplications(apps);
+
+        toast({ title: "Application Updated", description: `${application.developerName}'s application has been ${newStatus}.` });
+
+    } catch (e) {
+        const errorMsg = e instanceof Error ? e.message : "Could not update application status.";
+        toast({ title: "Error", description: errorMsg, variant: "destructive" });
+    } finally {
+        setIsProcessingApplication(null);
+    }
   };
 
 
@@ -203,8 +315,9 @@ export default function ProjectMatchmakingPage() {
     );
   }
 
-  const isClientOwner = user?.role === 'client' && user.id === project.clientId;
-  const canApply = user?.role === 'developer' && project.status === "Open" && user.id !== project.clientId;
+  const isClientOwner = user?.id === project.clientId;
+  const canDeveloperApply = user?.role === 'developer' && project.status === "Open" && user.id !== project.clientId && !hasApplied;
+  const isProjectAssignedToCurrentUser = user?.role === 'developer' && project.status === "In Progress" && project.assignedDeveloperId === user.id;
 
   const isLoadingAIMatches = isMatching || isTransitionPending;
 
@@ -227,6 +340,15 @@ export default function ProjectMatchmakingPage() {
                     Posted: {format(project.createdAt instanceof Date ? project.createdAt : new Date((project.createdAt as any).seconds * 1000), "MMMM d, yyyy 'at' h:mm a")}
                      ({formatDistanceToNow(project.createdAt instanceof Date ? project.createdAt : new Date((project.createdAt as any).seconds * 1000), { addSuffix: true })})
                 </p>
+            )}
+            {project.status === "In Progress" && project.assignedDeveloperName && (
+                <Alert variant="default" className="mt-4 bg-blue-500/10 border-blue-500/30">
+                    <CheckCircle className="h-4 w-4 text-blue-600" />
+                    <AlertTitle className="text-blue-700 dark:text-blue-300">Project In Progress</AlertTitle>
+                    <AlertDescription className="text-blue-600 dark:text-blue-400">
+                        This project is currently assigned to: <strong>{project.assignedDeveloperName}</strong>.
+                    </AlertDescription>
+                </Alert>
             )}
           </CardHeader>
           <CardContent>
@@ -257,76 +379,208 @@ export default function ProjectMatchmakingPage() {
                     {isLoadingAIMatches ? "Finding Matches..." : "Run AI Matchmaking Again"}
                 </Button>
             )}
-            {canApply && (
-              <Button onClick={handleApplyForProject} disabled={applied} className="mt-4 w-full sm:w-auto">
-                {applied ? <CheckCircle className="mr-2 h-4 w-4" /> : <UserCheck className="mr-2 h-4 w-4" />}
-                {applied ? "Application Submitted" : "Apply for Project"}
-              </Button>
+            {canDeveloperApply && (
+                <Button onClick={handleApplyForProject} disabled={isApplying || isLoadingApplications} className="mt-4 w-full sm:w-auto">
+                  {isApplying || isLoadingApplications ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSignature className="mr-2 h-4 w-4" />}
+                  {isApplying ? "Submitting..." : (isLoadingApplications ? "Checking..." : "Apply for Project")}
+                </Button>
+            )}
+             {user?.role === 'developer' && hasApplied && project.status === "Open" && (
+                <Button disabled className="mt-4 w-full sm:w-auto cursor-not-allowed">
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Application Submitted
+                </Button>
+            )}
+            {isProjectAssignedToCurrentUser && (
+                 <Alert variant="default" className="mt-4 bg-green-500/10 border-green-500/30">
+                    <ThumbsUp className="h-4 w-4 text-green-600" />
+                    <AlertTitle className="text-green-700 dark:text-green-300">You're On This Project!</AlertTitle>
+                    <AlertDescription className="text-green-600 dark:text-green-400">
+                        Congratulations! You have been assigned to this project.
+                    </AlertDescription>
+                </Alert>
             )}
           </CardContent>
         </Card>
 
-        {isLoadingAIMatches && !aiError && ( // Show this loading specifically for AI calls
-             <Card className="shadow-lg">
-                <CardHeader>
-                    <CardTitle className="text-xl flex items-center gap-2">
-                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                        Finding Developer Matches...
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-col items-center justify-center p-8">
-                    <p className="text-muted-foreground">Our AI is searching for the best developers for your project. This may take a moment.</p>
-                </CardContent>
-            </Card>
+        {/* AI Developer Suggestions - only if project is Open and not assigned to current developer */}
+        {project.status === "Open" && !isProjectAssignedToCurrentUser && (
+            <>
+                {isLoadingAIMatches && !aiError && ( 
+                    <Card className="shadow-lg">
+                        <CardHeader>
+                            <CardTitle className="text-xl flex items-center gap-2">
+                                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                                Finding Developer Matches...
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-col items-center justify-center p-8">
+                            <p className="text-muted-foreground">Our AI is searching for the best developers for your project. This may take a moment.</p>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {aiError && !isLoadingAIMatches && ( 
+                    <Alert variant="destructive" className="my-6">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertTitle>AI Matchmaking Error</AlertTitle>
+                        <AlertDescription>{aiError}</AlertDescription>
+                    </Alert>
+                )}
+
+                {matches && !isLoadingAIMatches && !aiError && (
+                <Card className="shadow-lg">
+                    <CardHeader>
+                    <CardTitle className="text-2xl">AI Developer Suggestions</CardTitle>
+                    <CardDescription>Here are developer profiles our AI believes could be a good fit for your project.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                    <div>
+                        <h3 className="font-semibold mb-2 text-lg">AI Reasoning:</h3>
+                        <p className="text-sm text-muted-foreground bg-muted p-4 rounded-md border whitespace-pre-wrap">{matches.reasoning || "No specific reasoning provided by AI."}</p>
+                    </div>
+
+                    <h3 className="font-semibold text-lg">Suggested Developer Profiles:</h3>
+                    {matches.developerMatches && matches.developerMatches.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {matches.developerMatches.map((devProfileText, index) => (
+                            <DeveloperCard
+                            key={index}
+                            name={`Suggested Developer Profile ${index + 1}`}
+                            description={devProfileText}
+                            skills={project.requiredSkills || []}
+                            dataAiHint="developer profile abstract"
+                            matchQuality="Good Fit"
+                            />
+                        ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                            <Info className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
+                            <p className="text-muted-foreground">No specific developer profiles were matched by the AI for this project at this time.</p>
+                        </div>
+                    )}
+                    </CardContent>
+                </Card>
+                )}
+            </>
         )}
 
-        {aiError && !isLoadingAIMatches && ( // Show AI error only if not currently loading AI
-             <Alert variant="destructive" className="my-6">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>AI Matchmaking Error</AlertTitle>
-                <AlertDescription>{aiError}</AlertDescription>
-            </Alert>
-        )}
-
-        {/* Display matches only if not loading AI, no AI error, and matches exist */}
-        {matches && !isLoadingAIMatches && !aiError && (
-          <Card className="shadow-lg">
+        {/* Client Views Applications */}
+        {isClientOwner && project.status === "Open" && (
+          <Card className="shadow-lg mt-8" id="applications">
             <CardHeader>
-              <CardTitle className="text-2xl">AI Developer Suggestions</CardTitle>
-              <CardDescription>Here are developer profiles our AI believes could be a good fit for your project.</CardDescription>
+              <CardTitle className="text-xl flex items-center">
+                <Users className="mr-2 h-5 w-5 text-primary" />
+                Project Applications ({isLoadingApplications ? <Loader2 className="h-4 w-4 animate-spin" /> : projectApplications.filter(app => app.status === 'pending').length} pending)
+              </CardTitle>
+              <CardDescription>Review developers who have applied for this project.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <h3 className="font-semibold mb-2 text-lg">AI Reasoning:</h3>
-                <p className="text-sm text-muted-foreground bg-muted p-4 rounded-md border whitespace-pre-wrap">{matches.reasoning || "No specific reasoning provided by AI."}</p>
-              </div>
-
-              <h3 className="font-semibold text-lg">Suggested Developer Profiles:</h3>
-              {matches.developerMatches && matches.developerMatches.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {matches.developerMatches.map((devProfileText, index) => (
-                     <DeveloperCard
-                      key={index}
-                      name={`Suggested Developer Profile ${index + 1}`}
-                      description={devProfileText}
-                      skills={project.requiredSkills || []}
-                      dataAiHint="developer profile abstract"
-                      matchQuality="Good Fit"
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                    <Info className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
-                    <p className="text-muted-foreground">No specific developer profiles were matched by the AI for this project at this time.</p>
-                </div>
-              )}
+            <CardContent>
+              {isLoadingApplications ? <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> :
+               applicationsError ? <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{applicationsError}</AlertDescription></Alert> :
+               projectApplications.length === 0 ? <p className="text-muted-foreground text-center py-4">No applications received yet.</p> :
+               (
+                 <div className="space-y-4">
+                   {projectApplications.map(app => (
+                     <Card key={app.id} className={app.status !== 'pending' ? 'opacity-70 bg-muted/50' : ''}>
+                       <CardHeader>
+                         <div className="flex justify-between items-start">
+                           <div>
+                            <CardTitle className="text-lg">{app.developerName}</CardTitle>
+                            <CardDescription>Applied: {app.appliedAt ? formatDistanceToNow(safeCreateDate(app.appliedAt) || new Date(0), { addSuffix: true }) : 'Unknown'}</CardDescription>
+                           </div>
+                           <ApplicationStatusBadge status={app.status} />
+                         </div>
+                       </CardHeader>
+                       <CardContent>
+                         {app.messageToClient && <p className="text-sm text-muted-foreground mb-3 p-3 bg-muted rounded-md whitespace-pre-wrap"><em>"{app.messageToClient}"</em></p>}
+                       </CardContent>
+                       <CardFooter className="gap-2">
+                         <Button variant="outline" size="sm" asChild>
+                           <Link href={`/developers/${app.developerId}`} target="_blank">
+                             <UserCheck className="mr-2 h-4 w-4" /> View Profile
+                           </Link>
+                         </Button>
+                         {app.status === 'pending' && project.status === "Open" && (
+                           <>
+                             <Button 
+                               variant="destructive" 
+                               size="sm" 
+                               onClick={() => handleUpdateApplication(app, 'rejected')}
+                               disabled={isProcessingApplication === app.id}
+                             >
+                               {isProcessingApplication === app.id && app.status === 'rejected' ? <Loader2 className="animate-spin mr-2" /> : <ThumbsDown className="mr-2 h-4 w-4" />}
+                               Reject
+                             </Button>
+                             <Button 
+                               variant="default" 
+                               size="sm" 
+                               onClick={() => handleUpdateApplication(app, 'accepted')}
+                               disabled={isProcessingApplication === app.id}
+                              >
+                               {isProcessingApplication === app.id && app.status === 'accepted' ? <Loader2 className="animate-spin mr-2" /> : <ThumbsUp className="mr-2 h-4 w-4" />}
+                               Accept
+                             </Button>
+                           </>
+                         )}
+                       </CardFooter>
+                     </Card>
+                   ))}
+                 </div>
+               )
+              }
             </CardContent>
           </Card>
         )}
+         {isClientOwner && project.status !== "Open" && projectApplications.length > 0 && (
+             <Card className="shadow-lg mt-8">
+                <CardHeader><CardTitle>Archived Applications</CardTitle></CardHeader>
+                <CardContent>
+                     <p className="text-muted-foreground text-sm">This project is no longer open for new applications.</p>
+                     <div className="space-y-4 mt-4">
+                       {projectApplications.map(app => (
+                         <Card key={app.id} className={'opacity-70 bg-muted/50'}>
+                           <CardHeader>
+                             <div className="flex justify-between items-start">
+                               <div>
+                                <CardTitle className="text-lg">{app.developerName}</CardTitle>
+                                <CardDescription>Applied: {app.appliedAt ? formatDistanceToNow(safeCreateDate(app.appliedAt) || new Date(0), { addSuffix: true }) : 'Unknown'}</CardDescription>
+                               </div>
+                               <ApplicationStatusBadge status={app.status} />
+                             </div>
+                           </CardHeader>
+                           <CardContent>
+                             {app.messageToClient && <p className="text-sm text-muted-foreground p-2 bg-background/50 rounded-sm"><em>"{app.messageToClient}"</em></p>}
+                           </CardContent>
+                            <CardFooter>
+                                <Button variant="outline" size="sm" asChild>
+                                <Link href={`/developers/${app.developerId}`} target="_blank">
+                                    <UserCheck className="mr-2 h-4 w-4" /> View Profile
+                                </Link>
+                                </Button>
+                            </CardFooter>
+                         </Card>
+                       ))}
+                     </div>
+                </CardContent>
+             </Card>
+         )}
+
       </div>
     </ProtectedPage>
   );
+}
+
+// Helper function (can be moved to utils if used elsewhere)
+function safeCreateDate(timestamp: any): Date | undefined {
+    if (!timestamp) return undefined;
+    if (timestamp instanceof Date) return timestamp;
+    if (timestamp instanceof Timestamp) return timestamp.toDate();
+    if (timestamp && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
+        return new Timestamp(timestamp.seconds, timestamp.nanoseconds).toDate();
+    }
+    return undefined;
 }
 
 
@@ -337,22 +591,22 @@ function ProjectStatusBadge({ status }: { status?: ProjectType["status"] }) {
   let currentStatus = status || "Unknown";
 
   if (currentStatus === "In Progress") {
-    bgColor = "bg-blue-500/20 text-blue-700 dark:bg-blue-300/20 dark:text-blue-300";
+    bgColor = "bg-blue-500/20 text-blue-700 dark:text-blue-300 dark:bg-blue-700/30";
     dotColor = "bg-blue-500 dark:bg-blue-400";
   } else if (currentStatus === "Open") {
-    bgColor = "bg-green-500/20 text-green-700 dark:bg-green-300/20 dark:text-green-300";
+    bgColor = "bg-green-500/20 text-green-700 dark:text-green-300 dark:bg-green-700/30";
     dotColor = "bg-green-500 dark:bg-green-400";
     icon = <Eye className="mr-1.5 h-3 w-3" />;
   } else if (currentStatus === "Completed") {
-    bgColor = "bg-purple-500/20 text-purple-700 dark:bg-purple-300/20 dark:text-purple-300";
+    bgColor = "bg-purple-500/20 text-purple-700 dark:text-purple-300 dark:bg-purple-700/30";
     dotColor = "bg-purple-500 dark:bg-purple-400";
     icon = <CheckCircle className="mr-1.5 h-3 w-3" />;
   } else if (currentStatus === "Cancelled") {
-    bgColor = "bg-red-500/20 text-red-700 dark:bg-red-300/20 dark:text-red-300";
+    bgColor = "bg-red-500/20 text-red-700 dark:text-red-300 dark:bg-red-700/30";
     dotColor = "bg-red-500 dark:bg-red-400";
     icon = <Info className="mr-1.5 h-3 w-3" />;
   } else { 
-     bgColor = "bg-gray-500/20 text-gray-700 dark:bg-gray-300/20 dark:text-gray-300";
+     bgColor = "bg-gray-500/20 text-gray-700 dark:text-gray-300 dark:bg-gray-700/30";
      dotColor = "bg-gray-500 dark:bg-gray-400";
      currentStatus = "Unknown"; 
   }
@@ -365,5 +619,35 @@ function ProjectStatusBadge({ status }: { status?: ProjectType["status"] }) {
       {icon}
       {currentStatus}
     </span>
+  );
+}
+
+function ApplicationStatusBadge({ status }: { status: ApplicationStatus }) {
+  let bgColor = "bg-muted text-muted-foreground";
+  let icon;
+
+  switch (status) {
+    case "pending":
+      bgColor = "bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-700/30";
+      icon = <Clock className="mr-1.5 h-3 w-3" />;
+      break;
+    case "accepted":
+      bgColor = "bg-green-500/20 text-green-700 dark:text-green-300 dark:bg-green-700/30";
+      icon = <CheckCircle className="mr-1.5 h-3 w-3" />;
+      break;
+    case "rejected":
+      bgColor = "bg-red-500/20 text-red-700 dark:text-red-300 dark:bg-red-700/30";
+      icon = <ThumbsDown className="mr-1.5 h-3 w-3" />;
+      break;
+    default:
+      bgColor = "bg-gray-500/20 text-gray-700 dark:text-gray-300 dark:bg-gray-700/30";
+      icon = <Info className="mr-1.5 h-3 w-3" />;
+  }
+
+  return (
+    <Badge variant="outline" className={`border-transparent ${bgColor}`}>
+      {icon}
+      {status.charAt(0).toUpperCase() + status.slice(1)}
+    </Badge>
   );
 }

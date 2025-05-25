@@ -33,7 +33,8 @@ import {
   ShieldCheck, 
   ShieldX,
   CheckSquare,
-  XSquare
+  XSquare,
+  UsersRound
 } from "lucide-react";
 import type { User as UserType, Project, AccountStatus } from "@/types";
 import Link from "next/link";
@@ -74,7 +75,7 @@ function AdminFeatureCard({ icon, title, description, link = "#", accentColor = 
 
 const adminFeatures: Omit<AdminFeatureCardProps, 'icon' | 'accentColor'>[] = [
   { title: "Smart Request Matching", description: "AI-connects clients to developers. (Future Feature)", link: "#" },
-  { title: "Developer Analytics", description: "Track performance, ratings, project history, and engagement metrics. (Future Feature)", link: "#" },
+  { title: "Developer Analytics", description: "Track performance, ratings, project history, and engagement metrics. (Placeholder)", link: "#" },
   { title: "Project Monitoring", description: "View ongoing, completed, and pending projects in real-time.", link: "#projects-section" },
   { title: "Request Manager", description: "Accept, reject, or assign service requests. (Future Feature)", link: "#" },
   { title: "Payment Control", description: "Monitor transactions, release payments, handle disputes. (Future Feature)", link: "#" },
@@ -150,9 +151,9 @@ export default function AdminPage() {
         details: { newFlagStatus: !currentStatus }
       });
       
-      const updatedUser = await getUserById(userIdToFlag); // Re-fetch to get the latest version
+      const updatedUser = await getUserById(userIdToFlag); 
       if (updatedUser) {
-        updateSingleUserInList(updatedUser); // Update AuthContext
+        updateSingleUserInList(updatedUser); 
       }
 
       toast({
@@ -185,9 +186,9 @@ export default function AdminPage() {
         targetName: userName,
         details: { newAccountStatus: newStatus }
       });
-      const updatedUser = await getUserById(userIdToUpdate); // Re-fetch to get the latest version
+      const updatedUser = await getUserById(userIdToUpdate); 
       if (updatedUser) {
-        updateSingleUserInList(updatedUser); // Update AuthContext
+        updateSingleUserInList(updatedUser); 
       }
       toast({
         title: "Account Status Updated",
@@ -265,8 +266,8 @@ export default function AdminPage() {
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle className="text-xl flex items-center">
-                <Briefcase className="mr-2 h-5 w-5 text-primary" />
-                Clients ({authLoading ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : clients.length})
+                <UsersRound className="mr-2 h-5 w-5 text-primary" />
+                Clients ({authLoading && clients.length === 0 ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : clients.length})
               </CardTitle>
               <CardDescription>List of all registered clients from Firestore. Sorted by join date.</CardDescription>
             </CardHeader>
@@ -281,7 +282,7 @@ export default function AdminPage() {
             <CardHeader>
               <CardTitle className="text-xl flex items-center">
                 <User className="mr-2 h-5 w-5 text-primary" />
-                Developers ({authLoading ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : developers.length})
+                Developers ({authLoading && developers.length === 0 ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : developers.length})
               </CardTitle>
               <CardDescription>List of all registered developers from Firestore. Sorted by join date.</CardDescription>
             </CardHeader>
@@ -298,7 +299,7 @@ export default function AdminPage() {
             <CardHeader>
               <CardTitle className="text-xl flex items-center">
                 <FileText className="mr-2 h-5 w-5 text-primary" />
-                All Projects ({isLoadingProjects ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : projects.length})
+                All Projects ({isLoadingProjects && projects.length === 0 ? <Loader2 className="h-4 w-4 animate-spin inline-block ml-1" /> : projects.length})
               </CardTitle>
               <CardDescription>Overview of all projects on the platform from Firestore.</CardDescription>
             </CardHeader>
@@ -353,7 +354,7 @@ function UserTable({ users, onToggleFlag, onUpdateStatus, isTogglingFlagId, isUp
             <TableHead>Status</TableHead>
             <TableHead>Flagged</TableHead>
             <TableHead>Joined</TableHead>
-            {users.length > 0 && users[0]?.role === 'developer' && <TableHead>Skills</TableHead>}
+            <TableHead>Skills</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -376,13 +377,11 @@ function UserTable({ users, onToggleFlag, onUpdateStatus, isTogglingFlagId, isUp
               <TableCell className="whitespace-nowrap">
                 {user.createdAt ? format(user.createdAt instanceof Date ? user.createdAt : new Date((user.createdAt as any).seconds * 1000), "PP") : 'N/A'}
               </TableCell>
-              {user.role === 'developer' && (
-                <TableCell className="min-w-[150px] max-w-[300px] truncate">
-                  {user.skills && user.skills.length > 0 
-                    ? user.skills.join(", ") 
-                    : <span className="text-muted-foreground italic">No skills</span>}
-                </TableCell>
-              )}
+              <TableCell className="min-w-[150px] max-w-[300px]">
+                {user.role === 'developer' && user.skills && user.skills.length > 0 
+                  ? user.skills.slice(0, 3).join(", ") + (user.skills.length > 3 ? `... (+${user.skills.length - 3})` : "")
+                  : <span className="text-muted-foreground italic">No skills</span>}
+              </TableCell>
               <TableCell className="text-right whitespace-nowrap space-x-2">
                 {user.role === 'developer' && user.accountStatus === 'pending_approval' && (
                   <>
@@ -390,7 +389,7 @@ function UserTable({ users, onToggleFlag, onUpdateStatus, isTogglingFlagId, isUp
                       variant="outline"
                       size="sm"
                       className="border-green-500 text-green-600 hover:bg-green-500/10"
-                      onClick={() => onUpdateStatus(user.id, 'active', user.email, user.name)}
+                      onClick={() => onUpdateStatus(user.id, 'active', user.email, user.name || 'Developer')}
                       disabled={isUpdatingStatusId === user.id}
                       aria-label={`Approve developer ${user.name}`}
                     >
@@ -401,7 +400,7 @@ function UserTable({ users, onToggleFlag, onUpdateStatus, isTogglingFlagId, isUp
                       variant="outline"
                       size="sm"
                        className="border-destructive text-destructive hover:bg-destructive/10"
-                      onClick={() => onUpdateStatus(user.id, 'rejected', user.email, user.name)}
+                      onClick={() => onUpdateStatus(user.id, 'rejected', user.email, user.name || 'Developer')}
                       disabled={isUpdatingStatusId === user.id}
                       aria-label={`Reject developer ${user.name}`}
                     >
@@ -456,6 +455,7 @@ function ProjectTable({ projects, allUsers }: ProjectTableProps) {
             <TableHead>Project Name</TableHead>
             <TableHead>Client</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Assigned Developer</TableHead>
             <TableHead>Created</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
@@ -471,6 +471,9 @@ function ProjectTable({ projects, allUsers }: ProjectTableProps) {
               <TableCell>
                 <ProjectStatusBadge status={project.status} />
               </TableCell>
+              <TableCell className="whitespace-nowrap">
+                {project.assignedDeveloperName || <span className="text-muted-foreground italic">Not assigned</span>}
+              </TableCell>
                <TableCell className="whitespace-nowrap">
                  {project.createdAt ? formatDistanceToNow(project.createdAt instanceof Date ? project.createdAt : new Date( (project.createdAt as any).seconds * 1000 ), { addSuffix: true }) : 'N/A'}
               </TableCell>
@@ -478,7 +481,7 @@ function ProjectTable({ projects, allUsers }: ProjectTableProps) {
                 <Button variant="outline" size="sm" asChild>
                   <Link href={`/projects/${project.id}/matchmaking`}> 
                     <Eye className="mr-2 h-4 w-4" />
-                    View
+                    View/Manage
                   </Link>
                 </Button>
               </TableCell>
@@ -497,22 +500,22 @@ function ProjectStatusBadge({ status }: { status?: Project["status"] }) {
   let currentStatus = status || "Unknown";
 
   if (currentStatus === "In Progress") {
-    bgColor = "bg-blue-500/20 text-blue-700 dark:bg-blue-300/20 dark:text-blue-300";
+    bgColor = "bg-blue-500/20 text-blue-700 dark:text-blue-300 dark:bg-blue-700/30";
     dotColor = "bg-blue-500 dark:bg-blue-400";
   } else if (currentStatus === "Open") {
-    bgColor = "bg-green-500/20 text-green-700 dark:bg-green-300/20 dark:text-green-300";
+    bgColor = "bg-green-500/20 text-green-700 dark:text-green-300 dark:bg-green-700/30";
     dotColor = "bg-green-500 dark:bg-green-400";
     icon = <Eye className="mr-1.5 h-3 w-3" />;
   } else if (currentStatus === "Completed") {
-    bgColor = "bg-purple-500/20 text-purple-700 dark:bg-purple-300/20 dark:text-purple-300";
+    bgColor = "bg-purple-500/20 text-purple-700 dark:text-purple-300 dark:bg-purple-700/30";
     dotColor = "bg-purple-500 dark:bg-purple-400";
     icon = <CheckCircle className="mr-1.5 h-3 w-3" />;
   } else if (currentStatus === "Cancelled") {
-    bgColor = "bg-red-500/20 text-red-700 dark:bg-red-300/20 dark:text-red-300";
+    bgColor = "bg-red-500/20 text-red-700 dark:text-red-300 dark:bg-red-700/30";
     dotColor = "bg-red-500 dark:bg-red-400";
     icon = <Info className="mr-1.5 h-3 w-3" />;
-  } else { // Unknown
-     bgColor = "bg-gray-500/20 text-gray-700 dark:bg-gray-300/20 dark:text-gray-300";
+  } else { 
+     bgColor = "bg-gray-500/20 text-gray-700 dark:text-gray-300 dark:bg-gray-700/30";
      dotColor = "bg-gray-500 dark:bg-gray-400";
      currentStatus = "Unknown";
   }
@@ -537,19 +540,19 @@ function AccountStatusBadge({ status }: { status?: UserType["accountStatus"] }) 
 
 
   if (currentStatus === "active") {
-    bgColor = "bg-green-500/20 text-green-700 dark:bg-green-300/20 dark:text-green-300";
+    bgColor = "bg-green-500/20 text-green-700 dark:text-green-300 dark:bg-green-700/30";
     icon = <CheckCircle className="mr-1.5 h-3 w-3" />;
   } else if (currentStatus === "pending_approval") {
-    bgColor = "bg-yellow-500/20 text-yellow-700 dark:bg-yellow-300/20 dark:text-yellow-300";
+    bgColor = "bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-700/30";
     icon = <Clock className="mr-1.5 h-3 w-3" />;
   } else if (currentStatus === "rejected") {
-    bgColor = "bg-red-500/20 text-red-700 dark:bg-red-300/20 dark:text-red-300";
+    bgColor = "bg-red-500/20 text-red-700 dark:text-red-300 dark:bg-red-700/30";
     icon = <XSquare className="mr-1.5 h-3 w-3" />;
   } else if (currentStatus === "suspended") {
-    bgColor = "bg-orange-500/20 text-orange-700 dark:bg-orange-300/20 dark:text-orange-300";
+    bgColor = "bg-orange-500/20 text-orange-700 dark:text-orange-300 dark:bg-orange-700/30";
     icon = <ShieldAlert className="mr-1.5 h-3 w-3" />;
   } else { 
-     bgColor = "bg-gray-500/20 text-gray-700 dark:bg-gray-300/20 dark:text-gray-300";
+     bgColor = "bg-gray-500/20 text-gray-700 dark:text-gray-300 dark:bg-gray-700/30";
      icon = <Info className="mr-1.5 h-3 w-3" />;
      capitalizedStatus = "Unknown";
   }
@@ -561,3 +564,4 @@ function AccountStatusBadge({ status }: { status?: UserType["accountStatus"] }) 
     </Badge>
   );
 }
+

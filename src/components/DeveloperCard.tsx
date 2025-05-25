@@ -47,11 +47,13 @@ export function DeveloperCard({
     return nameStr.substring(0, 2).toUpperCase();
   };
 
+  const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Dev')}&background=random&size=100`;
+
   return (
     <Card className="shadow-md hover:shadow-lg transition-shadow duration-200 flex flex-col">
       <CardHeader className="flex flex-row items-start gap-4 pb-3">
         <Avatar className="h-12 w-12 flex-shrink-0">
-          <AvatarImage src={avatarUrl || `https://placehold.co/100x100.png`} alt={name} data-ai-hint={dataAiHint || "developer portrait"} />
+          <AvatarImage src={avatarUrl || defaultAvatar} alt={name} data-ai-hint={dataAiHint || "developer portrait"} />
           <AvatarFallback>{getInitials(name)}</AvatarFallback>
         </Avatar>
         <div className="flex-grow">
@@ -62,10 +64,10 @@ export function DeveloperCard({
               {experienceLevel}
             </CardDescription>
           )}
-          {hourlyRate !== undefined && hourlyRate > 0 && (
+          {hourlyRate !== undefined && hourlyRate >= 0 && ( // Show if 0 or more
             <CardDescription className="text-xs flex items-center text-primary font-medium">
               <DollarSign className="h-3 w-3 mr-1" />
-              {hourlyRate}/hr
+              ${hourlyRate}/hr
             </CardDescription>
           )}
         </div>
@@ -76,16 +78,16 @@ export function DeveloperCard({
         )}
       </CardHeader>
       <CardContent className="space-y-3 flex-grow pt-0">
-        <p className="text-sm text-muted-foreground line-clamp-3">{description}</p>
+        <p className="text-sm text-muted-foreground line-clamp-3">{description || "No bio provided."}</p>
 
         {skills && skills.length > 0 && (
           <div>
             <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Skills</h4>
             <div className="flex flex-wrap gap-1">
-              {skills.slice(0, 5).map((skill, index) => (
+              {skills.slice(0, 3).map((skill, index) => ( // Show 3 skills initially
                 <Badge key={index} variant="secondary" className="text-xs">{skill}</Badge>
               ))}
-              {skills.length > 5 && <Badge variant="outline" className="text-xs">+{skills.length - 5} more</Badge>}
+              {skills.length > 3 && <Badge variant="outline" className="text-xs">+{skills.length - 3} more</Badge>}
             </div>
           </div>
         )}
@@ -122,11 +124,11 @@ export function DeveloperCard({
       <CardFooter className="gap-2">
         {developerId ? (
             <Button variant="default" className="flex-1" asChild>
-                <Link href={`/admin/users/${developerId}`}>
+                <Link href={`/developers/${developerId}`}>
                     <Eye className="mr-2 h-4 w-4" /> View Profile
                 </Link>
             </Button>
-        ) : (
+        ) : ( // This case should ideally not happen if used for AI suggestions without an ID
             <Button variant="default" className="flex-1" disabled>
                 <Eye className="mr-2 h-4 w-4" /> View Profile (N/A)
             </Button>

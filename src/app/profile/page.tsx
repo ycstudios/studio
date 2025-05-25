@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
@@ -68,13 +69,13 @@ export default function ProfilePage() {
   }, []);
   
   const defaultAvatarPlaceholder = useCallback((nameForInitials?: string) => {
-    return `https://placehold.co/100x100.png?text=${getInitials(nameForInitials)}`;
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(getInitials(nameForInitials))}&background=random&size=100`;
   }, [getInitials]);
 
 
   const populateFormFields = useCallback((userData: User | Partial<User>) => {
     setName(userData.name || "");
-    setEmail(userData.email || ""); // Should come from authUser, not editable
+    setEmail(userData.email || ""); 
     setBio(userData.bio || (userData.role === 'developer' ? "Skilled developer ready for new challenges." : "Client looking for expert developers."));
     setSkills(userData.skills?.join(", ") || "");
     const avatarToDisplay = userData.avatarUrl || defaultAvatarPlaceholder(userData.name);
@@ -95,8 +96,8 @@ export default function ProfilePage() {
     try {
       const fetchedUser = await getUserById(authUser.id);
       if (fetchedUser) {
-        setInitialData(fetchedUser); // Store fetched data as initial state
-        populateFormFields(fetchedUser); // Populate form with fetched data
+        setInitialData(fetchedUser); 
+        populateFormFields(fetchedUser); 
       } else {
         setFetchError("Could not load your profile data. It might be missing or an error occurred.");
       }
@@ -119,10 +120,8 @@ export default function ProfilePage() {
 
   const handleEditToggle = () => {
     if (isEditing) {
-      // Revert to initial data on cancel
       populateFormFields(initialData);
     } else {
-      // When entering edit mode, set the newAvatarUrlInput to current initial, or empty if it's the default
       setNewAvatarUrlInput(initialData.avatarUrl && initialData.avatarUrl !== defaultAvatarPlaceholder(initialData.name) ? initialData.avatarUrl : "");
     }
     setIsEditing(!isEditing);
@@ -139,7 +138,7 @@ export default function ProfilePage() {
     }
 
     setIsSaving(true);
-    setFetchError(null); // Clear previous errors
+    setFetchError(null); 
 
     let finalAvatarUrl = newAvatarUrlInput.trim();
     if (finalAvatarUrl && !finalAvatarUrl.startsWith('http://') && !finalAvatarUrl.startsWith('https://')) {
@@ -154,15 +153,15 @@ export default function ProfilePage() {
     const skillsArray = authUser.role === 'developer' ? skills.split(",").map(s => s.trim()).filter(s => s.length > 0) : undefined;
     const portfolioUrlsArray = authUser.role === 'developer' ? portfolioUrls.split(",").map(url => url.trim()).filter(url => url.length > 0 && (url.startsWith('http://') || url.startsWith('https://'))) : undefined;
     
-    const hourlyRateNum = hourlyRate.trim() === '' ? undefined : parseFloat(hourlyRate);
-    if (authUser.role === 'developer' && hourlyRate.trim() !== '' && (isNaN(hourlyRateNum!) || hourlyRateNum! < 0)) {
+    const hourlyRateNum = (hourlyRate.trim() === '' || isNaN(parseFloat(hourlyRate))) ? undefined : parseFloat(hourlyRate);
+    if (authUser.role === 'developer' && hourlyRate.trim() !== '' && (hourlyRateNum === undefined || hourlyRateNum < 0)) {
         toast({ title: "Invalid Hourly Rate", description: "Hourly rate must be a positive number or empty.", variant: "destructive"});
         setIsSaving(false);
         return;
     }
     
-    const trimmedResumeUrl = authUser.role === 'developer' ? resumeFileUrl.trim() : undefined;
-    if (trimmedResumeUrl && !trimmedResumeUrl.startsWith('http://') && !trimmedResumeUrl.startsWith('https://')) {
+    const trimmedResumeUrl = resumeFileUrl.trim();
+    if (authUser.role === 'developer' && trimmedResumeUrl && !trimmedResumeUrl.startsWith('http://') && !trimmedResumeUrl.startsWith('https://')) {
         toast({ title: "Invalid Resume URL", description: "Resume URL must be a valid URL (http:// or https://) or empty.", variant: "destructive" });
         setIsSaving(false);
         return;
@@ -175,18 +174,18 @@ export default function ProfilePage() {
     const updatedData: Partial<Omit<User, 'id' | 'createdAt' | 'email' | 'role'>> = {
       name: name.trim(),
       bio: trimmedBio ? trimmedBio : deleteField() as any,
-      avatarUrl: finalAvatarUrl,
+      avatarUrl: (finalAvatarUrl && finalAvatarUrl !== defaultAvatarPlaceholder(name.trim())) ? finalAvatarUrl : deleteField() as any,
     };
 
     if (authUser.role === 'developer') {
-      updatedData.skills = skillsArray;
-      updatedData.portfolioUrls = portfolioUrlsArray;
+      updatedData.skills = skillsArray && skillsArray.length > 0 ? skillsArray : deleteField() as any;
+      updatedData.portfolioUrls = portfolioUrlsArray && portfolioUrlsArray.length > 0 ? portfolioUrlsArray : deleteField() as any;
       updatedData.experienceLevel = experienceLevel || ''; 
-      updatedData.hourlyRate = hourlyRateNum === undefined ? deleteField() as any : hourlyRateNum;
+      updatedData.hourlyRate = hourlyRateNum !== undefined ? hourlyRateNum : deleteField() as any;
       updatedData.resumeFileUrl = trimmedResumeUrl ? trimmedResumeUrl : deleteField() as any;
       updatedData.resumeFileName = trimmedResumeFileName ? trimmedResumeFileName : deleteField() as any;
       updatedData.pastProjects = trimmedPastProjects ? trimmedPastProjects : deleteField() as any;
-    } else { // For non-developers, ensure these fields are removed if they somehow exist
+    } else { 
       updatedData.skills = deleteField() as any;
       updatedData.portfolioUrls = deleteField() as any;
       updatedData.experienceLevel = deleteField() as any;
@@ -198,38 +197,19 @@ export default function ProfilePage() {
 
     try {
       await updateUser(authUser.id, updatedData);
-
-      // Update AuthContext user and initialData state for this page
-      const refreshedUserData = await getUserById(authUser.id);
+      
+      const refreshedUserData = await getUserById(authUser.id); // Re-fetch to get the most current state including server-generated fields
       if (refreshedUserData) {
         updateAuthContextUser(refreshedUserData);
         setInitialData(refreshedUserData);
         populateFormFields(refreshedUserData);
-      } else {
-        // Fallback if user couldn't be re-fetched, update with what we have
-         const updatedAuthUserContextData: User = {
-            ...authUser,
-            name: updatedData.name || authUser.name,
-            bio: trimmedBio || undefined, 
-            avatarUrl: finalAvatarUrl || authUser.avatarUrl,
-            skills: authUser.role === 'developer' ? skillsArray : authUser.skills,
-            portfolioUrls: authUser.role === 'developer' ? portfolioUrlsArray : authUser.portfolioUrls,
-            experienceLevel: authUser.role === 'developer' ? (experienceLevel || '') : authUser.experienceLevel,
-            hourlyRate: authUser.role === 'developer' ? hourlyRateNum : authUser.hourlyRate,
-            resumeFileUrl: authUser.role === 'developer' ? (trimmedResumeUrl || undefined) : authUser.resumeFileUrl,
-            resumeFileName: authUser.role === 'developer' ? (trimmedResumeFileName || undefined) : authUser.resumeFileName,
-            pastProjects: authUser.role === 'developer' ? (trimmedPastProjects || undefined) : authUser.pastProjects,
-        };
-        updateAuthContextUser(updatedAuthUserContextData);
-        setInitialData(updatedAuthUserContextData);
-        populateFormFields(updatedAuthUserContextData);
       }
       
       setIsEditing(false);
       toast({ title: "Profile Updated", description: "Your changes have been saved." });
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : "Failed to save profile changes.";
-      setFetchError(errorMsg); // Display error more prominently
+      setFetchError(errorMsg); 
       toast({ title: "Save Error", description: errorMsg, variant: "destructive" });
     } finally {
       setIsSaving(false);
@@ -255,7 +235,7 @@ export default function ProfilePage() {
     );
   }
 
-  if (fetchError && !isEditing) { // Show fetch error only if not in edit mode (to avoid overriding save errors)
+  if (fetchError && !isEditing) { 
      return (
       <ProtectedPage>
         <div className="container mx-auto p-4 md:p-6 lg:p-8">
@@ -273,7 +253,7 @@ export default function ProfilePage() {
   
   if (!authUser) {
      return (
-      <ProtectedPage> {/* This will handle redirect to login if authUser is truly null after loading */}
+      <ProtectedPage> 
         <div className="container mx-auto p-4 md:p-6 lg:p-8 text-center">
             <p className="text-muted-foreground">User not authenticated.</p>
         </div>
@@ -281,7 +261,6 @@ export default function ProfilePage() {
     );
   }
 
-  // Determine if there are actual changes to save
   const hasChanges = isEditing && (
     name.trim() !== (initialData.name || "") ||
     (newAvatarUrlInput.trim() || defaultAvatarPlaceholder(name.trim())) !== (initialData.avatarUrl || defaultAvatarPlaceholder(initialData.name)) ||
@@ -291,9 +270,9 @@ export default function ProfilePage() {
       portfolioUrls !== (initialData.portfolioUrls?.join(", ") || "") ||
       experienceLevel !== (initialData.experienceLevel || '') ||
       (hourlyRate.trim() === '' ? undefined : parseFloat(hourlyRate)) !== initialData.hourlyRate ||
-      resumeFileUrl !== (initialData.resumeFileUrl || "") ||
-      resumeFileName !== (initialData.resumeFileName || "") ||
-      pastProjects !== (initialData.pastProjects || "")
+      resumeFileUrl.trim() !== (initialData.resumeFileUrl || "") ||
+      resumeFileName.trim() !== (initialData.resumeFileName || "") ||
+      pastProjects.trim() !== (initialData.pastProjects || "")
     ))
   );
 
@@ -317,7 +296,7 @@ export default function ProfilePage() {
           </Button>
         </header>
 
-        {fetchError && isEditing && ( // Display save errors when in edit mode
+        {fetchError && isEditing && ( 
              <Alert variant="destructive" className="mb-6">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Save Error</AlertTitle>
@@ -485,6 +464,7 @@ export default function ProfilePage() {
                     ) : (
                        <p className="text-lg font-medium p-2 border rounded-md bg-muted/30 min-h-[40px]">{initialData.resumeFileName || (initialData.resumeFileUrl ? <span className="italic text-muted-foreground">Using URL as name</span> : <span className="italic text-muted-foreground">Not set</span>)}</p>
                     )}
+                     {isEditing && <p className="text-xs text-muted-foreground mt-1">Provide a display name for your resume link.</p>}
                   </div>
 
                    <div>
@@ -549,3 +529,4 @@ export default function ProfilePage() {
     </ProtectedPage>
   );
 }
+

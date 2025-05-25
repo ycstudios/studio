@@ -1,8 +1,11 @@
 
+// src/types/index.ts
 import type { Timestamp } from "firebase/firestore";
 
 export type UserRole = "client" | "developer" | "admin";
 export type AccountStatus = 'active' | 'pending_approval' | 'suspended' | 'rejected';
+export type ProjectStatus = "Open" | "In Progress" | "Completed" | "Cancelled" | "Unknown";
+export type ApplicationStatus = "pending" | "accepted" | "rejected";
 
 export interface User {
   id: string;
@@ -12,9 +15,12 @@ export interface User {
   avatarUrl?: string;
   bio?: string;
   skills?: string[];
-  portfolioUrls?: string[];
   experienceLevel?: 'Entry' | 'Junior' | 'Mid-level' | 'Senior' | 'Lead' | 'Principal' | '';
   hourlyRate?: number;
+  portfolioUrls?: string[];
+  resumeFileUrl?: string;
+  resumeFileName?: string;
+  pastProjects?: string;
   createdAt?: Date | Timestamp;
   referralCode?: string;
   referredByCode?: string;
@@ -22,9 +28,6 @@ export interface User {
   planPrice?: string;
   isFlagged?: boolean;
   accountStatus: AccountStatus;
-  resumeFileUrl?: string;
-  resumeFileName?: string;
-  pastProjects?: string;
 }
 
 export interface Project {
@@ -35,8 +38,24 @@ export interface Project {
   requiredSkills: string[];
   availability: string;
   timeZone: string;
-  status: "Open" | "In Progress" | "Completed" | "Cancelled" | "Unknown";
+  status: ProjectStatus;
   createdAt: Date | Timestamp;
+  assignedDeveloperId?: string;
+  assignedDeveloperName?: string;
+}
+
+export interface ProjectApplication {
+  id: string; // Firestore document ID
+  projectId: string;
+  projectName: string; // Denormalized
+  developerId: string;
+  developerName: string; // Denormalized
+  developerEmail: string; // Denormalized
+  status: ApplicationStatus;
+  appliedAt: Timestamp;
+  messageToClient?: string; // Optional message from developer
+  clientNotifiedOfNewApplication?: boolean;
+  developerNotifiedOfStatus?: boolean;
 }
 
 export interface DeveloperMatch {
@@ -60,14 +79,14 @@ export interface MatchDevelopersOutput {
 // New: For Admin Activity Logs
 export interface AdminActivityLog {
   id?: string; // Firestore document ID
-  adminId: string; // ID of the admin who performed the action
-  adminName?: string; // Optional: Name of the admin (denormalized for easier display)
-  action: string; // e.g., "USER_FLAGGED", "USER_UNFLAGGED", "PROJECT_STATUS_CHANGED", "DEVELOPER_APPROVED", "DEVELOPER_REJECTED"
-  targetType: "user" | "project" | "system" | "quick_request";
-  targetId: string; // ID of the user/project affected, or client email for quick request
-  targetName?: string; // Optional: Name of the user/project (denormalized)
+  adminId: string; // ID of the admin who performed the action (or system/client ID for app events)
+  adminName?: string; // Optional: Name of the admin/user (denormalized for easier display)
+  action: string; // e.g., "USER_FLAGGED", "PROJECT_APPLICATION_ACCEPTED", "PROJECT_APPLICATION_REJECTED"
+  targetType: "user" | "project" | "system" | "quick_request" | "project_application";
+  targetId: string; // ID of the user/project/application affected
+  targetName?: string; // Optional: Name of the user/project/application (denormalized)
   timestamp: Timestamp;
-  details?: Record<string, any>; // Any additional relevant information (e.g., old_status, new_status)
+  details?: Record<string, any>; // Any additional relevant information
 }
 
 // For Quick Service Request Form
