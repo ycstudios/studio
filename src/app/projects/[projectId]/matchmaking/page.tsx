@@ -21,13 +21,9 @@ import {
   updateProjectApplicationStatus,
   assignDeveloperToProject,
   rejectOtherPendingApplications,
-  addAdminActivityLog
+  addAdminActivityLog,
+  PROJECT_APPLICATIONS_COLLECTION // Import this
 } from "@/lib/firebaseService";
-import {
-  sendEmail,
-  getApplicationAcceptedEmailToDeveloper,
-  getApplicationRejectedEmailToDeveloper
-} from "@/lib/emailService";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, formatDistanceToNow } from 'date-fns';
 import Link from "next/link";
@@ -35,6 +31,9 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Timestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase"; // Import db
+import { doc, updateDoc } from "firebase/firestore";
+
 
 export default function ProjectMatchmakingPage() {
   const params = useParams();
@@ -153,13 +152,12 @@ export default function ProjectMatchmakingPage() {
     fetchProjectData();
   }, [fetchProjectData]);
 
-  useEffect(() => {
-    const manageApplications = async () => {
+  const manageApplications = useCallback(async () => {
       if (user && project?.id) {
         if (user.role === 'developer') {
           console.log(`[MatchmakingPage] manageApplications: Developer ${user.id} viewing project ${project.id}. Checking applications.`);
           setIsLoadingApplications(true);
-          setHasApplied(false); // Reset before checking
+          setHasApplied(false); 
           try {
             const existingApplications = await getApplicationsByDeveloperForProject(user.id, project.id);
             if (existingApplications.length > 0) {
@@ -188,9 +186,11 @@ export default function ProjectMatchmakingPage() {
           }
         }
       }
-    };
+    }, [user, project]);
+
+  useEffect(() => {
     manageApplications();
-  }, [user, project]);
+  }, [manageApplications]);
 
 
   useEffect(() => {
@@ -217,7 +217,6 @@ export default function ProjectMatchmakingPage() {
         developerId: user.id,
         developerName: user.name || "Unknown Developer",
         developerEmail: user.email,
-        // TODO: Consider adding a modal here for a custom message
         messageToClient: `I am interested in discussing project "${project.name}" further. My skills align well with the requirements.`
       };
       await addProjectApplication(applicationData);
@@ -226,6 +225,10 @@ export default function ProjectMatchmakingPage() {
         title: "Application Submitted!",
         description: "Your interest in this project has been noted. The project owner will be informed.",
       });
+      // Re-fetch applications if the client is viewing, though less critical here
+      if (user.id === project.clientId) {
+        manageApplications();
+      }
     } catch (error) {
       console.error("[MatchmakingPage] handleApplyForProject: Error submitting application:", error);
       const errorMsg = error instanceof Error ? error.message : "Could not submit application.";
@@ -240,34 +243,36 @@ export default function ProjectMatchmakingPage() {
       toast({ title: "Unauthorized", description: "Only the project owner can manage applications.", variant: "destructive" });
       return;
     }
-    if (!project.name) { // Check for project.name
+    if (!project.name) { 
         toast({ title: "Project Error", description: "Project name is missing, cannot proceed.", variant: "destructive" });
+        return;
+    }
+    if (!application.developerEmail || !application.developerName) {
+        toast({ title: "Application Error", description: "Developer details missing in application.", variant: "destructive" });
         return;
     }
     setIsProcessingApplication(application.id);
     try {
-      await updateProjectApplicationStatus(application.id, newStatus, user.id, user.name);
-
-      const developer = await getUserById(application.developerId);
-      if (!developer) throw new Error("Developer not found for notification.");
+      await updateProjectApplicationStatus(application.id, newStatus, user.id, user.name || "Client");
 
       if (newStatus === 'accepted') {
-        await assignDeveloperToProject(project.id, application.developerId, application.developerName, user.id, user.name);
-        await rejectOtherPendingApplications(project.id, application.id, user.id, user.name); // This will now also send emails
-
-        const emailHtml = await getApplicationAcceptedEmailToDeveloper(application.developerName, project.name, project.id);
-        await sendEmail(application.developerEmail, `Application Accepted for "${project.name}"!`, emailHtml);
-        await updateDoc(doc(db, PROJECT_APPLICATIONS_COLLECTION, application.id), { developerNotifiedOfStatus: true });
-
-
-        const updatedProject = await getProjectById(project.id);
-        if (updatedProject) setProject(updatedProject);
+        await assignDeveloperToProject(project.id, application.id, application.developerId, application.developerName, application.developerEmail, user.id, user.name || "Client");
+        await rejectOtherPendingApplications(project.id, application.id, user.id, user.name || "Client");
       } else if (newStatus === 'rejected') {
+         // Email for rejection is handled by rejectOtherPendingApplications or if this is the only one
+         // The direct rejection also needs an email.
         const emailHtml = await getApplicationRejectedEmailToDeveloper(application.developerName, project.name, project.id);
         await sendEmail(application.developerEmail, `Update on Your Application for "${project.name}"`, emailHtml);
-        await updateDoc(doc(db, PROJECT_APPLICATIONS_COLLECTION, application.id), { developerNotifiedOfStatus: true });
+        if(db) { // Ensure db is defined
+          await updateDoc(doc(db, PROJECT_APPLICATIONS_COLLECTION, application.id), { developerNotifiedOfStatus: true });
+        } else {
+          console.error("[MatchmakingPage] Firestore DB not available, cannot update developerNotifiedOfStatus for rejected application (direct).");
+        }
       }
 
+      const updatedProject = await getProjectById(project.id);
+      if (updatedProject) setProject(updatedProject);
+      
       const apps = await getApplicationsByProjectId(project.id);
       setProjectApplications(apps);
 
@@ -536,7 +541,7 @@ export default function ProjectMatchmakingPage() {
                                     disabled={isProcessingApplication === app.id}
                                   >
                                     {isProcessingApplication === app.id ? <Loader2 className="animate-spin mr-2" /> : <ThumbsUp className="mr-2 h-4 w-4" />}
-                                    Approve
+                                    Accept
                                   </Button>
                                 </>
                               )}
@@ -600,7 +605,6 @@ function safeCreateDate(timestamp: any): Date | undefined {
     const date = new Date(timestamp);
     if (!isNaN(date.getTime())) return date;
   }
-  console.warn("[safeCreateDate] encountered an unknown or invalid timestamp format:", timestamp);
   return undefined;
 }
 
@@ -672,10 +676,3 @@ function ApplicationStatusBadge({ status }: { status: ApplicationStatus }) {
     </Badge>
   );
 }
-
-// Helper for Firestore interactions within this component
-import { doc, updateDoc } from "firebase/firestore";
-import { db, PROJECT_APPLICATIONS_COLLECTION } from "@/lib/firebase"; // Assuming PROJECT_APPLICATIONS_COLLECTION is exported from firebase.ts or defined similarly
-
-
-    
