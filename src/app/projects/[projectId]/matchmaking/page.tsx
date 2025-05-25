@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Info, AlertTriangle, ArrowLeft, Search, Eye, CheckCircle, Clock, UserCheck, Send, Users, MessageSquare, ThumbsUp, ThumbsDown, FileSignature, UsersRound } from "lucide-react";
+import { Loader2, Info, AlertTriangle, ArrowLeft, Search, Eye, CheckCircle, Clock, UserCheck, Send, UsersRound, ThumbsUp, ThumbsDown, FileSignature } from "lucide-react";
 import { matchDevelopers, type MatchDevelopersInput, type MatchDevelopersOutput } from "@/ai/flows/match-developers";
 import type { Project as ProjectType, User as UserType, ProjectApplication, ApplicationStatus } from "@/types";
 import {
@@ -21,12 +21,15 @@ import {
   assignDeveloperToProject,
   rejectOtherPendingApplications,
 } from "@/lib/firebaseService";
-import { getApplicationRejectedEmailToDeveloper, sendEmail } from "@/lib/emailService";
+import { getApplicationRejectedEmailToDeveloper, getNewProjectApplicationEmailToClient, sendEmail, getApplicationAcceptedEmailToDeveloper } from "@/lib/emailService";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, formatDistanceToNow } from 'date-fns';
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Timestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { doc, updateDoc } from "firebase/firestore";
+import { PROJECT_APPLICATIONS_COLLECTION } from "@/lib/firebaseService";
 
 
 export default function ProjectMatchmakingPage() {
@@ -152,7 +155,7 @@ export default function ProjectMatchmakingPage() {
 
     if (user.role === 'developer') {
       console.log(`[MatchmakingPage] manageApplications: Developer ${user.id} viewing project ${project.id}. Checking applications.`);
-      setIsLoadingApplications(true); // Set loading true when starting to check
+      setIsLoadingApplications(true);
       setHasApplied(false);
       try {
         const existingApplications = await getApplicationsByDeveloperForProject(user.id, project.id);
@@ -162,11 +165,11 @@ export default function ProjectMatchmakingPage() {
         }
       } catch (error) {
         console.error("[MatchmakingPage] manageApplications: Error checking existing developer applications:", error);
-        // Optionally set an error state here if needed
       } finally {
-        setIsLoadingApplications(false); // Set loading false when done
+        setIsLoadingApplications(false);
       }
-    } else if (user.id === project.clientId || user.role === 'admin') {
+    } else if (user.role === 'admin' || user.id === project.clientId) { 
+      // Reordered condition to potentially help TS inference
       console.log(`[MatchmakingPage] manageApplications: Client/Admin ${user.id} viewing project ${project.id}. Fetching applications.`);
       setIsLoadingApplications(true);
       setApplicationsError(null);
@@ -185,7 +188,7 @@ export default function ProjectMatchmakingPage() {
   }, [user, project]);
 
   useEffect(() => {
-    if (project && user) { // Only run if project and user are loaded
+    if (project && user) { 
       manageApplications();
     }
   }, [project, user, manageApplications]);
@@ -227,7 +230,8 @@ export default function ProjectMatchmakingPage() {
         title: "Application Submitted!",
         description: "Your interest in this project has been noted. The project owner will be informed.",
       });
-      if (user.id === project.clientId || user.role === 'admin') { // Re-fetch if client/admin is somehow applying (though UI prevents this)
+      // Re-fetch applications if the current user is admin/client to see the new app (unlikely scenario for dev role)
+      if (user.id === project.clientId || user.role === 'admin') { 
         manageApplications();
       }
     } catch (error) {
@@ -259,12 +263,23 @@ export default function ProjectMatchmakingPage() {
       if (newStatus === 'accepted') {
         await assignDeveloperToProject(project.id, application.id, application.developerId, application.developerName, application.developerEmail, user.id, user.name || "Admin/Client");
         await rejectOtherPendingApplications(project.id, application.id, user.id, user.name || "Admin/Client");
+        
+        // Send email to accepted developer
+        const emailHtml = await getApplicationAcceptedEmailToDeveloper(application.developerName, project.name, project.id);
+        await sendEmail(application.developerEmail, `Congratulations! Application Accepted for "${project.name}"`, emailHtml);
+        // The developerNotifiedOfStatus will be updated within assignDeveloperToProject now
+
+      } else if (newStatus === 'rejected') {
+        // Send email to rejected developer
+        const emailHtml = await getApplicationRejectedEmailToDeveloper(application.developerName, project.name, project.id);
+        await sendEmail(application.developerEmail, `Update on Your Application for "${project.name}"`, emailHtml);
+        // The developerNotifiedOfStatus will be updated within updateProjectApplicationStatus now
       }
-      // Note: Email for rejected applications is now handled within updateProjectApplicationStatus if the status is 'rejected'
 
       const updatedProject = await getProjectById(project.id);
       if (updatedProject) setProject(updatedProject);
 
+      // Re-fetch applications to update their statuses in the list
       const apps = await getApplicationsByProjectId(project.id);
       setProjectApplications(apps);
 
